@@ -119,6 +119,7 @@ public:
 	/** Give access to private fields of iterator to Buffer. */
 	friend class Buffer;
 	public:
+		explicit iterator(Buffer &buffer);
 		iterator(Buffer &buffer, Block *block, char *offset, bool is_head);
 		iterator(const iterator &other);
 		~iterator() { rlist_del_entry(this, in_iters); }
@@ -344,6 +345,13 @@ Buffer<N, allocator>::Blocks::~Blocks()
 		m_parent.delBlock(b);
 		--m_parent.m_blockId;
 	}
+}
+
+template <size_t N, class allocator>
+Buffer<N, allocator>::iterator::iterator(Buffer& buffer)
+	: m_buffer(buffer), m_block(nullptr), m_position(nullptr)
+{
+	rlist_create(&in_iters);
 }
 
 template <size_t N, class allocator>
