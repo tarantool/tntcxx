@@ -1,32 +1,8 @@
 #include <sys/uio.h> /* struct iovec */
 #include <iostream>
 
+#include "Helpers.hpp"
 #include "../src/Buffer/Buffer.hpp"
-
-template<size_t N>
-struct Announcer
-{
-	Announcer(const char *testName) : m_testName(testName) {
-		std::cout <<	 "*** TEST " << m_testName << "<" << N << ">" <<
-		" started... ***" << std::endl;
-	}
-	~Announcer() {
-		std::cout << "*** TEST " << m_testName << "<" << N << ">" <<
-		": done" << std::endl;
-	}
-	const char *m_testName;
-};
-
-#define TEST_INIT() Announcer<N> _Ann(__func__)
-
-#define fail(expr, result) do {						      \
-	std::cerr << "Test failed: " << expr << " is " << result << " at " << \
-	__FILE__ << ":" << __LINE__ << " in test " << __func__ << std::endl;  \
-	exit(-1);							      \
-} while (0)
-
-#define fail_if(expr) if (expr) fail(#expr, "true")
-#define fail_unless(expr) if (!(expr)) fail(#expr, "false")
 
 constexpr static size_t SMALL_BLOCK_SZ = 32;
 constexpr static size_t LARGE_BLOCK_SZ = 104;
@@ -114,7 +90,7 @@ template<size_t N>
 void
 buffer_basic()
 {
-	TEST_INIT();
+	TEST_INIT(1, N);
 	tnt::Buffer<N> buf;
 	fail_unless(buf.empty());
 	buf.addBack(int_sample);
@@ -174,7 +150,7 @@ template<size_t N>
 void
 buffer_iterator()
 {
-	TEST_INIT();
+	TEST_INIT(1, N);
 	tnt::Buffer<N> buf;
 	fillBuffer(buf, SAMPLES_CNT);
 	buf.addBack(end_marker);
@@ -215,7 +191,7 @@ template <size_t N>
 void
 buffer_insert()
 {
-	TEST_INIT();
+	TEST_INIT(1, N);
 	tnt::Buffer<N> buf;
 	fillBuffer(buf, SAMPLES_CNT);
 	fail_if(buf.debugSelfCheck());
@@ -287,7 +263,7 @@ template <size_t N>
 void
 buffer_release()
 {
-	TEST_INIT();
+	TEST_INIT(1, N);
 	tnt::Buffer<N> buf;
 	fillBuffer(buf, SAMPLES_CNT);
 	buf.addBack(end_marker);
@@ -362,7 +338,7 @@ template<size_t N>
 void
 buffer_out()
 {
-	TEST_INIT();
+	TEST_INIT(1, N);
 	tnt::Buffer<N> buf;
 	buf.addBack(0xce); // uin32 tag
 	auto save = buf.end();

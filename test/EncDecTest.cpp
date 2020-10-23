@@ -31,30 +31,7 @@
 #include "../src/Buffer/Buffer.hpp"
 #include "../src/mpp/mpp.hpp"
 
-struct Announcer
-{
-	Announcer(const char *testName) : m_testName(testName) {
-		std::cout << "*** TEST " << m_testName <<
-		" started... ***" << std::endl;
-	}
-	~Announcer() {
-		std::cout << "*** TEST " << m_testName <<
-		": done" << std::endl;
-	}
-	const char *m_testName;
-};
-
-#define TEST_INIT() Announcer _Ann(__func__)
-
-#define fail(expr, result) do {							\
-	std::cerr << "Test failed: " << expr << " is " << result << " at " <<	\
-	__FILE__ << ":" << __LINE__ << " in test " << __func__ << std::endl;	\
-        assert(false);								\
-	exit(-1);								\
-} while (0)
-
-#define fail_if(expr) if (expr) fail(#expr, "true")
-#define fail_unless(expr) if (!(expr)) fail(#expr, "false")
+#include "Helpers.hpp"
 
 template <bool expect_c_string, class T>
 void
@@ -67,7 +44,7 @@ test_static_assert_strings(const T&)
 void
 test_static_assert()
 {
-	TEST_INIT();
+	TEST_INIT(0);
 	std::string str;
 	std::string_view strv;
 	char arr[20] = "aaa";
@@ -86,7 +63,7 @@ test_static_assert()
 void
 test_type_visual()
 {
-	TEST_INIT();
+	TEST_INIT(0);
 	using namespace mpp;
 	std::cout << compact::MP_ARR << " "
 		  << compact::MP_MAP << " "
@@ -228,7 +205,7 @@ enum {
 void
 test_basic()
 {
-	TEST_INIT();
+	TEST_INIT(0);
 	using Buf_t = tnt::Buffer<16 * 1024>;
 	Buf_t buf;
 	mpp::Enc<Buf_t> enc(buf);

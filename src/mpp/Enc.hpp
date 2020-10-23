@@ -53,6 +53,7 @@ class Enc
 	using iterator_t = typename BUFFER::iterator;
 
 public:
+	using iterator = iterator_t;
 	struct range
 	{
 		iterator_t first, second;
@@ -65,6 +66,9 @@ public:
 	};
 
 	explicit Enc(Buffer_t& buf) : m_Buf(buf) {}
+
+
+	BUFFER& getBuf() { return m_Buf; }
 
 	template <class... T>
 	void add(const T&... t)

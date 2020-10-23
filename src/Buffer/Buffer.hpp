@@ -133,6 +133,8 @@ public:
 		bool operator != (const iterator &a) const;
 		bool operator  < (const iterator &a) const;
 		size_t operator - (const iterator &a) const;
+		Block * getBlock() {return m_block;}
+		char * getPos() {return m_position;}
 
 		/** Remove from linked list of iterators. */
 		void unlink() { rlist_del_entry(this, in_iters); }
@@ -174,7 +176,6 @@ public:
 	 */
 	iterator begin();
 	iterator end();
-
 	/**
 	 * Copy content of @a buf (or object @a t) to the buffer's tail
 	 * (append data). @a size must be less than reserved (i.e. available)
@@ -249,6 +250,11 @@ public:
 	/** Return 0 if everythng is correct. */
 	int debugSelfCheck();
 
+#ifndef NDEBUG
+	/** Print content of buffer to @a output in human-readable format. */
+	template<size_t size, class alloc>
+	friend std::string dump(Buffer<size, alloc> &buffer);
+#endif
 private:
 	Block *firstBlock();
 	Block *lastBlock();
@@ -444,11 +450,12 @@ template <size_t N, class allocator>
 size_t
 Buffer<N, allocator>::iterator::operator-(const iterator& a) const
 {
-	size_t res = (m_block->id - a.m_block->id) * Block::DATA_SIZE;
-	res += a.m_position - a.m_block->begin();
-	res -= m_position - m_block->begin();
+	size_t res = (a.m_block->id - m_block->id) * Block::DATA_SIZE;
+	res -= a.m_position - a.m_block->begin();
+	res += m_position - m_block->begin();
 	return res;
 }
+
 
 template <size_t N, class allocator>
 void
@@ -474,7 +481,7 @@ Buffer<N, allocator>::iterator::moveForward(size_t step)
 	{
 		step -= m_block->end() - m_position;
 		m_block = m_block->next();
-		m_position = m_block->begin();;
+		m_position = m_block->begin();
 	}
 	m_position += step;
 }
@@ -1005,7 +1012,9 @@ Buffer<N, allocator>::flush()
 {
 	iterator first = rlist_empty(&m_iterators) ? end() :
 			 *rlist_first_entry(&m_iterators, iterator, in_iters);
-	dropFront(first - begin());
+	size_t distance = first - begin();
+	if (distance > 0)
+		dropFront(first - begin());
 }
 
 template <size_t N, class allocator>
@@ -1035,5 +1044,31 @@ Buffer<N, allocator>::debugSelfCheck()
 	}
 	return res;
 }
+
+#ifndef NDEBUG
+template <size_t N, class allocator>
+std::string
+dump(Buffer<N, allocator> &buffer)
+{
+	size_t vec_len = 0;
+	size_t IOVEC_MAX = 1024;
+	size_t block_cnt = 0;
+	struct iovec vec[IOVEC_MAX];
+	std::string output;
+	for (auto itr = buffer.begin(); itr != buffer.end(); itr += vec_len) {
+		size_t vec_cnt = buffer.getIOV(itr, (struct iovec*)&vec, IOVEC_MAX);
+		for (size_t i = 0; i < vec_cnt; ++i) {
+			output.append("|sz=" + std::to_string(vec[i].iov_len) + "|");
+			output.append((const char *) vec[i].iov_base,
+				      vec[i].iov_len);
+			output.append("|");
+			vec_len += vec[i].iov_len;
+		}
+		block_cnt += vec_cnt;
+	}
+	output.insert(0, "bcnt=" + std::to_string(block_cnt));
+	return output;
+}
+#endif
 
 } // namespace tnt {

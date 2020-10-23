@@ -168,6 +168,7 @@ public:
 	template <class T>
 	void SetReader(bool second, T&& t);
 	void Skip(BufferIterator_t *saveEnd = nullptr);
+	void SetPosition(const BufferIterator_t &itr);
 
 	inline ReadResult_t Read();
 
@@ -943,6 +944,13 @@ void Dec<BUFFER>::Skip(BufferIterator_t *saveEnd)
 	FillSkipState(m_CurLevel->state[0], saveEnd);
 	FillSkipState(m_CurLevel->state[1], saveEnd);
 }
+
+template <class BUFFER>
+void Dec<BUFFER>::SetPosition(const BufferIterator_t &itr)
+{
+	m_Cur = itr;
+}
+
 
 template <class BUFFER>
 ReadResult_t

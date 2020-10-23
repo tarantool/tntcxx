@@ -30,6 +30,8 @@
  * SUCH DAMAGE.
  */
 
+#include "../Utils/CStr.hpp"
+
 namespace mpp {
 
 using std::integral_constant;

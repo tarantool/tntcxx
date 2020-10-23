@@ -30,34 +30,8 @@
  */
 
 #include "../src/Utils/Mempool.hpp"
+#include "Helpers.hpp"
 #include <iostream>
-
-template<size_t S, size_t M>
-struct Announcer
-{
-	Announcer(const char *testName) : m_testName(testName) {
-		std::cout << "*** TEST " << m_testName
-			  << "<" << S << ", " << M << ">"
-			  << " started... ***" << std::endl;
-	}
-	~Announcer() {
-		std::cout << "*** TEST " << m_testName
-			  << "<" << S << ", " << M << ">"
-			  << ": done" << std::endl;
-	}
-	const char *m_testName;
-};
-
-#define TEST_INIT(S, M) Announcer<S, M> _Ann(__func__)
-
-#define fail(expr, result) do {						      \
-	std::cerr << "Test failed: " << expr << " is " << result << " at " << \
-	__FILE__ << ":" << __LINE__ << " in test " << __func__ << std::endl;  \
-	abort();							      \
-} while (0)
-
-#define fail_if(expr) if (expr) fail(#expr, "true")
-#define fail_unless(expr) if (!(expr)) fail(#expr, "false")
 
 template <size_t S>
 struct Allocation {
@@ -108,7 +82,7 @@ template<size_t S>
 void
 test_default()
 {
-	TEST_INIT(S, 0);
+	TEST_INIT(2, S, 0);
 	std::cout << "Block for size " << S << " is "
 		  << tnt::MempoolInstance<S>::BLOCK_SIZE << std::endl;
 	std::cout << "Slab for size " << S << " is "
@@ -137,7 +111,7 @@ template<size_t S, size_t M>
 void
 test_instance()
 {
-	TEST_INIT(S, M);
+	TEST_INIT(2, S, M);
 	using mp_t = tnt::MempoolInstance<S, M, true>;
 	constexpr size_t EXPECT_BLOCKS_IN_SLAB =
 		mp_t::SLAB_SIZE / mp_t::BLOCK_SIZE - 1;
@@ -191,7 +165,7 @@ template<size_t S, size_t M>
 void
 test_holder()
 {
-	TEST_INIT(S, M);
+	TEST_INIT(2, S, M);
 
 	using mp_t = tnt::MempoolInstance<S, M, true>;
 	using mph_t = tnt::MempoolHolder<S, M, true>;
@@ -234,7 +208,7 @@ template<size_t S, size_t M>
 void
 test_static()
 {
-	TEST_INIT(S, M);
+	TEST_INIT(2, S, M);
 
 	using mp_t = tnt::MempoolInstance<S, M, true>;
 	using mph_t = tnt::MempoolStatic<S, M, true>;

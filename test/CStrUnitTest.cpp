@@ -30,32 +30,9 @@
  */
 
 #include "../src/Utils/CStr.hpp"
+#include "Helpers.hpp"
 #include <cstring>
 #include <iostream>
-
-struct Announcer
-{
-	Announcer(const char *testName) : m_testName(testName) {
-		std::cout << "*** TEST " << m_testName
-			  << " started... ***" << std::endl;
-	}
-	~Announcer() {
-		std::cout << "*** TEST " << m_testName
-			  << ": done" << std::endl;
-	}
-	const char *m_testName;
-};
-
-#define TEST_INIT() Announcer _Ann(__func__)
-
-#define fail(expr, result) do {						      \
-	std::cerr << "Test failed: " << expr << " is " << result << " at " << \
-	__FILE__ << ":" << __LINE__ << " in test " << __func__ << std::endl;  \
-	abort();							      \
-} while (0)
-
-#define fail_if(expr) if (expr) fail(#expr, "true")
-#define fail_unless(expr) if (!(expr)) fail(#expr, "false")
 
 template <class T>
 void
@@ -82,7 +59,7 @@ check_str(T t, const char *s)
 void
 test_macro_str()
 {
-	TEST_INIT();
+	TEST_INIT(0);
 	CHECK_MACRO_STR("");
 	CHECK_MACRO_STR("0");
 	CHECK_MACRO_STR("01234567");
@@ -111,7 +88,7 @@ test_macro_str()
 void
 test_liter_str()
 {
-	TEST_INIT();
+	TEST_INIT(0);
 	using namespace tnt::literal;
 	CHECK_LITER_STR("");
 	CHECK_LITER_STR("0");
