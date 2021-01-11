@@ -117,7 +117,6 @@ Connector<BUFFER, NetProvider>::wait(Connection<BUFFER, NetProvider> &conn,
 	Timer timer{timeout};
 	timer.start();
 	while (hasDataToDecode(conn)) {
-		//LOG_DEBUG("Decoding data from the previous wait call");
 		if (conn.status.is_failed) {
 			LOG_ERROR("Connection has failed. Please, handle error"
 				  "and reset connection status.");

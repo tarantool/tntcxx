@@ -30,9 +30,9 @@
  * SUCH DAMAGE.
  */
 #include <cstdint>
-#include <map>
 #include <optional>
 #include <tuple>
+#include <vector>
 
 #include "IprotoConstants.hpp"
 #include "../mpp/mpp.hpp"
@@ -68,15 +68,14 @@ template<class BUFFER>
 struct Tuple {
 	std::optional<iterator_t<BUFFER>> begin;
 	std::optional<iterator_t<BUFFER>> end;
-//	iterator_t<BUFFER> *begin;
-//	iterator_t<BUFFER> *end;
 	size_t field_count;
 };
 
 template<class BUFFER>
 struct Data {
 	//TODO: in general case, select may return many tuples.
-	Tuple<BUFFER> tuple;
+	std::vector<Tuple<BUFFER>> tuples;
+	//Tuple<BUFFER> tuple;
 };
 
 template<class BUFFER>
@@ -141,17 +140,20 @@ struct HeaderReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_MAP> {
 template <class BUFFER>
 struct TupleReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_ARR> {
 
-	TupleReader(mpp::Dec<BUFFER>& d, Tuple<BUFFER>& t) : dec(d), tuple(t) {}
+	TupleReader(mpp::Dec<BUFFER>& d, std::vector<Tuple<BUFFER>>& t) :
+		dec(d), tuples(t) {}
 
 	void Value(const iterator_t<BUFFER>& arg, mpp::compact::Type, mpp::ArrValue u)
 	{
-		tuple.field_count = u.size;
-		tuple.begin = arg;
-		tuple.end = tuple.begin;
-		dec.Skip(&(*tuple.end));
+		Tuple<BUFFER> t;
+		t.field_count = u.size;
+		t.begin = arg;
+		t.end = t.begin;
+		dec.Skip(&(*t.end));
+		tuples.push_back(t);
 	}
 	mpp::Dec<BUFFER>& dec;
-	Tuple<BUFFER>& tuple;
+	std::vector<Tuple<BUFFER>>& tuples;
 };
 
 template <class BUFFER>
@@ -163,7 +165,7 @@ struct DataReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_ARR> {
 	{
 		//TODO: parse u.size tuples
 		(void) u;
-		dec.SetReader(false, TupleReader<BUFFER>{dec, data.tuple});
+		dec.SetReader(false, TupleReader<BUFFER>{dec, data.tuples});
 	}
 	mpp::Dec<BUFFER>& dec;
 	Data<BUFFER>& data;

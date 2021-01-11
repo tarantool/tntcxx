@@ -80,6 +80,7 @@ private:
 	BUFFER &m_Buf;
 	mpp::Enc<BUFFER> m_Enc;
 	inline static ssize_t sync = -1;
+	static constexpr size_t PREHEADER_SIZE = 5;
 };
 
 template<class BUFFER>
@@ -98,16 +99,12 @@ RequestEncoder<BUFFER>::encodePing()
 {
 	iterator_t<BUFFER> request_start = m_Buf.end();
 	m_Buf.addBack('\xce');
-	iterator_t<BUFFER> request_sz_itr = m_Buf.end();
 	m_Buf.addBack(uint32_t{0});
-	iterator_t<BUFFER> request_header = m_Buf.end();
 	encodeHeader(Iproto::PING);
 	m_Enc.add(mpp::as_map(std::make_tuple()));
-	uint32_t request_size = m_Buf.end() - request_header;
-	LOG_DEBUG("request size %d", request_size);
-	m_Buf.set(request_sz_itr, __builtin_bswap32(request_size));
-	LOG_DEBUG("package size %d", m_Buf.end() - request_start);
-	return m_Buf.end() - request_start;
+	uint32_t request_size = (m_Buf.end() - request_start) - PREHEADER_SIZE;
+	m_Buf.set(request_start + 1, __builtin_bswap32(request_size));
+	return request_size + PREHEADER_SIZE;
 }
 
 template<class BUFFER>
@@ -117,18 +114,14 @@ RequestEncoder<BUFFER>::encodeReplace(const T &tuple, uint32_t space_id)
 {
 	iterator_t<BUFFER> request_start = m_Buf.end();
 	m_Buf.addBack('\xce');
-	iterator_t<BUFFER> request_sz_itr = m_Buf.end();
 	m_Buf.addBack(uint32_t{0});
-	iterator_t<BUFFER> request_header = m_Buf.end();
 	encodeHeader(Iproto::REPLACE);
 	m_Enc.add(mpp::as_map(std::forward_as_tuple(
 		MPP_AS_CONST(Iproto::SPACE_ID), space_id,
 		MPP_AS_CONST(Iproto::TUPLE), tuple)));
-	uint32_t request_size = m_Buf.end() - request_header;
-	LOG_DEBUG("request size %d", request_size);
-	m_Buf.set(request_sz_itr, __builtin_bswap32(request_size));
-	LOG_DEBUG("package size %d", m_Buf.end() - request_start);
-	return m_Buf.end() - request_start;
+	uint32_t request_size = (m_Buf.end() - request_start) - PREHEADER_SIZE;
+	m_Buf.set(request_start + 1, __builtin_bswap32(request_size));
+	return request_size + PREHEADER_SIZE;
 }
 
 template<class BUFFER>
@@ -141,9 +134,7 @@ RequestEncoder<BUFFER>::encodeSelect(const T &key,
 {
 	iterator_t<BUFFER> request_start = m_Buf.end();
 	m_Buf.addBack('\xce');
-	iterator_t<BUFFER> request_sz_itr = m_Buf.end();
 	m_Buf.addBack(uint32_t{0});
-	iterator_t<BUFFER> request_header = m_Buf.end();
 	encodeHeader(Iproto::SELECT);
 	m_Enc.add(mpp::as_map(std::forward_as_tuple(
 		MPP_AS_CONST(Iproto::SPACE_ID), space_id,
@@ -152,7 +143,7 @@ RequestEncoder<BUFFER>::encodeSelect(const T &key,
 		MPP_AS_CONST(Iproto::OFFSET), offset,
 		MPP_AS_CONST(Iproto::ITERATOR), iterator,
 		MPP_AS_CONST(Iproto::KEY), key)));
-	uint32_t request_size = m_Buf.end() - request_header;
-	m_Buf.set(request_sz_itr, __builtin_bswap32(request_size));
-	return m_Buf.end() - request_start;
+	uint32_t request_size = (m_Buf.end() - request_start) - PREHEADER_SIZE;
+	m_Buf.set(request_start + 1, __builtin_bswap32(request_size));
+	return request_size + PREHEADER_SIZE;
 }

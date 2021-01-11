@@ -261,47 +261,39 @@ DefaultNetProvider<BUFFER>::wait(Connector<BUFFER, DefaultNetProvider> &connecto
 	assert(timeout >= 0);
 	if (timeout == 0)
 		timeout = DEFAULT_TIMEOUT;
-	Timer timer{timeout};
-	int poll_timeout = timeout/2;
-	timer.start();
-	LOG_DEBUG("Network engine wait for %d milliseconds", poll_timeout);
-	do {
-		/* Firstly poll connections to point out if there's data to read. */
-		static struct ConnectionEvent events[EVENT_POLL_COUNT_MAX];
-		size_t event_cnt = 0;
-		//LOG_DEBUG("Poll for %d milliseconds", poll_timeout);
-		if (m_NetworkEngine.poll((ConnectionEvent *)&events, &event_cnt,
-					 poll_timeout) != 0) {
-			LOG_ERROR("Poll failed: %s", strerror(errno));
-			return -1;
+	LOG_DEBUG("Network engine wait for %d milliseconds", timeout);
+	/* Send pending requests. */
+	if (!rlist_empty(&m_ready_to_write)) {
+		Connection<BUFFER, DefaultNetProvider> *conn, *tmp;
+		rlist_foreach_entry_safe(conn, &m_ready_to_write, m_in_write, tmp) {
+			send(*conn);
 		}
-		for (size_t i = 0; i < event_cnt; ++i) {
-			Connection<BUFFER, DefaultNetProvider> *conn =
-				m_Connections[events[i].sock];
-			if ((events[i].event & EPOLLIN) != 0) {
-				LOG_DEBUG("Registered poll event: %d socket is ready to read",
-					  conn->socket);
-				if (recv(*conn) == 0)
-					connector.readyToDecode(*conn);
-			}
-			if ((events[i].event & EPOLLOUT) != 0) {
-				/* We are watching only for blocked sockets. */
-				LOG_DEBUG("Registered poll event: %d socket is ready to write",
-					  conn->socket);
-				assert(conn->status.is_send_blocked);
-				send(*conn);
-			}
+	}
+	/* Firstly poll connections to point out if there's data to read. */
+	static struct ConnectionEvent events[EVENT_POLL_COUNT_MAX];
+	size_t event_cnt = 0;
+	if (m_NetworkEngine.poll((ConnectionEvent *)&events, &event_cnt,
+				 timeout) != 0) {
+		LOG_ERROR("Poll failed: %s", strerror(errno));
+		return -1;
+	}
+	for (size_t i = 0; i < event_cnt; ++i) {
+		Connection<BUFFER, DefaultNetProvider> *conn =
+			m_Connections[events[i].sock];
+		if ((events[i].event & EPOLLIN) != 0) {
+			LOG_DEBUG("Registered poll event: %d socket is ready to read",
+				  conn->socket);
+			if (recv(*conn) == 0)
+				connector.readyToDecode(*conn);
 		}
-		/* Then send pending requests. */
-		if (!rlist_empty(&m_ready_to_write)) {
-			Connection<BUFFER, DefaultNetProvider> *conn, *tmp;
-			rlist_foreach_entry_safe(conn, &m_ready_to_write,
-						 m_in_write, tmp) {
-				send(*conn);
-			}
+		if ((events[i].event & EPOLLOUT) != 0) {
+			/* We are watching only for blocked sockets. */
+			LOG_DEBUG("Registered poll event: %d socket is ready to write",
+				  conn->socket);
+			assert(conn->status.is_send_blocked);
+			send(*conn);
 		}
-		poll_timeout = std::max((timeout - timer.elapsed())/2, 0);
-	} while (! timer.isExpired());
+	}
 	return 0;
 }
 

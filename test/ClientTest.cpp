@@ -28,138 +28,16 @@
  * THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
-#include <unistd.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <wait.h>
-#include <sys/prctl.h>
-
-#include <iostream>
-
-#include "Helpers.hpp"
+#include "Utils/Helpers.hpp"
+#include "Utils/TupleReader.hpp"
+#include "Utils/System.hpp"
 
 #include "../src/Client/Connector.hpp"
-#include "../src/Buffer/Buffer.hpp"
-#include "../src/mpp/Dec.hpp"
 
 const char *localhost = "127.0.0.1";
-//FIXME: in case of pre-installed tarantool path is not required.
-const char *tarantool_path = "/home/nikita/tarantool/src/tarantool";
-
 int WAIT_TIMEOUT = 1000; //milliseconds
 
-int
-launchTarantool()
-{
-	pid_t ppid_before_fork = getpid();
-	pid_t pid = fork();
-	if (pid == -1) {
-		fprintf(stderr, "Can't launch Tarantool: fork failed! %s",
-			strerror(errno));
-		return -1;
-	}
-	if (pid == 0) {
-		//int status;
-		//waitpid(pid, &status, 0);
-		return 0;
-	}
-	/* Kill child (i.e. Tarantool process) when the test is finished. */
-	if (prctl(PR_SET_PDEATHSIG, SIGTERM) == -1) {
-		fprintf(stderr, "Can't launch Tarantool: %s", strerror(errno));
-		exit(EXIT_FAILURE);
-	}
-	if (getppid() != ppid_before_fork) {
-		fprintf(stderr, "Can't launch Tarantool: parent process exited "\
-				"just before prctl call");
-		exit(EXIT_FAILURE);
-	}
-	const char * argv[] = {"cfg.lua"};
-	if (execv(tarantool_path, (char * const *)argv) == -1) {
-		fprintf(stderr, "Can't launch Tarantool: exec failed! %s",
-			strerror(errno));
-	}
-	exit(EXIT_FAILURE);
-}
-
-/** Corresponds to data stored in _space[512]. */
-struct UserTuple {
-	uint64_t field1;
-	std::string field2;
-	double field3;
-};
-
-std::ostream&
-operator<<(std::ostream& strm, UserTuple &t)
-{
-	return strm << "Tuple: field1=" << t.field1 << " field2=" << t.field2 <<
-		       " field3=" << t.field3;
-}
-
-using Buf_t = tnt::Buffer<16 * 1024>;
-using BufIter_t = typename Buf_t::iterator;
 using Net_t = DefaultNetProvider<Buf_t >;
-
-struct UserTupleValueReader : mpp::DefaultErrorHandler {
-	explicit UserTupleValueReader(UserTuple& t) : tuple(t) {}
-	static constexpr mpp::Type VALID_TYPES = mpp::MP_UINT | mpp::MP_STR | mpp::MP_DBL;
-	template <class T>
-	void Value(const BufIter_t&, mpp::compact::Type, T v)
-	{
-		using A = UserTuple;
-		static constexpr std::tuple map(&A::field1, &A::field3);
-		auto ptr = std::get<std::decay_t<T> A::*>(map);
-		tuple.*ptr = v;
-	}
-	void Value(const BufIter_t& itr, mpp::compact::Type, mpp::StrValue v)
-	{
-		BufIter_t tmp = itr;
-		tmp += v.offset;
-		std::string &dst = tuple.field2;
-		while (v.size) {
-			dst.push_back(*tmp);
-			++tmp;
-			--v.size;
-		}
-	}
-	void WrongType(mpp::Type expected, mpp::Type got)
-	{
-		std::cout << "expected type is " << expected <<
-			     " but got " << got << std::endl;
-	}
-
-	BufIter_t* StoreEndIterator() { return nullptr; }
-	UserTuple& tuple;
-};
-
-template <class BUFFER>
-struct UserTupleReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_ARR> {
-
-	UserTupleReader(mpp::Dec<BUFFER>& d, UserTuple& t) : dec(d), tuple(t) {}
-
-	void Value(const iterator_t<BUFFER>&, mpp::compact::Type, mpp::ArrValue u)
-	{
-		assert(u.size == 3);
-		dec.SetReader(false, UserTupleValueReader{tuple});
-	}
-	mpp::Dec<BUFFER>& dec;
-	UserTuple& tuple;
-};
-
-template <class BUFFER>
-UserTuple
-decodeUserTuple(BUFFER &buf, Data<BUFFER> &data)
-{
-	Tuple<BUFFER> t = data.tuple;
-	assert(t.begin != std::nullopt);
-	assert(t.end != std::nullopt);
-	UserTuple tuple;
-	mpp::Dec dec(buf);
-	dec.SetPosition(*t.begin);
-	dec.SetReader(false, UserTupleReader<BUFFER>{dec, tuple});
-	mpp::ReadResult_t res = dec.Read();
-	assert(res == mpp::READ_SUCCESS);
-	return tuple;
-}
 
 template <class BUFFER>
 void
@@ -175,12 +53,15 @@ printResponse(Connection<BUFFER, Net_t> &conn, Response<BUFFER> &response)
 	}
 	if (response.body.data != std::nullopt) {
 		Data<BUFFER> data = *response.body.data;
-		if (data.tuple.begin == std::nullopt) {
+		if (data.tuples.empty()) {
 			std::cout << "Empty result" << std::endl;
 			return;
 		}
-		UserTuple tuple = decodeUserTuple(conn.getInBuf(), data);
-		std::cout << tuple << std::endl;
+		std::vector<UserTuple> tuples =
+			decodeUserTuple(conn.getInBuf(), data);
+		for (auto const& t : tuples) {
+			std::cout << t << std::endl;
+		}
 	}
 }
 
@@ -275,6 +156,46 @@ many_conn_ping(Connector<BUFFER> &client)
 	client.close(conn3);
 }
 
+/** Single connection, errors in response. */
+template <class BUFFER>
+void
+single_conn_error(Connector<BUFFER> &client)
+{
+	TEST_INIT(0);
+	Connection<Buf_t, Net_t> conn(client);
+	int rc = client.connect(conn, localhost, 3301);
+	fail_unless(rc == 0);
+	/* Fake space id. */
+	uint32_t space_id = -111;
+	std::tuple data = std::make_tuple(666);
+	rid_t f1 = conn.space[space_id].replace(data);
+	client.wait(conn, f1, WAIT_TIMEOUT);
+	std::optional<Response<Buf_t>> response = conn.getResponse(f1);
+	fail_unless(response != std::nullopt);
+	fail_unless(response->body.error_stack != std::nullopt);
+	printResponse<BUFFER>(conn, *response);
+	/* Wrong tuple format: missing fields. */
+	space_id = 512;
+	data = std::make_tuple(666);
+	f1 = conn.space[space_id].replace(data);
+	client.wait(conn, f1, WAIT_TIMEOUT);
+	response = conn.getResponse(f1);
+	fail_unless(response != std::nullopt);
+	fail_unless(response->body.error_stack != std::nullopt);
+	printResponse<BUFFER>(conn, *response);
+	/* Wrong tuple format: type mismatch. */
+	space_id = 512;
+	std::tuple another_data = std::make_tuple(666, "asd", "asd");
+	f1 = conn.space[space_id].replace(another_data);
+	client.wait(conn, f1, WAIT_TIMEOUT);
+	response = conn.getResponse(f1);
+	fail_unless(response != std::nullopt);
+	fail_unless(response->body.error_stack != std::nullopt);
+	printResponse<BUFFER>(conn, *response);
+
+	client.close(conn);
+}
+
 /** Single connection, separate replaces */
 template <class BUFFER>
 void
@@ -327,6 +248,7 @@ single_conn_select(Connector<BUFFER> &client)
 	rid_t f1 = s.select(std::make_tuple(666));
 	rid_t f2 = s.index[index_id].select(std::make_tuple(777));
 	rid_t f3 = s.select(std::make_tuple(-1), index_id, limit, offset, iter);
+	rid_t f4 = s.select(std::make_tuple(), index_id, limit + 3, offset, IteratorType::ALL);
 
 	client.wait(conn, f1, WAIT_TIMEOUT);
 	fail_unless(conn.futureIsReady(f1));
@@ -352,17 +274,29 @@ single_conn_select(Connector<BUFFER> &client)
 	fail_unless(response->body.error_stack == std::nullopt);
 	printResponse<BUFFER>(conn, *response);
 
+	client.wait(conn, f4, WAIT_TIMEOUT);
+	fail_unless(conn.futureIsReady(f4));
+	response = conn.getResponse(f4);
+	fail_unless(response != std::nullopt);
+	fail_unless(response->body.data != std::nullopt);
+	fail_unless(response->body.error_stack == std::nullopt);
+	printResponse<BUFFER>(conn, *response);
+
 	client.close(conn);
 }
 
 int main()
 {
-//	if (launchTarantool() != 0)
-//		return 1;
+	if (cleanDir() != 0)
+		return -1;
+	if (launchTarantool() != 0)
+		return -1;
+	sleep(1);
 	Connector<Buf_t> client;
 	trivial(client);
 	single_conn_ping<Buf_t>(client);
 	many_conn_ping<Buf_t>(client);
+	single_conn_error<Buf_t>(client);
 	single_conn_replace<Buf_t>(client);
 	single_conn_select(client);
 	return 0;
