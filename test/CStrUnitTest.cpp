@@ -79,8 +79,6 @@ test_macro_str()
 	check_str(c, "bdf");
 	auto d = a.join(b).join(c);
 	check_str(d, "abcdefacebdf");
-
-	fail_unless(&d == nullptr);
 }
 #endif // #ifndef TNT_DISABLE_STR_MACRO
 
@@ -111,8 +109,6 @@ test_liter_str()
 	check_str(c, "bdf");
 	auto d = a.join(b).join(c);
 	check_str(d, "abcdefacebdf");
-
-	fail_unless(&d == nullptr);
 }
 #endif
 
