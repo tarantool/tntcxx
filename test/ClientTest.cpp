@@ -285,6 +285,59 @@ single_conn_select(Connector<BUFFER> &client)
 	client.close(conn);
 }
 
+/** Single connection, call procedure with arguments */
+template <class BUFFER>
+void
+single_conn_call(Connector<BUFFER> &client)
+{
+	TEST_INIT(0);
+	const static char *func_name = "remote_procedure";
+	Connection<Buf_t, Net_t> conn(client);
+	int rc = client.connect(conn, localhost, 3301);
+	fail_unless(rc == 0);
+
+	rid_t f1 = conn.call(func_name, std::make_tuple(5, "value_from_test", 5.55));
+	rid_t f2 = conn.call(func_name, std::make_tuple(6, "value_from_test2", 3.33));
+
+	client.wait(conn, f1, WAIT_TIMEOUT);
+	fail_unless(conn.futureIsReady(f1));
+	std::optional<Response<Buf_t>> response = conn.getResponse(f1);
+	fail_unless(response != std::nullopt);
+	fail_unless(response->body.data != std::nullopt);
+	fail_unless(response->body.error_stack == std::nullopt);
+	printResponse<BUFFER>(conn, *response);
+
+	client.wait(conn, f2, WAIT_TIMEOUT);
+	fail_unless(conn.futureIsReady(f2));
+	response = conn.getResponse(f2);
+	fail_unless(response != std::nullopt);
+	fail_unless(response->body.data != std::nullopt);
+	fail_unless(response->body.error_stack == std::nullopt);
+	printResponse<BUFFER>(conn, *response);
+
+	/*
+	 * Also test that errors during call are handled properly:
+	 * call non-existent function and pass wrong number of arguments.
+	 */
+	rid_t f3 = conn.call("wrong_name", std::make_tuple(7, "aaa", 0.0));
+	client.wait(conn, f3, WAIT_TIMEOUT);
+	fail_unless(conn.futureIsReady(f3));
+	response = conn.getResponse(f3);
+	fail_unless(response != std::nullopt);
+	fail_unless(response->body.error_stack != std::nullopt);
+	printResponse<BUFFER>(conn, *response);
+
+	rid_t f4 = conn.call(func_name, std::make_tuple(7));
+	client.wait(conn, f4, WAIT_TIMEOUT);
+	fail_unless(conn.futureIsReady(f4));
+	response = conn.getResponse(f4);
+	fail_unless(response != std::nullopt);
+	fail_unless(response->body.error_stack != std::nullopt);
+	printResponse<BUFFER>(conn, *response);
+
+	client.close(conn);
+}
+
 int main()
 {
 	if (cleanDir() != 0)
@@ -298,6 +351,8 @@ int main()
 	many_conn_ping<Buf_t>(client);
 	single_conn_error<Buf_t>(client);
 	single_conn_replace<Buf_t>(client);
-	single_conn_select(client);
+	single_conn_select<Buf_t>(client);
+	single_conn_call<Buf_t>(client);
+
 	return 0;
 }

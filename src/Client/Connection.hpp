@@ -138,6 +138,8 @@ public:
 	std::optional<Response<BUFFER>> getResponse(rid_t future);
 	bool futureIsReady(rid_t future);
 
+	template <class T>
+	rid_t call(const std::string &func, const T &args);
 	rid_t ping();
 
 	void setError(const std::string &msg);
@@ -263,6 +265,16 @@ bool
 Connection<BUFFER, NetProvider>::futureIsReady(rid_t future)
 {
 	return m_Futures.find(future) != m_Futures.end();
+}
+
+template<class BUFFER, class NetProvider>
+template <class T>
+rid_t
+Connection<BUFFER, NetProvider>::call(const std::string &func, const T &args)
+{
+	m_EndEncoded += m_Encoder.encodeCall(func, args);
+	m_Connector.readyToSend(*this);
+	return RequestEncoder<BUFFER>::getSync();
 }
 
 template<class BUFFER, class NetProvider>

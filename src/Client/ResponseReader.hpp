@@ -75,7 +75,6 @@ template<class BUFFER>
 struct Data {
 	//TODO: in general case, select may return many tuples.
 	std::vector<Tuple<BUFFER>> tuples;
-	//Tuple<BUFFER> tuple;
 };
 
 template<class BUFFER>
