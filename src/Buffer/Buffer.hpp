@@ -42,6 +42,7 @@
 #include "../Utils/Mempool.hpp"
 #include "../Utils/rlist.h"
 #include "../Utils/CStr.hpp"
+#include "../Utils/Wrappers.hpp"
 
 namespace tnt {
 
@@ -179,15 +180,14 @@ public:
 	iterator end();
 	/**
 	 * Copy content of @a buf (or object @a t) to the buffer's tail
-	 * (append data). @a size must be less than reserved (i.e. available)
-	 * free memory in buffer; UB otherwise.
+	 * (append data). Can cause reallocation that may throw.
 	 */
-	void addBack(const char *buf, size_t size);
-	void advanceBack(size_t size);
+	void addBack(wrap::Data data);
 	template <class T>
 	void addBack(const T& t);
 	template <char... C>
 	void addBack(CStr<C...>);
+	void addBack(wrap::Advance advance);
 
 	void dropBack(size_t size);
 	void dropFront(size_t size);
@@ -550,36 +550,39 @@ Buffer<N, allocator>::end()
 
 template <size_t N, class allocator>
 void
-Buffer<N, allocator>::addBack(const char *data, size_t size)
+Buffer<N, allocator>::addBack(wrap::Data data)
 {
+	const char *buf = data.data;
+	size_t size = data.size;
 	assert(size != 0);
 
 	Block *block = lastBlock();
 	size_t left_in_block = block->end() - m_end;
 	if (left_in_block > size) {
-		memcpy(m_end, data, size);
+		memcpy(m_end, buf, size);
 		m_end += size;
 		return;
 	}
 	char *new_end = m_end;
 	Blocks new_blocks(*this);
 	do {
-		memcpy(new_end, data, left_in_block);
+		memcpy(new_end, buf, left_in_block);
 		Block *b = newBlock(&new_blocks);
 		new_end = b->begin();
 		size -= left_in_block;
-		data += left_in_block;
+		buf += left_in_block;
 		left_in_block = Block::DATA_SIZE;
 	} while (size >= left_in_block);
-	memcpy(new_end, data, size);
+	memcpy(new_end, buf, size);
 	rlist_splice_tail(&m_blocks, &new_blocks);
 	m_end = new_end + size;
 }
 
 template <size_t N, class allocator>
 void
-Buffer<N, allocator>::advanceBack(size_t size)
+Buffer<N, allocator>::addBack(wrap::Advance advance)
 {
+	size_t size = advance.size;
 	assert(size != 0);
 
 	Block *block = lastBlock();
@@ -607,7 +610,7 @@ Buffer<N, allocator>::addBack(const T& t)
 {
 	char data[sizeof(T)];
 	memcpy(data, &t, sizeof(T));
-	addBack(data, sizeof(T));
+	addBack(wrap::Data{data, sizeof(T)});
 }
 
 template <size_t N, class allocator>
@@ -621,9 +624,9 @@ Buffer<N, allocator>::addBack(CStr<C...>)
 		if (left_in_block > CStr<C...>::rnd_size) {
 			memcpy(m_end, CStr<C...>::data, CStr<C...>::rnd_size);
 			m_end += CStr<C...>::size;
-			return;
+		} else {
+			addBack(wrap::Data{CStr<C...>::data, CStr<C...>::size});
 		}
-		addBack(CStr<C...>::data, CStr<C...>::size);
 	}
 }
 
@@ -715,7 +718,7 @@ Buffer<N, allocator>::insert(const iterator &itr, size_t size)
 	/* Remember last block before extending the buffer. */
 	Block *src_block = lastBlock();
 	char *src_block_end = m_end;
-	advanceBack(size);
+	addBack(wrap::Advance{size});
 	Block *dst_block = lastBlock();
 	char *src = nullptr;
 	char *dst = nullptr;

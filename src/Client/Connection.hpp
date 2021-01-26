@@ -35,6 +35,7 @@
 
 #include "../Utils/rlist.h"
 #include "../Utils/Logger.hpp"
+#include "../Utils/Wrappers.hpp"
 
 #include <sys/uio.h>
 
@@ -454,7 +455,7 @@ inBufferToIOV(Connection<BUFFER, NetProvider> &conn, size_t size, size_t *iov_le
 	BUFFER &buf = conn.m_InBuf;
 	struct iovec *vecs = conn.m_IOVecs;
 	typename BUFFER::iterator itr = buf.end();
-	buf.advanceBack(size);
+	buf.addBack(wrap::Advance{size});
 	*iov_len = buf.getIOV(itr, vecs,
 			      Connection<BUFFER, NetProvider>::AVAILABLE_IOVEC_COUNT);
 	return vecs;
