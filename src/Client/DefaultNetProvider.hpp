@@ -191,7 +191,7 @@ DefaultNetProvider<BUFFER>::recv(Connection<BUFFER, DefaultNetProvider> &conn)
 	//input buffer directly to recv allocating new blocks on demand.
 	size_t total = m_NetworkEngine.readyToRecv(conn.socket);
 	if (total == 0)
-		return 0;
+		return -1;
 	size_t read_bytes = 0;
 	size_t iov_cnt = 0;
 	struct iovec *iov =
@@ -281,15 +281,15 @@ DefaultNetProvider<BUFFER>::wait(Connector<BUFFER, DefaultNetProvider> &connecto
 		Connection<BUFFER, DefaultNetProvider> *conn =
 			m_Connections[events[i].sock];
 		if ((events[i].event & EPOLLIN) != 0) {
-			LOG_DEBUG("Registered poll event: %d socket is ready to read",
-				  conn->socket);
+			LOG_DEBUG("Registered poll event %d: %d socket is ready to read",
+				  i, conn->socket);
 			if (recv(*conn) == 0)
 				connector.readyToDecode(*conn);
 		}
 		if ((events[i].event & EPOLLOUT) != 0) {
 			/* We are watching only for blocked sockets. */
-			LOG_DEBUG("Registered poll event: %d socket is ready to write",
-				  conn->socket);
+			LOG_DEBUG("Registered poll event %d: %d socket is ready to write",
+				  i, conn->socket);
 			assert(conn->status.is_send_blocked);
 			send(*conn);
 		}

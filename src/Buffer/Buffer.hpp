@@ -450,7 +450,7 @@ template <size_t N, class allocator>
 size_t
 Buffer<N, allocator>::iterator::operator-(const iterator& a) const
 {
-	size_t res = (a.m_block->id - m_block->id) * Block::DATA_SIZE;
+	size_t res = (m_block->id - a.m_block->id) * Block::DATA_SIZE;
 	res -= a.m_position - a.m_block->begin();
 	res += m_position - m_block->begin();
 	return res;
@@ -1010,11 +1010,15 @@ template<size_t N, class allocator>
 void
 Buffer<N, allocator>::flush()
 {
-	iterator first = rlist_empty(&m_iterators) ? end() :
-			 *rlist_first_entry(&m_iterators, iterator, in_iters);
-	size_t distance = first - begin();
+	size_t distance;
+	{
+		iterator first = rlist_empty(&m_iterators) ? end() :
+				 *rlist_first_entry(&m_iterators, iterator, in_iters);
+		distance = first - begin();
+
+	}
 	if (distance > 0)
-		dropFront(first - begin());
+		dropFront(distance);
 }
 
 template <size_t N, class allocator>

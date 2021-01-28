@@ -356,7 +356,7 @@ inBufferToIOV(Connection<BUFFER, NetProvider> &conn, size_t size, size_t *iov_le
 {
 	assert(iov_len != NULL);
 	BUFFER &buf = conn.m_InBuf;
-	struct iovec *vecs = reinterpret_cast<struct iovec*>(&conn.m_IOVecs);
+	struct iovec *vecs = conn.m_IOVecs;
 	typename BUFFER::iterator itr = buf.end();
 	buf.advanceBack(size);
 	*iov_len = buf.getIOV(itr, vecs,
@@ -370,7 +370,7 @@ outBufferToIOV(Connection<BUFFER, NetProvider> &conn, size_t *iov_len)
 {
 	assert(iov_len != NULL);
 	BUFFER &buf = conn.m_OutBuf;
-	struct iovec *vecs = reinterpret_cast<struct iovec*>(&conn.m_IOVecs);
+	struct iovec *vecs = conn.m_IOVecs;
 	*iov_len = buf.getIOV(buf.begin(), conn.m_EndEncoded, vecs,
 			      Connection<BUFFER, NetProvider>::AVAILABLE_IOVEC_COUNT);
 	return vecs;
@@ -401,7 +401,7 @@ template<class BUFFER, class NetProvider>
 bool
 hasDataToSend(Connection<BUFFER, NetProvider> &conn)
 {
-	return conn.m_EndEncoded != conn.m_OutBuf.begin();
+	return (conn.m_EndEncoded - conn.m_OutBuf.begin()) != 0;
 }
 
 template<class BUFFER, class NetProvider>

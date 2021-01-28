@@ -41,7 +41,7 @@ enum LogLevel {
 	ERROR = 2
 };
 
-const char*
+static inline const char*
 logLevelToStr(LogLevel lvl)
 {
 	switch (lvl) {
@@ -50,6 +50,7 @@ logLevelToStr(LogLevel lvl)
 		case ERROR   : return "ERROR";
 	}
 	assert(0 && "Unknown log level");
+	return "Unknown log level";
 }
 
 class Logger {
@@ -77,29 +78,24 @@ public:
 
 		fprintf(stream, "%s: %s\n", logLevelToStr(log_lvl), Logger::format_msg);
 	}
-	void setLogLevel(LogLevel lvl);
+	void setLogLevel(LogLevel lvl)
+	{
+		m_LogLvl = lvl;
+	}
 private:
 	bool isLogPossible(LogLevel lvl) const
 	{
 		return lvl >= m_LogLvl;
 	};
 	static constexpr size_t MAX_MSG_LEN = 1024;
-	static char format_msg[MAX_MSG_LEN];
+	inline static char format_msg[MAX_MSG_LEN];
 	LogLevel m_LogLvl;
 };
 
-char Logger::format_msg[];
-
-void
-Logger::setLogLevel(LogLevel lvl)
-{
-	m_LogLvl = lvl;
-}
-
 #ifndef NDEBUG
-Logger gLogger(DEBUG);
+inline Logger gLogger(DEBUG);
 #else
-Logger gLogger(ERROR);
+inline Logger gLogger(ERROR);
 #endif
 
 #define LOG_DEBUG(format, ...) gLogger.log(stdout, DEBUG, format, __FILE__, __LINE__,  ##__VA_ARGS__)

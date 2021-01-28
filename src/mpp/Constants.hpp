@@ -120,41 +120,41 @@ inline const char *ReadErrorName[] = {
 };
 static_assert(std::size(ReadErrorName) == READ_ERROR_END + 2, "Forgotten");
 
-constexpr Type
+inline constexpr Type
 operator|(Type a, Type b)
 {
 	return static_cast<Type>(static_cast<TypeUnder_t>(a) |
 				 static_cast<TypeUnder_t>(b));
 }
 
-constexpr Type
+inline constexpr Type
 operator&(Type a, Type b)
 {
 	return static_cast<Type>(static_cast<TypeUnder_t>(a) &
 				 static_cast<TypeUnder_t>(b));
 }
 
-constexpr ReadResult_t
+inline constexpr ReadResult_t
 operator|(ReadResult_t a, ReadResult_t b)
 {
 	return static_cast<ReadResult_t>(static_cast<TypeUnder_t>(a) |
 					 static_cast<TypeUnder_t>(b));
 }
 
-constexpr ReadResult_t
+inline constexpr ReadResult_t
 operator&(ReadResult_t a, ReadResult_t b)
 {
 	return static_cast<ReadResult_t>(static_cast<TypeUnder_t>(a) &
 					 static_cast<TypeUnder_t>(b));
 }
 
-ReadResult_t
+inline ReadResult_t
 operator~(ReadResult_t a)
 {
 	return static_cast<ReadResult_t>(~static_cast<TypeUnder_t>(a));
 }
 
-std::ostream&
+inline std::ostream&
 operator<<(std::ostream& strm, compact::Type t)
 {
 	if (t >= compact::Type::MP_END)
@@ -163,7 +163,7 @@ operator<<(std::ostream& strm, compact::Type t)
 	return strm << TypeName[t];
 }
 
-std::ostream&
+inline std::ostream&
 operator<<(std::ostream& strm, Type t)
 {
 	if (t == MP_NONE)
@@ -184,7 +184,7 @@ operator<<(std::ostream& strm, Type t)
 	return strm;
 }
 
-std::ostream&
+inline std::ostream&
 operator<<(std::ostream& strm, ReadError_t t)
 {
 	if (t >= READ_ERROR_END)
@@ -193,7 +193,7 @@ operator<<(std::ostream& strm, ReadError_t t)
 	return strm << ReadErrorName[t];
 }
 
-std::ostream&
+inline std::ostream&
 operator<<(std::ostream& strm, ReadResult_t t)
 {
 	if (t == READ_SUCCESS)

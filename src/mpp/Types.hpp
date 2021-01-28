@@ -247,7 +247,7 @@ struct Reserve<0> {
 template <size_t N>
 Reserve<N> reserve() { return {}; }
 
-Reserve<0> reserve(size_t n) { return {n}; }
+inline Reserve<0> reserve(size_t n) { return {n}; }
 
 template <size_t N, class RANGE>
 track_holder<Reserve<N>, RANGE> reserve(RANGE& r) { return {{}, r}; }

@@ -34,18 +34,18 @@
 #include <string>
 #include <string_view>
 
-std::string base64_encode     (std::string const& s, bool url = false);
-std::string base64_encode_pem (std::string const& s);
-std::string base64_encode_mime(std::string const& s);
+inline std::string base64_encode     (std::string const& s, bool url = false);
+inline std::string base64_encode_pem (std::string const& s);
+inline std::string base64_encode_mime(std::string const& s);
 
-std::string base64_decode(std::string const& s, bool remove_linebreaks = false);
-std::string base64_encode(unsigned char const*, size_t len, bool url = false);
+inline std::string base64_decode(std::string const& s, bool remove_linebreaks = false);
+inline std::string base64_encode(unsigned char const*, size_t len, bool url = false);
 
-std::string base64_encode     (std::string_view s, bool url = false);
-std::string base64_encode_pem (std::string_view s);
-std::string base64_encode_mime(std::string_view s);
+inline std::string base64_encode     (std::string_view s, bool url = false);
+inline std::string base64_encode_pem (std::string_view s);
+inline std::string base64_encode_mime(std::string_view s);
 
-std::string base64_decode(std::string_view s, bool remove_linebreaks = false);
+inline  std::string base64_decode(std::string_view s, bool remove_linebreaks = false);
 
 //
 // Depending on the url parameter in base64_chars, one of

@@ -34,44 +34,30 @@
 
 class Timer {
 public:
-	Timer(int timeout);
-	void start();
-	bool isExpired() const;
-	int elapsed() const;
+	Timer(int timeout) : m_Timeout{std::chrono::milliseconds{timeout}} {};
+	void start()
+	{
+		m_Start = std::chrono::steady_clock::now();
+	}
+	bool isExpired() const
+	{
+		if (m_Timeout == std::chrono::milliseconds{0})
+			return false;
+		std::chrono::time_point<std::chrono::steady_clock> end =
+			std::chrono::steady_clock::now();
+		std::chrono::milliseconds elapsed =
+			std::chrono::duration_cast<std::chrono::milliseconds>(end - m_Start);
+		return elapsed >= m_Timeout;
+	}
+	int elapsed() const
+	{
+		if (m_Timeout == std::chrono::milliseconds{0})
+			return 0;
+		std::chrono::time_point<std::chrono::steady_clock> end =
+			std::chrono::steady_clock::now();
+		return std::chrono::duration_cast<std::chrono::milliseconds>(end - m_Start).count();
+	}
 private:
 	std::chrono::milliseconds m_Timeout;
 	std::chrono::time_point<std::chrono::steady_clock> m_Start;
 };
-
-Timer::Timer(int timeout) : m_Timeout{std::chrono::milliseconds{timeout}}
-{
-}
-
-void
-Timer::start()
-{
-	m_Start = std::chrono::steady_clock::now();
-}
-
-bool
-Timer::isExpired() const
-{
-	if (m_Timeout == std::chrono::milliseconds{0})
-		return false;
-	std::chrono::time_point<std::chrono::steady_clock> end =
-		std::chrono::steady_clock::now();
-	std::chrono::milliseconds elapsed =
-		std::chrono::duration_cast<std::chrono::milliseconds>(end - m_Start);
-	//LOG_DEBUG("timeout %d elapsed %d", m_Timeout.count(), elapsed.count());
-	return elapsed >= m_Timeout;
-}
-
-int
-Timer::elapsed() const
-{
-	if (m_Timeout == std::chrono::milliseconds{0})
-		return 0;
-	std::chrono::time_point<std::chrono::steady_clock> end =
-		std::chrono::steady_clock::now();
-	return std::chrono::duration_cast<std::chrono::milliseconds>(end - m_Start).count();
-}

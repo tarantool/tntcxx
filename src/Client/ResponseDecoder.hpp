@@ -125,7 +125,7 @@ versionId(unsigned major, unsigned minor, unsigned patch)
 	return (((major << 8) | minor) << 8) | patch;
 }
 
-int
+inline int
 parseGreeting(const char *greetingbuf, Greeting &greeting) {
 	if (memcmp(greetingbuf, "Tarantool ", strlen("Tarantool ")) != 0 ||
 	    greetingbuf[Iproto::GREETING_SIZE / 2 - 1] != '\n' ||

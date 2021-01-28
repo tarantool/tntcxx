@@ -72,6 +72,6 @@ inline uint32_t bswap(uint32_t x) { return __builtin_bswap32(x); }
 inline uint64_t bswap(uint64_t x) { return __builtin_bswap64(x); }
 
 
-[[noreturn]] void unreachable() { assert(false); __builtin_unreachable(); }
+[[noreturn]] inline void unreachable() { assert(false); __builtin_unreachable(); }
 
 } // namespace mpp {

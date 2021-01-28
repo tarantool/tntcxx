@@ -126,7 +126,7 @@ NetworkEngine::registerEpoll(int socket)
 	return 0;
 }
 
-void
+inline void
 NetworkEngine::setPollSetting(int socket, int setting)
 {
 	struct epoll_event event;
@@ -139,7 +139,7 @@ NetworkEngine::setPollSetting(int socket, int setting)
 	}
 }
 
-int
+inline int
 NetworkEngine::connectINET(const std::string_view& addr_str, unsigned port)
 {
 	Socket soc(socket(AF_INET, SOCK_STREAM, 0));
@@ -162,7 +162,8 @@ NetworkEngine::connectINET(const std::string_view& addr_str, unsigned port)
 	soc.fd = -1;
 	return sock;
 }
-int
+
+inline int
 NetworkEngine::connectUNIX(const std::string_view& path)
 {
 	Socket soc(socket(AF_UNIX, SOCK_STREAM, 0));
@@ -181,7 +182,7 @@ NetworkEngine::connectUNIX(const std::string_view& path)
 	return sock;
 }
 
-int
+inline int
 NetworkEngine::send(int socket, struct iovec *iov, size_t iov_len)
 {
 	struct msghdr msg;
@@ -192,7 +193,7 @@ NetworkEngine::send(int socket, struct iovec *iov, size_t iov_len)
 	return sendmsg(socket, &msg, flags);
 }
 
-int
+inline int
 NetworkEngine::sendall(int socket, struct iovec *iov, size_t iov_len,
 		       size_t *sent_bytes)
 {
@@ -220,7 +221,7 @@ NetworkEngine::sendall(int socket, struct iovec *iov, size_t iov_len,
 	return 0;
 }
 
-int
+inline int
 NetworkEngine::recv(int socket, struct iovec *iov, size_t iov_len)
 {
 	struct msghdr msg;
@@ -231,7 +232,7 @@ NetworkEngine::recv(int socket, struct iovec *iov, size_t iov_len)
 	return recvmsg(socket, &msg, flags);
 }
 
-int
+inline int
 NetworkEngine::recvall(int socket, struct iovec *iov, size_t iov_len,
 		       size_t total, size_t *read_bytes, bool dont_wait)
 {
@@ -258,7 +259,7 @@ NetworkEngine::recvall(int socket, struct iovec *iov, size_t iov_len,
 	return 0;
 }
 
-size_t
+inline size_t
 NetworkEngine::readyToRecv(int socket)
 {
 	int bytes = 0;
@@ -270,7 +271,7 @@ NetworkEngine::readyToRecv(int socket)
 	return bytes;
 }
 
-void
+inline void
 NetworkEngine::close(int socket)
 {
 	if (socket >= 0) {
@@ -288,7 +289,7 @@ NetworkEngine::close(int socket)
 	::close(socket);
 }
 
-int
+inline int
 NetworkEngine::poll(struct ConnectionEvent *fds, size_t *fd_count, int timeout)
 {
 	static struct epoll_event events[EPOLL_EVENTS_MAX];
