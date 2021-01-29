@@ -30,7 +30,7 @@
  * SUCH DAMAGE.
  */
 #include "../src/Buffer/Buffer.hpp"
-#incluide "../mpp/Dec.hpp"
+#include "../src/mpp/Dec.hpp"
 
 /**
  * Corresponds to tuples stored in user's space:
@@ -43,7 +43,7 @@ struct UserTuple {
 };
 
 std::ostream&
-operator<<(std::ostream& strm, UserTuple &t)
+operator<<(std::ostream& strm, const UserTuple &t)
 {
 	return strm << "Tuple: field1=" << t.field1 << " field2=" << t.field2 <<
 		       " field3=" << t.field3;

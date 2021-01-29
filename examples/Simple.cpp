@@ -28,6 +28,14 @@
  * THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
+/**
+ * To build this example see CMakeLists.txt or Makefile in current directory.
+ * Prerequisites to run this test:
+ * 1. Run Tarantool instance on localhost and set listening port 3301;
+ * 2. Create space with id = 512 and fields format {integer, string, float}
+ * 3. Grant read-write privileges for guest (or simply box.schema.user.grant('guest', 'super'))
+ * 4. Compile and run ./Simple
+ */
 
 #include "../src/Client/Connector.hpp"
 #include "../src/Buffer/Buffer.hpp"
@@ -42,19 +50,22 @@ using Buf_t = tnt::Buffer<16 * 1024>;
 using Net_t = DefaultNetProvider<Buf_t >;
 
 template <class BUFFER>
-UserTuple
+std::vector<UserTuple>
 decodeUserTuple(BUFFER &buf, Data<BUFFER> &data)
 {
-	Tuple<BUFFER> t = data.tuple;
-	assert(t.begin != std::nullopt);
-	assert(t.end != std::nullopt);
-	UserTuple tuple;
-	mpp::Dec dec(buf);
-	dec.SetPosition(*t.begin);
-	dec.SetReader(false, UserTupleReader<BUFFER>{dec, tuple});
-	mpp::ReadResult_t res = dec.Read();
-	assert(res == mpp::READ_SUCCESS);
-	return tuple;
+	std::vector<UserTuple> results;
+	for(auto const& t: data.tuples) {
+		assert(t.begin != std::nullopt);
+		assert(t.end != std::nullopt);
+		UserTuple tuple;
+		mpp::Dec dec(buf);
+		dec.SetPosition(*t.begin);
+		dec.SetReader(false, UserTupleReader<BUFFER>{dec, tuple});
+		mpp::ReadResult_t res = dec.Read();
+		assert(res == mpp::READ_SUCCESS);
+		results.push_back(tuple);
+	}
+	return results;
 }
 
 template<class BUFFER>
@@ -71,12 +82,15 @@ printResponse(Connection<BUFFER, Net_t> &conn, Response<BUFFER> &response)
 	}
 	if (response.body.data != std::nullopt) {
 		Data<BUFFER> data = *response.body.data;
-		if (data.tuple.begin == std::nullopt) {
+		if (data.tuples.empty()) {
 			std::cout << "Empty result" << std::endl;
 			return;
 		}
-		UserTuple tuple = decodeUserTuple(conn.getInBuf(), data);
-		std::cout << tuple << std::endl;
+		std::vector<UserTuple> tuples =
+			decodeUserTuple(conn.getInBuf(), data);
+		for (auto const& t : tuples) {
+			std::cout << t << std::endl;
+		}
 	}
 }
 
@@ -116,10 +130,9 @@ main()
 	/* REPLACE - equals to space:replace(pk_value, "111", 1)*/
 	uint32_t space_id = 512;
 	int pk_value = 666;
-	std::tuple data = std::make_tuple(pk_value /* field 1*/, "111" /* field 2*/, 1 /* field 3*/);
+	std::tuple data = std::make_tuple(pk_value /* field 1*/, "111" /* field 2*/, 1.01 /* field 3*/);
 	rid_t replace = conn.space[space_id].replace(data);
 	/* SELECT - equals to space.index[0]:select({pk_value}, {limit = 1})*/
-	uint32_t space_id = 512;
 	uint32_t index_id = 0;
 	uint32_t limit = 1;
 	uint32_t offset = 0;
@@ -131,7 +144,7 @@ main()
 	 * for single connection: we can either wait for one specific
 	 * future or for all at once. Let's try both variants.
 	 */
-	while (conn.futureIsReady(ping)) {
+	while (! conn.futureIsReady(ping)) {
 		/*
 		 * wait() is the main function responsible for sending/receiving
 		 * requests and implements event-loop under the hood. It may
@@ -162,23 +175,18 @@ main()
 	 * rely on response code storing in the header or check
 	 * Response->body.data and Response->body.error_stack members.
 	 */
-	printReponse(response);
+	printResponse<Buf_t>(conn, *response);
 	/* Let's wait for both futures at once. */
 	rid_t futures[2];
 	futures[0] = replace;
 	futures[1] = select;
 	/* No specified timeout means that we poll futures until they are ready.*/
-	if (client.waitAll(conn, (rid_t *) &features, 2) != 0) {
-		assert(conn.status.is_failed);
-		std::cerr << conn.getError() << std::endl;
-		client.close(conn);
-		return -1;
-	}
+	client.waitAll(conn, (rid_t *) &futures, 2);
 	for (int i = 0; i < 2; ++i) {
-		assert(conn.futureIsReady(features[i]));
-		response = conn.getResponse(features[i]);
+		assert(conn.futureIsReady(futures[i]));
+		response = conn.getResponse(futures[i]);
 		assert(response != std::nullopt);
-		printResponse(conn, response);
+		printResponse<Buf_t>(conn, *response);
 	}
 	/* Now create another one connection. */
 	Connection<Buf_t, Net_t> another(client);
