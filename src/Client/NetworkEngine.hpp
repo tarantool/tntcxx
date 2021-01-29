@@ -40,11 +40,10 @@
 #include <stdlib.h>
 #include <sys/epoll.h>
 #include <sys/ioctl.h>
-//#include <sys/socket.h>
 #include <sys/uio.h>
 #include <sys/un.h>
-//#include <netinet/in.h>
 #include <arpa/inet.h>
+#include <netdb.h>
 
 #include "../Utils/Logger.hpp"
 
@@ -92,7 +91,7 @@ public:
 
 	int poll(struct ConnectionEvent *fds, size_t *fd_count,
 		 int timeout = EPOLL_DEFAULT_TIMEOUT);
-	void setPollSetting(int socket, int setting);
+	int setPollSetting(int socket, int setting);
 	void resetPollTimeout();
 	size_t poll_timeout;
 private:
@@ -113,7 +112,7 @@ NetworkEngine::NetworkEngine()
 	}
 }
 
-int
+inline int
 NetworkEngine::registerEpoll(int socket)
 {
 	/* Configure epoll with new socket. */
@@ -126,36 +125,38 @@ NetworkEngine::registerEpoll(int socket)
 	return 0;
 }
 
-inline void
+inline int
 NetworkEngine::setPollSetting(int socket, int setting)
 {
 	struct epoll_event event;
 	event.events = setting;
 	event.data.fd = socket;
-	if (epoll_ctl(m_EpollFd, EPOLL_CTL_MOD, socket, &event) != 0) {
-		throw std::runtime_error(std::string("Failed to change epoll mode: "
-						     "epoll_ctl() returned with errno " +
-						     std::to_string(errno)));
-	}
+	if (epoll_ctl(m_EpollFd, EPOLL_CTL_MOD, socket, &event) != 0)
+		return -1;
+	return 0;
 }
 
 inline int
 NetworkEngine::connectINET(const std::string_view& addr_str, unsigned port)
 {
-	Socket soc(socket(AF_INET, SOCK_STREAM, 0));
-	if (soc.fd < 0)
-		return -1;
-	struct sockaddr_in addr;
-	std::memset(&addr, 0, sizeof(struct sockaddr_in));
-	addr.sin_family = AF_INET;
-	addr.sin_port = htons(port);
-	//TODO: use getaddrinfo
-	if (inet_pton(AF_INET, std::string(addr_str).c_str(),
-		      &addr.sin_addr) <= 0)
-		return -1;
-	if (::connect(soc.fd, (struct sockaddr *)&addr, sizeof(addr)) != 0) {
+	struct addrinfo hints, *res;
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_family = AF_INET;
+	std::string service = std::to_string(port);
+	int err =  getaddrinfo(std::string(addr_str).c_str(), service.c_str(),
+			       &hints, &res);
+	if (err != 0) {
+		LOG_ERROR("getaddrinfo() failed: %s\n", gai_strerror(err));
 		return -1;
 	}
+	Socket soc(socket(res->ai_family, res->ai_socktype, res->ai_protocol));
+	if (soc.fd < 0)
+		return -1;
+	if (::connect(soc.fd, res->ai_addr, res->ai_addrlen) != 0) {
+		return -1;
+	}
+	freeaddrinfo(res);
 	if (registerEpoll(soc.fd) != 0)
 		return -1;
 	int sock = soc.fd;
@@ -263,11 +264,8 @@ inline size_t
 NetworkEngine::readyToRecv(int socket)
 {
 	int bytes = 0;
-	if (ioctl(socket, FIONREAD, &bytes) < 0) {
-		throw std::runtime_error(std::string("Failed to check socket: "
-						     "ioctl retured errno " +
-						     std::to_string(errno)));
-	}
+	if (ioctl(socket, FIONREAD, &bytes) < 0)
+		return -1;
 	return bytes;
 }
 

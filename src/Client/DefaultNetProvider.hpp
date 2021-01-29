@@ -190,8 +190,15 @@ DefaultNetProvider<BUFFER>::recv(Connection<BUFFER, DefaultNetProvider> &conn)
 	//TODO: refactor this part. Get rid of readyToRecv and pass
 	//input buffer directly to recv allocating new blocks on demand.
 	size_t total = m_NetworkEngine.readyToRecv(conn.socket);
-	if (total == 0)
+	if (total < 0) {
+		LOG_ERROR("Failed to check socket: ioctl returned errno %s",
+			  strerror(errno));
 		return -1;
+	}
+	if (total == 0) {
+		LOG_DEBUG("Socket %d has no data to read", conn.socket);
+		return -1;
+	}
 	size_t read_bytes = 0;
 	size_t iov_cnt = 0;
 	struct iovec *iov =
@@ -230,8 +237,13 @@ DefaultNetProvider<BUFFER>::send(Connection<BUFFER, DefaultNetProvider> &conn)
 		if (rc != 0) {
 			if (errno == EWOULDBLOCK || errno == EAGAIN) {
 				int setting = EPOLLIN | EPOLLOUT;
-				m_NetworkEngine.setPollSetting(conn.socket,
-							       setting);
+				if (m_NetworkEngine.setPollSetting(conn.socket,
+							       setting) != 0) {
+					LOG_ERROR("Failed to change epoll mode: "
+						  "epoll_ctl() returned with errno: %s",
+						  strerror(errno));
+					abort();
+				}
 				conn.status.is_send_blocked = true;
 			} else {
 				conn.setError(std::string("Failed to send request: ") +
@@ -247,7 +259,11 @@ DefaultNetProvider<BUFFER>::send(Connection<BUFFER, DefaultNetProvider> &conn)
 	}
 	/* All data from connection has been successfully written. */
 	if (conn.status.is_send_blocked) {
-		m_NetworkEngine.setPollSetting(conn.socket, EPOLLIN);
+		if (m_NetworkEngine.setPollSetting(conn.socket, EPOLLIN) != 0) {
+			LOG_ERROR("Failed to change epoll mode: epoll_ctl() "
+				  "returned with errno: %s", strerror(errno));
+			abort();
+		}
 		conn.status.is_send_blocked = false;
 	}
 }
