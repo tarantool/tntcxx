@@ -237,7 +237,10 @@ Connection<BUFFER, NetProvider>::Connection(Connector<BUFFER, NetProvider> &conn
 template<class BUFFER, class NetProvider>
 Connection<BUFFER, NetProvider>::~Connection()
 {
-	assert(socket <= 0 && "Forgot to close the connection!");
+	if (socket >= 0) {
+		m_Connector.close(*this);
+		socket = -1;
+	}
 	if (! rlist_empty(&m_in_write)) {
 		rlist_del(&m_in_write);
 		LOG_WARNING("Connection %p had unsent data in output buffer!");
