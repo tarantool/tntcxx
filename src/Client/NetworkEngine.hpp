@@ -40,10 +40,13 @@
 #include <stdlib.h>
 #include <sys/epoll.h>
 #include <sys/ioctl.h>
+#include <sys/select.h>
 #include <sys/uio.h>
 #include <sys/un.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <unistd.h>
+#include <fcntl.h>
 
 #include "../Utils/Logger.hpp"
 
@@ -95,6 +98,7 @@ public:
 	void resetPollTimeout();
 	size_t poll_timeout;
 private:
+	constexpr static size_t CONNECT_TIMEOUT = 2;
 	constexpr static size_t EPOLL_QUEUE_LEN = 1024;
 	constexpr static size_t EPOLL_DEFAULT_TIMEOUT = 1000;
 	constexpr static size_t EPOLL_EVENTS_MAX = 128;
@@ -144,21 +148,75 @@ NetworkEngine::connectINET(const std::string_view& addr_str, unsigned port)
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_family = AF_INET;
 	std::string service = std::to_string(port);
-	int err =  getaddrinfo(std::string(addr_str).c_str(), service.c_str(),
-			       &hints, &res);
+	int err = getaddrinfo(std::string(addr_str).c_str(), service.c_str(),
+			      &hints, &res);
 	if (err != 0) {
-		LOG_ERROR("getaddrinfo() failed: %s\n", gai_strerror(err));
+		LOG_ERROR("getaddrinfo() failed: %s", gai_strerror(err));
 		return -1;
 	}
 	Socket soc(socket(res->ai_family, res->ai_socktype, res->ai_protocol));
-	if (soc.fd < 0)
-		return -1;
-	if (::connect(soc.fd, res->ai_addr, res->ai_addrlen) != 0) {
+	if (soc.fd < 0) {
+		LOG_ERROR("Failed to create socket: %s", strerror(errno));
+		freeaddrinfo(res);
 		return -1;
 	}
-	freeaddrinfo(res);
-	if (registerEpoll(soc.fd) != 0)
+	/* Set socket to non-blocking mode*/
+	if (fcntl(soc.fd, F_SETFL, O_NONBLOCK) != 0) {
+		LOG_ERROR("fcntl failed: %s", strerror(errno));
+		freeaddrinfo(res);
 		return -1;
+	}
+	::connect(soc.fd, res->ai_addr, res->ai_addrlen);
+	freeaddrinfo(res);
+	/*
+	 * Now let's use select to timeout connect call. Once socket becomes
+	 * writable - connection is established.
+	 */
+	fd_set fdset;
+	struct timeval tv;
+	FD_ZERO(&fdset);
+	FD_SET(soc.fd, &fdset);
+	tv.tv_sec = CONNECT_TIMEOUT;
+	tv.tv_usec = 0;
+	int rc = select(soc.fd + 1, NULL, &fdset, NULL, &tv);
+	if (rc == -1) {
+		LOG_ERROR("select() failed: %s", strerror(errno));
+		return -1;
+	}
+	if (rc == 0) {
+		LOG_ERROR("connect() is timed out!");
+		return -1;
+	}
+	assert(rc == 1);
+	int so_error;
+	socklen_t len = sizeof(so_error);
+	if (getsockopt(soc.fd, SOL_SOCKET, SO_ERROR, &so_error, &len) != 0) {
+		LOG_ERROR("getsockopt() failed: %s",  strerror(errno));
+		return -1;
+	}
+	if (so_error != 0) {
+		LOG_ERROR("connect() failed: %s",  strerror(so_error));
+		return -1;
+	}
+	if (registerEpoll(soc.fd) != 0) {
+		LOG_ERROR("Failed to register epoll event");
+		return -1;
+	}
+	if (fcntl(soc.fd, F_SETFL, O_NONBLOCK) != 0) {
+		LOG_ERROR("fcntl() failed: %s", strerror(errno));
+		return -1;
+	}
+	/* Set to blocking mode again...*/
+	int flags = fcntl(soc.fd, F_GETFL, NULL);
+	if (flags < 0) {
+		LOG_ERROR("fcntl() failed: %s", strerror(errno));
+		return -1;
+	}
+	flags &= (~O_NONBLOCK);
+	if (fcntl(soc.fd, F_SETFL, flags) != 0) {
+		LOG_ERROR("fcntl() failed: %s", strerror(errno));
+		return -1;
+	}
 	int sock = soc.fd;
 	soc.fd = -1;
 	return sock;

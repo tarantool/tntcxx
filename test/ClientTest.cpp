@@ -71,14 +71,25 @@ trivial(Connector<BUFFER> &client)
 {
 	TEST_INIT(0);
 	Connection<Buf_t, Net_t> conn(client);
-	/* Get nonexistent future. */
+	TEST_CASE("Nonexistent future");
 	std::optional<Response<Buf_t>> response = conn.getResponse(666);
 	fail_unless(response == std::nullopt);
 	/* Execute request without connecting to the host. */
+	TEST_CASE("No established connection");
 	rid_t f = conn.ping();
 	client.wait(conn, f, WAIT_TIMEOUT);
 	fail_unless(conn.status.is_failed);
 	std::cout << conn.getError() << std::endl;
+	/* Connect to the wrong address. */
+	TEST_CASE("Bad address");
+	int rc = client.connect(conn, "asdasd", 3301);
+	fail_unless(rc != 0);
+	TEST_CASE("Unreachable address");
+	rc = client.connect(conn, "101.101.101", 3301);
+	fail_unless(rc != 0);
+	TEST_CASE("Wrong port");
+	rc = client.connect(conn, localhost, -666);
+	fail_unless(rc != 0);
 }
 
 /** Single connection, separate/sequence pings, no errors */

@@ -54,6 +54,9 @@ struct Announcer
 		std::cout << "*** TEST " << m_testName;
 		std::cout << " started... ***" << std::endl;
 	}
+	void announce(const char *msg) {
+		std::cout << "   *** TEST CASE " << msg << " ***" << std::endl;
+	}
 	~Announcer() {
 		std::cout << "*** TEST " << m_testName <<
 		": done" << std::endl;
@@ -63,6 +66,7 @@ struct Announcer
 };
 
 #define TEST_INIT(...) Announcer _Ann(__func__, ##__VA_ARGS__)
+#define TEST_CASE(NAME) _Ann.announce(NAME)
 
 #define fail(expr, result) do {							\
 	std::cerr << "Test failed: " << expr << " is " << result << " at " <<	\

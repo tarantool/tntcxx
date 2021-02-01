@@ -94,12 +94,14 @@ DefaultNetProvider<BUFFER>::connect(Connection<BUFFER, DefaultNetProvider> &conn
 	int socket = -1;
 	socket = port == 0 ? m_NetworkEngine.connectUNIX(addr) :
 			     m_NetworkEngine.connectINET(addr, port);
-	LOG_DEBUG("Connected to %s, socket is %d", std::string(addr).c_str(), socket);
 	if (socket < 0) {
-		conn.setError(std::string("Failed to establish connection: ") +
-			      strerror(errno));
+		/* There's no + operator for string and string_view ...*/
+		conn.setError(std::string("Failed to establish connection to ") +
+			      std::string(addr));
 		return -1;
 	}
+	LOG_DEBUG("Connected to %s, socket is %d", std::string(addr).c_str(),
+		  socket);
 	/* Receive and decode greetings. */
 	size_t iov_cnt = 0;
 	struct iovec *iov =
