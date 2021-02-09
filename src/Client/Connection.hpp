@@ -103,6 +103,11 @@ public:
 		{
 			return m_Conn.delete_(key, space_id, index_id);
 		}
+		template <class K, class T>
+		rid_t update(const K &key, const T &tuple, uint32_t index_id = 0)
+		{
+			return m_Conn.update(key, tuple, space_id, index_id);
+		}
 		template <class T>
 		rid_t select(const T& key, uint32_t index_id = 0,
 			     uint32_t limit = UINT32_MAX,
@@ -125,6 +130,12 @@ public:
 			{
 				return m_Conn.delete_(key, m_Space.space_id,
 						      index_id);
+			}
+			template <class K, class T>
+			rid_t update(const K &key, const T &tuple)
+			{
+				return m_Conn.update(key, tuple,
+						     m_Space.space_id, index_id);
 			}
 			template <class T>
 			rid_t select(const T &key,
@@ -233,6 +244,9 @@ private:
 	rid_t replace(const T &tuple, uint32_t space_id);
 	template <class T>
 	rid_t delete_(const T &key, uint32_t space_id, uint32_t index_id);
+	template <class K, class T>
+	rid_t update(const K &key, const T &tuple, uint32_t space_id,
+		     uint32_t index_id);
 	template <class T>
 	rid_t select(const T &key,
 		     uint32_t space_id, uint32_t index_id = 0,
@@ -336,6 +350,17 @@ Connection<BUFFER, NetProvider>::delete_(const T &key, uint32_t space_id,
 					 uint32_t index_id)
 {
 	m_EndEncoded += m_Encoder.encodeDelete(key, space_id, index_id);
+	m_Connector.readyToSend(*this);
+	return RequestEncoder<BUFFER>::getSync();
+}
+
+template<class BUFFER, class NetProvider>
+template <class K, class T>
+rid_t
+Connection<BUFFER, NetProvider>::update(const K &key, const T &tuple,
+					uint32_t space_id, uint32_t index_id)
+{
+	m_EndEncoded += m_Encoder.encodeUpdate(key, tuple, space_id, index_id);
 	m_Connector.readyToSend(*this);
 	return RequestEncoder<BUFFER>::getSync();
 }

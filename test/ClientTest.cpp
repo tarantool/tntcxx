@@ -284,6 +284,41 @@ single_conn_insert(Connector<BUFFER> &client)
 	client.close(conn);
 }
 
+/** Single connection, separate updates */
+template <class BUFFER>
+void
+single_conn_update(Connector<BUFFER> &client)
+{
+	TEST_INIT(0);
+	Connection<Buf_t, Net_t> conn(client);
+	int rc = client.connect(conn, localhost, 3301);
+	fail_unless(rc == 0);
+	TEST_CASE("Successful update");
+	uint32_t space_id = 512;
+	std::tuple key = std::make_tuple(123);
+	std::tuple op1 = std::make_tuple("=", 1, "update");
+	std::tuple op2 = std::make_tuple("+", 2, 12);
+	rid_t f1 = conn.space[space_id].update(key, std::make_tuple(op1, op2));
+	key = std::make_tuple(321);
+	std::tuple op3 = std::make_tuple(":", 1, 2, 1, "!!");
+	std::tuple op4 = std::make_tuple("-", 2, 5.05);
+	rid_t f2 = conn.space[space_id].update(key, std::make_tuple(op3, op4));
+
+	client.wait(conn, f1, WAIT_TIMEOUT);
+	fail_unless(conn.futureIsReady(f1));
+	std::optional<Response<Buf_t>> response = conn.getResponse(f1);
+	fail_unless(response != std::nullopt);
+	fail_unless(response->body.data != std::nullopt);
+
+	client.wait(conn, f2, WAIT_TIMEOUT);
+	fail_unless(conn.futureIsReady(f2));
+	response = conn.getResponse(f2);
+	fail_unless(response != std::nullopt);
+	fail_unless(response->body.data != std::nullopt);
+
+	client.close(conn);
+}
+
 /** Single connection, separate deletes */
 template <class BUFFER>
 void
@@ -451,6 +486,7 @@ int main()
 	single_conn_error<Buf_t>(client);
 	single_conn_replace<Buf_t>(client);
 	single_conn_insert<Buf_t>(client);
+	single_conn_update<Buf_t>(client);
 	single_conn_delete<Buf_t>(client);
 	single_conn_select<Buf_t>(client);
 	single_conn_call<Buf_t>(client);

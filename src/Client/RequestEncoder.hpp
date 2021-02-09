@@ -71,6 +71,9 @@ public:
 	size_t encodeReplace(const T &tuple, uint32_t space_id);
 	template <class T>
 	size_t encodeDelete(const T &key, uint32_t space_id, uint32_t index_id);
+	template <class K, class T>
+	size_t encodeUpdate(const K &key, const T &tuple, uint32_t space_id,
+			    uint32_t index_id);
 	template <class T>
 	size_t encodeSelect(const T& key, uint32_t space_id,
 			    uint32_t index_id = 0,
@@ -161,6 +164,26 @@ RequestEncoder<BUFFER>::encodeDelete(const T &key, uint32_t space_id,
 		MPP_AS_CONST(Iproto::SPACE_ID), space_id,
 		MPP_AS_CONST(Iproto::INDEX_ID), index_id,
 		MPP_AS_CONST(Iproto::KEY), key)));
+	uint32_t request_size = (m_Buf.end() - request_start) - PREHEADER_SIZE;
+	m_Buf.set(request_start + 1, __builtin_bswap32(request_size));
+	return request_size + PREHEADER_SIZE;
+}
+
+template<class BUFFER>
+template <class K, class T>
+size_t
+RequestEncoder<BUFFER>::encodeUpdate(const K &key, const T &tuple,
+				     uint32_t space_id, uint32_t index_id)
+{
+	iterator_t<BUFFER> request_start = m_Buf.end();
+	m_Buf.addBack('\xce');
+	m_Buf.addBack(uint32_t{0});
+	encodeHeader(Iproto::UPDATE);
+	m_Enc.add(mpp::as_map(std::forward_as_tuple(
+		MPP_AS_CONST(Iproto::SPACE_ID), space_id,
+		MPP_AS_CONST(Iproto::INDEX_ID), index_id,
+		MPP_AS_CONST(Iproto::KEY), key,
+		MPP_AS_CONST(Iproto::TUPLE), tuple)));
 	uint32_t request_size = (m_Buf.end() - request_start) - PREHEADER_SIZE;
 	m_Buf.set(request_start + 1, __builtin_bswap32(request_size));
 	return request_size + PREHEADER_SIZE;
