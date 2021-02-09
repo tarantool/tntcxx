@@ -363,6 +363,37 @@ single_conn_delete(Connector<BUFFER> &client)
 	client.close(conn);
 }
 
+/** Single connection, separate upserts */
+template <class BUFFER>
+void
+single_conn_upsert(Connector<BUFFER> &client)
+{
+	TEST_INIT(0);
+	Connection<Buf_t, Net_t> conn(client);
+	int rc = client.connect(conn, localhost, 3301);
+	fail_unless(rc == 0);
+	TEST_CASE("upsert-insert");
+	uint32_t space_id = 512;
+	std::tuple tuple = std::make_tuple(333, "upsert-insert", 0.0);
+	std::tuple op1 = std::make_tuple("=", 1, "upsert");
+	rid_t f1 = conn.space[space_id].upsert(tuple, std::make_tuple(op1));
+
+	client.wait(conn, f1, WAIT_TIMEOUT);
+	fail_unless(conn.futureIsReady(f1));
+	std::optional<Response<Buf_t>> response = conn.getResponse(f1);
+	fail_unless(response->body.data != std::nullopt);
+
+	TEST_CASE("upsert-update");
+	tuple = std::make_tuple(666, "111", 1.01);
+	std::tuple op2 =  std::make_tuple("=", 1, "upsert-update");
+	rid_t f2 = conn.space[space_id].upsert(tuple, std::make_tuple(op2));
+	client.wait(conn, f2, WAIT_TIMEOUT);
+	response = conn.getResponse(f2);
+	fail_unless(response->body.data != std::nullopt);
+
+	client.close(conn);
+}
+
 /** Single connection, select single tuple */
 template <class BUFFER>
 void
@@ -488,6 +519,7 @@ int main()
 	single_conn_insert<Buf_t>(client);
 	single_conn_update<Buf_t>(client);
 	single_conn_delete<Buf_t>(client);
+	single_conn_upsert<Buf_t>(client);
 	single_conn_select<Buf_t>(client);
 	single_conn_call<Buf_t>(client);
 

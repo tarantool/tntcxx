@@ -108,6 +108,11 @@ public:
 		{
 			return m_Conn.update(key, tuple, space_id, index_id);
 		}
+		template <class T, class O>
+		rid_t upsert(const T &tuple, const O &ops, uint32_t index_base = 0)
+		{
+			return m_Conn.upsert(tuple, ops, space_id, index_base);
+		}
 		template <class T>
 		rid_t select(const T& key, uint32_t index_id = 0,
 			     uint32_t limit = UINT32_MAX,
@@ -247,6 +252,9 @@ private:
 	template <class K, class T>
 	rid_t update(const K &key, const T &tuple, uint32_t space_id,
 		     uint32_t index_id);
+	template <class T, class O>
+	rid_t upsert(const T &tuple, const O &ops, uint32_t space_id,
+		     uint32_t index_base);
 	template <class T>
 	rid_t select(const T &key,
 		     uint32_t space_id, uint32_t index_id = 0,
@@ -361,6 +369,17 @@ Connection<BUFFER, NetProvider>::update(const K &key, const T &tuple,
 					uint32_t space_id, uint32_t index_id)
 {
 	m_EndEncoded += m_Encoder.encodeUpdate(key, tuple, space_id, index_id);
+	m_Connector.readyToSend(*this);
+	return RequestEncoder<BUFFER>::getSync();
+}
+
+template<class BUFFER, class NetProvider>
+template <class T, class O>
+rid_t
+Connection<BUFFER, NetProvider>::upsert(const T &tuple, const O &ops,
+					uint32_t space_id, uint32_t index_base)
+{
+	m_EndEncoded += m_Encoder.encodeUpsert(tuple, ops, space_id, index_base);
 	m_Connector.readyToSend(*this);
 	return RequestEncoder<BUFFER>::getSync();
 }
