@@ -89,6 +89,11 @@ public:
 			return *this;
 		}
 		template <class T>
+		rid_t insert(const T &tuple)
+		{
+			return m_Conn.insert(tuple, space_id);
+		}
+		template <class T>
 		rid_t replace(const T &tuple)
 		{
 			return m_Conn.replace(tuple, space_id);
@@ -212,6 +217,8 @@ private:
 	std::unordered_map<rid_t, Response<BUFFER>> m_Futures;
 
 	template <class T>
+	rid_t insert(const T &tuple, uint32_t space_id);
+	template <class T>
 	rid_t replace(const T &tuple, uint32_t space_id);
 	template <class T>
 	rid_t select(const T &key,
@@ -285,6 +292,16 @@ rid_t
 Connection<BUFFER, NetProvider>::ping()
 {
 	m_EndEncoded += m_Encoder.encodePing();
+	m_Connector.readyToSend(*this);
+	return RequestEncoder<BUFFER>::getSync();
+}
+
+template<class BUFFER, class NetProvider>
+template <class T>
+rid_t
+Connection<BUFFER, NetProvider>::insert(const T &tuple, uint32_t space_id)
+{
+	m_EndEncoded += m_Encoder.encodeInsert(tuple, space_id);
 	m_Connector.readyToSend(*this);
 	return RequestEncoder<BUFFER>::getSync();
 }

@@ -66,6 +66,8 @@ public:
 
 	size_t encodePing();
 	template <class T>
+	size_t encodeInsert(const T &tuple, uint32_t space_id);
+	template <class T>
 	size_t encodeReplace(const T &tuple, uint32_t space_id);
 	template <class T>
 	size_t encodeSelect(const T& key, uint32_t space_id,
@@ -104,6 +106,23 @@ RequestEncoder<BUFFER>::encodePing()
 	m_Buf.addBack(uint32_t{0});
 	encodeHeader(Iproto::PING);
 	m_Enc.add(mpp::as_map(std::make_tuple()));
+	uint32_t request_size = (m_Buf.end() - request_start) - PREHEADER_SIZE;
+	m_Buf.set(request_start + 1, __builtin_bswap32(request_size));
+	return request_size + PREHEADER_SIZE;
+}
+
+template<class BUFFER>
+template <class T>
+size_t
+RequestEncoder<BUFFER>::encodeInsert(const T &tuple, uint32_t space_id)
+{
+	iterator_t<BUFFER> request_start = m_Buf.end();
+	m_Buf.addBack('\xce');
+	m_Buf.addBack(uint32_t{0});
+	encodeHeader(Iproto::INSERT);
+	m_Enc.add(mpp::as_map(std::forward_as_tuple(
+		MPP_AS_CONST(Iproto::SPACE_ID), space_id,
+		MPP_AS_CONST(Iproto::TUPLE), tuple)));
 	uint32_t request_size = (m_Buf.end() - request_start) - PREHEADER_SIZE;
 	m_Buf.set(request_start + 1, __builtin_bswap32(request_size));
 	return request_size + PREHEADER_SIZE;

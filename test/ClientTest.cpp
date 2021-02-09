@@ -240,6 +240,50 @@ single_conn_replace(Connector<BUFFER> &client)
 	client.close(conn);
 }
 
+/** Single connection, separate inserts */
+template <class BUFFER>
+void
+single_conn_insert(Connector<BUFFER> &client)
+{
+	TEST_INIT(0);
+	Connection<Buf_t, Net_t> conn(client);
+	int rc = client.connect(conn, localhost, 3301);
+	fail_unless(rc == 0);
+	TEST_CASE("Successful inserts");
+	uint32_t space_id = 512;
+	std::tuple data = std::make_tuple(123, "insert", 3.033);
+	rid_t f1 = conn.space[space_id].insert(data);
+	data = std::make_tuple(321, "another_insert", 2.022);
+	rid_t f2 = conn.space[space_id].insert(data);
+
+	client.wait(conn, f1, WAIT_TIMEOUT);
+	fail_unless(conn.futureIsReady(f1));
+	std::optional<Response<Buf_t>> response = conn.getResponse(f1);
+	printResponse<BUFFER>(conn, *response);
+	fail_unless(response != std::nullopt);
+	fail_unless(response->body.data != std::nullopt);
+	fail_unless(response->body.error_stack == std::nullopt);
+
+	client.wait(conn, f2, WAIT_TIMEOUT);
+	fail_unless(conn.futureIsReady(f2));
+	response = conn.getResponse(f2);
+	fail_unless(response != std::nullopt);
+	fail_unless(response->body.data != std::nullopt);
+	fail_unless(response->body.error_stack == std::nullopt);
+
+	TEST_CASE("Duplicate key during insertion");
+	data = std::make_tuple(321, "another_insert", 2.022);
+	rid_t f3 = conn.space[space_id].insert(data);
+	client.wait(conn, f3, WAIT_TIMEOUT);
+	fail_unless(conn.futureIsReady(f3));
+	response = conn.getResponse(f3);
+	fail_unless(response != std::nullopt);
+	fail_unless(response->body.error_stack != std::nullopt);
+	printResponse<BUFFER>(conn, *response);
+
+	client.close(conn);
+}
+
 /** Single connection, select single tuple */
 template <class BUFFER>
 void
@@ -362,6 +406,7 @@ int main()
 	many_conn_ping<Buf_t>(client);
 	single_conn_error<Buf_t>(client);
 	single_conn_replace<Buf_t>(client);
+	single_conn_insert<Buf_t>(client);
 	single_conn_select<Buf_t>(client);
 	single_conn_call<Buf_t>(client);
 
