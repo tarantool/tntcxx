@@ -1,8 +1,8 @@
 
 .. //TBD Main title
 
-Connecting to Tarantool from/via/using C++
-===========================================
+Connecting to Tarantool from C++
+=================================
 
 .. //TDB Overview intro
 
@@ -86,7 +86,7 @@ for the ``admin`` user:
 Connecting to Tarantool
 -----------------------
 
-.. //TBD possible restructure: further topics can be sub-topics -- embedding, object instantiation and then connecting itself
+.. //TBD some intro with the list of todos
 
 
 .. _gs_cxx_embedding:
@@ -136,11 +136,11 @@ also create connection objects. Connection takes buffer and network
 provider as template parameters as well (note that they must be the same
 as ones of client):
 
+.. //https://github.com/tarantool/tntcxx/blob/master/examples/Simple.cpp#L108
+
 .. code-block:: c
 
    Connection<Buf_t, Net_t> conn(client);
-
-https://github.com/tarantool/tntcxx/blob/master/examples/Simple.cpp#L108
 
 
 Connecting
@@ -148,7 +148,7 @@ Connecting
 
 Now assume Tarantool instance is listening ``3301`` port on localhost.
 
-https://github.com/tarantool/tntcxx/blob/master/examples/Simple.cpp#L45-L47
+.. // https://github.com/tarantool/tntcxx/blob/master/examples/Simple.cpp#L45-L47
 
 .. code-block:: c
 
@@ -234,8 +234,7 @@ Preparing requests
 Sending requests
 ~~~~~~~~~~~~~~~~~
 
-to send requests to the server side, we should invoke
-``client.wait()``:
+To send requests to the server side, we should invoke ``client.wait()``:
 
 .. code-block:: c
 
@@ -284,6 +283,8 @@ returned to user.
 .. code-block:: c
 
    std::optional<Response<Buf_t>> response = conn.getResponse(ping);
+
+.. //TBD below is explanation paragraph -- possible to move to another place
 
 Response consists of header and body (``response.header`` and
 ``response.body``). Depending on success of request execution on server
@@ -375,6 +376,13 @@ Building and launching the C++ application
 
 .. // TBD using https://github.com/tarantool/tntcxx/blob/master/examples/Makefile
 
+Make sure you are in the root directory of the tntcxx repository.
+
+.. code-block:: bash
+
+   cd examples
+   cmake .
+   make
 
 .. _gs_cxx_data_readers:
 
