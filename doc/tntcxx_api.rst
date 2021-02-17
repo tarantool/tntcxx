@@ -1,45 +1,82 @@
-.. tntcxx_api
+.. _tntcxx_api:
 
-===============================================================================
+
 Tarantool C++ connector API
-===============================================================================
+============================
 
-.. This is a draft templatte for documenting Tarantool C++ connector API.
-.. Format and RST syntax -- TBD
+.. //This is a draft template for documenting Tarantool C++ connector API.
 
-<intro>
+.. // TBD -- Introduction
 
-<TOC>
+.. //TBD -- ToC
 
-* :ref:`method_name <method_ref_link>`
+List of public classes and methods
+-----------------------------------
+
+.. //TBD -- currently just a flat list for understanding the scope. Formatting etc. - TBD
+
+* class Connector
+
+  connect()
+  wait()
+  waitAll()
+  waitAny()
+  close()
+
+* class Connection
+
+  call()
+  futureIsReady()
+  getResponse()
+  getError()
+  reset()
+  ping()
+  select()
+  replace()
+  insert()
+  delete()
+  update()
+  upsert()
 
 
-.. class:: <class_name>
+.. _tntcxx_api_connector:
 
-    .. _<method_ref_link>:
+class Connector
+----------------
 
-    .. method:: <method signature>
-
-        <method description>
-
-        :param <params description>
+.. //description TBD
 
 
-        :return: <return description>
-        :rtype:  <return type description>
+..  class:: Connector
 
-        .. _<method name>-options-TBD:
+    ..  method:: int connect(Connection<BUFFER, NetProvider> &conn, const std::string_view& addr, unsigned port)
 
-        **Options description**
+        Connects to a Tarantool instance that is listening ``addr:port``.
 
-        <TBD>
+        :param conn: connection object <cross-ref to corresp. topic>.
+        :param addr: URL of a host where a Tarantool instance is running.
+        :param port: a port that a Tarantool instance is listening to.
 
-        **Possible errors:**
+        :return: connection status code.
+        :rtype: <TBD>
 
-        <TBD>
+        **Possible errors:** <TBD>
 
-    **Example:**
+        **Complexity factors:** <TBD>
 
-    .. code-block:: c
+        **Example:**
 
-        <code-block body>
+        ..  code-block:: c
+
+            const char *address = "127.0.0.1";
+            int port = 3301;
+
+            using Buf_t = tnt::Buffer<16 * 1024>;
+            using Net_t = DefaultNetProvider<Buf_t >;
+
+            Connector<Buf_t, Net_t> client;
+            Connection<Buf_t, Net_t> conn(client);
+
+            int rc = client.connect(conn, address, port);
+
+
