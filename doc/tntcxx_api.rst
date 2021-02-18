@@ -10,73 +10,159 @@ Tarantool C++ connector API
 
 .. //TBD -- ToC
 
-List of public classes and methods
------------------------------------
-
-.. //TBD -- currently just a flat list for understanding the scope. Formatting etc. - TBD
-
-* class Connector
-
-  connect()
-  wait()
-  waitAll()
-  waitAny()
-  close()
-
-* class Connection
-
-  call()
-  futureIsReady()
-  getResponse()
-  getError()
-  reset()
-  ping()
-  select()
-  replace()
-  insert()
-  delete()
-  update()
-  upsert()
-
 
 .. _tntcxx_api_connector:
 
-class Connector
-----------------
+class ``Connector``
+--------------------
 
 .. //description TBD
 
+Methods:
 
-..  class:: Connector
+* :ref:`connect() <tntcxx_api_connector_connect>`
+* :ref:`wait() <tntcxx_api_connector_wait>`
+* :ref:`waitAll() <tntcxx_api_connector_waitall>`
+* :ref:`waitAny() <tntcxx_api_connector_waitany>`
+* :ref:`close() <tntcxx_api_connector_close>`
 
-    ..  method:: int connect(Connection<BUFFER, NetProvider> &conn, const std::string_view& addr, unsigned port)
+.. _tntcxx_api_connector_connect:
 
-        Connects to a Tarantool instance that is listening ``addr:port``.
+.. c:function:: int connect(Connection<BUFFER, NetProvider>& conn, const std::string_view& addr, unsigned port)
 
-        :param conn: connection object <cross-ref to corresp. topic>.
-        :param addr: URL of a host where a Tarantool instance is running.
-        :param port: a port that a Tarantool instance is listening to.
+   Connects to a Tarantool instance that is listening on ``addr:port``.
 
-        :return: connection status code.
-        :rtype: <TBD>
+   :param conn: connection object <cross-ref to corresp. topic>.
+   :param addr: URL of a host where a Tarantool instance is running.
+   :param port: a port that a Tarantool instance is listening to.
 
-        **Possible errors:** <TBD>
+   :return: connection status code.
+   :rtype: <TBD>
 
-        **Complexity factors:** <TBD>
+   **Possible errors:** <TBD>
 
-        **Example:**
+   **Complexity factors:** <TBD>
 
-        ..  code-block:: c
+   **Example:**
 
-            const char *address = "127.0.0.1";
-            int port = 3301;
+   ..  code-block:: c
 
-            using Buf_t = tnt::Buffer<16 * 1024>;
-            using Net_t = DefaultNetProvider<Buf_t >;
+       using Buf_t = tnt::Buffer<16 * 1024>;
+       using Net_t = DefaultNetProvider<Buf_t >;
 
-            Connector<Buf_t, Net_t> client;
-            Connection<Buf_t, Net_t> conn(client);
+       Connector<Buf_t, Net_t> client;
+       Connection<Buf_t, Net_t> conn(client);
 
-            int rc = client.connect(conn, address, port);
+       int rc = client.connect(conn, "127.0.0.1", 3301);
 
+.. _tntcxx_api_connector_wait:
+
+.. c:function::  wait()
+
+   <description>.
+
+   :param <param>: <description>.
+
+
+   :return: <description>.
+   :rtype: <description>
+
+   **Possible errors:** <description>
+
+   **Complexity factors:** <description>
+
+   **Example:**
+
+   ..  code-block:: c
+
+       <code example>
+
+.. _tntcxx_api_connector_waitall:
+
+.. c:function::  waitAll()
+
+   <description>.
+
+   :param <param>: <description>.
+
+
+   :return: <description>.
+   :rtype: <description>
+
+   **Possible errors:** <description>
+
+   **Complexity factors:** <description>
+
+   **Example:**
+
+   ..  code-block:: c
+
+       <code example>
+
+.. _tntcxx_api_connector_waitany:
+
+.. c:function::  waitAny()
+
+   <description>.
+
+   :param <param>: <description>.
+
+
+   :return: <description>.
+   :rtype: <description>
+
+   **Possible errors:** <description>
+
+   **Complexity factors:** <description>
+
+   **Example:**
+
+   ..  code-block:: c
+
+       <code example>
+
+.. _tntcxx_api_connector_close:
+
+.. c:function::  close()
+
+   <description>.
+
+   :param <param>: <description>.
+
+
+   :return: <description>.
+   :rtype: <description>
+
+   **Possible errors:** <description>
+
+   **Complexity factors:** <description>
+
+   **Example:**
+
+   ..  code-block:: c
+
+       <code example>
+
+
+.. _tntcxx_api_connection:
+
+class ``Connection``
+--------------------
+
+.. //description TBD
+
+Methods:
+
+call()
+futureIsReady()
+getResponse()
+getError()
+reset()
+ping()
+select()
+replace()
+insert()
+delete()
+update()
+upsert()
 
