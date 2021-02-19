@@ -129,6 +129,11 @@ Embedding connector
 Connector can be embedded in a C++ application by including the main
 header:
 
+.. literalinclude:: ./_includes/Simple.cpp
+   :start-after: doclabel01-1
+   :end-before: doclabel01-2
+   :language: c
+
 .. code-block:: c
 
    #include "<path_to_cloned_repo>/src/Client/Connector.hpp"

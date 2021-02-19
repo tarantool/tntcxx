@@ -37,7 +37,9 @@
  * 4. Compile and run ./Simple
  */
 
+//doclabel01-1
 #include "../src/Client/Connector.hpp"
+//doclabel01-2
 #include "../src/Buffer/Buffer.hpp"
 
 #include "Reader.hpp"
