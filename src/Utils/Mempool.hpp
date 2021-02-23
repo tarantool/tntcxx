@@ -128,7 +128,7 @@ public:
 		}
 		if (m_FreeList != nullptr) {
 			char *res = m_FreeList;
-			memcpy(&m_FreeList, m_FreeList, sizeof(m_FreeList));
+			memcpy(&m_FreeList, m_FreeList, sizeof(char *));
 			Stats_t::statAddBlock();
 			return res;
 		}
@@ -169,7 +169,7 @@ public:
 		size_t calc_free_block_count = 0;
 		char *f = m_FreeList;
 		while (f != nullptr) {
-			memcpy(&f, f, sizeof(f));
+			memcpy(&f, f, sizeof(char *));
 			calc_free_block_count++;
 		}
 

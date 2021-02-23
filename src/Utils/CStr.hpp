@@ -57,7 +57,7 @@ struct CStr {
 	template <size_t... I>
 	static constexpr CStr<data[I]...> subs(std::index_sequence<I...>) { return {}; }
 	/** There's no sense in referencing the object. */
-	constexpr nullptr_t operator&() const { return nullptr; }
+	constexpr std::nullptr_t operator&() const { return nullptr; }
 };
 
 /**
