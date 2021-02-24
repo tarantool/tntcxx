@@ -43,8 +43,7 @@ Also, make sure you have other necessary software and Tarantool installed.
 1.  Make sure you have the following third-party software. If you miss some of
     the items, install them:
 
-    *   `Git <https://git-scm.com/book/en/v2/Getting-Started-Installing-Git>`_
-        ``git``, a version control system
+    *   `Git <https://git-scm.com/book/en/v2/Getting-Started-Installing-Git>`_, a version control system
     *   `unzip utility <https://linuxize.com/post/how-to-unzip-files-in-linux/#installing-unzip>`_
     *   `gcc compiler <https://gcc.gnu.org/install/>`_ complied with the `C++17 standard <https://gcc.gnu.org/projects/cxx-status.html#cxx17>`_
     *   `cmake and make tools <https://cmake.org/install/>`_.
@@ -139,7 +138,7 @@ to Tarantool instances asynchronously. To instantiate a client, you should speci
 the buffer and the network provider implementations as template parameters.
 The connector's main class has the following signature:
 
-..  code-block::
+..  code-block:: c
 
     template<class BUFFER, class NetProvider = DefaultNetProvider<BUFFER>>
     class Connector;
