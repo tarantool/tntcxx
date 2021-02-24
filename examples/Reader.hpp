@@ -32,6 +32,7 @@
 #include "../src/Buffer/Buffer.hpp"
 #include "../src/mpp/Dec.hpp"
 
+//doclabel13-1
 /**
  * Corresponds to tuples stored in user's space:
  * box.execute("CREATE TABLE t (id UNSIGNED PRIMARY KEY, a TEXT, d DOUBLE);")
@@ -41,6 +42,7 @@ struct UserTuple {
 	std::string field2;
 	double field3;
 };
+//doclabel13-2
 
 std::ostream&
 operator<<(std::ostream& strm, const UserTuple &t)
@@ -53,6 +55,7 @@ using Buf_t = tnt::Buffer<16 * 1024>;
 using BufIter_t = typename Buf_t::iterator;
 using Net_t = DefaultNetProvider<Buf_t >;
 
+//doclabel14-1
 struct UserTupleValueReader : mpp::DefaultErrorHandler {
 	explicit UserTupleValueReader(UserTuple& t) : tuple(t) {}
 	static constexpr mpp::Type VALID_TYPES = mpp::MP_UINT | mpp::MP_STR | mpp::MP_DBL;
@@ -84,7 +87,9 @@ struct UserTupleValueReader : mpp::DefaultErrorHandler {
 	BufIter_t* StoreEndIterator() { return nullptr; }
 	UserTuple& tuple;
 };
+//doclabel14-2
 
+//doclabel15-1
 template <class BUFFER>
 struct UserTupleReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_ARR> {
 
@@ -98,3 +103,4 @@ struct UserTupleReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_ARR> {
 	mpp::Dec<BUFFER>& dec;
 	UserTuple& tuple;
 };
+//doclabel15-2

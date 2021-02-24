@@ -37,18 +37,27 @@
  * 4. Compile and run ./Simple
  */
 
+//doclabel01-1
 #include "../src/Client/Connector.hpp"
+//doclabel01-2
 #include "../src/Buffer/Buffer.hpp"
+//doclabel01-3
 
 #include "Reader.hpp"
+//doclabel01-4
 
+//doclabel05-1
 const char *address = "127.0.0.1";
 int port = 3301;
 int WAIT_TIMEOUT = 1000; //milliseconds
+//doclabel05-2
 
+//doclabel02-1
 using Buf_t = tnt::Buffer<16 * 1024>;
 using Net_t = DefaultNetProvider<Buf_t >;
+//doclabel02-2
 
+//doclabel16-1
 template <class BUFFER>
 std::vector<UserTuple>
 decodeUserTuple(BUFFER &buf, Data<BUFFER> &data)
@@ -67,6 +76,7 @@ decodeUserTuple(BUFFER &buf, Data<BUFFER> &data)
 	}
 	return results;
 }
+//doclabel16-2
 
 template<class BUFFER>
 void
@@ -101,21 +111,28 @@ main()
 	 * Create default connector - it'll handle many connections
 	 * asynchronously.
 	 */
+	//doclabel03-1
 	Connector<Buf_t, Net_t> client;
+	//doclabel03-2
 	/*
 	 * Create single connection. Constructor takes only client reference.
 	 */
+	//doclabel04-1
 	Connection<Buf_t, Net_t> conn(client);
+	//doclabel04-2
 	/*
 	 * Try to connect to given address:port. Current implementation is
 	 * exception free, so we rely only on return codes.
 	 */
+	//doclabel06-1
 	int rc = client.connect(conn, address, port);
+	//doclabel06-2
 	if (rc != 0) {
 		assert(conn.status.is_failed);
 		std::cerr << conn.getError() << std::endl;
 		return -1;
 	}
+	//doclabel06-3
 	/*
 	 * Now let's execute several requests: ping, replace and select.
 	 * Note that any of :request() methods can't fail; they always
@@ -126,24 +143,31 @@ main()
 	 * But network communication itself will be done later.
 	 */
 	/* PING */
+	//doclabel07-1
 	rid_t ping = conn.ping();
+	//doclabel07-2
 	/* REPLACE - equals to space:replace(pk_value, "111", 1)*/
+	//doclabel08-1
 	uint32_t space_id = 512;
 	int pk_value = 666;
 	std::tuple data = std::make_tuple(pk_value /* field 1*/, "111" /* field 2*/, 1.01 /* field 3*/);
 	rid_t replace = conn.space[space_id].replace(data);
+	//doclabel08-2
 	/* SELECT - equals to space.index[0]:select({pk_value}, {limit = 1})*/
+	//doclabel09-1
 	uint32_t index_id = 0;
 	uint32_t limit = 1;
 	uint32_t offset = 0;
 	IteratorType iter = IteratorType::EQ;
 	auto i = conn.space[space_id].index[index_id];
 	rid_t select = i.select(std::make_tuple(pk_value), limit, offset, iter);
+	//doclabel09-2
 	/*
 	 * Now let's send our requests to the server. There are two options
 	 * for single connection: we can either wait for one specific
 	 * future or for all at once. Let's try both variants.
 	 */
+	//doclabel10-1
 	while (! conn.futureIsReady(ping)) {
 		/*
 		 * wait() is the main function responsible for sending/receiving
@@ -159,7 +183,9 @@ main()
 			conn.reset();
 		}
 	}
+	//doclabel10-2
 	/* Now let's get response using our future.*/
+	//doclabel11-1
 	std::optional<Response<Buf_t>> response = conn.getResponse(ping);
 	/*
 	 * Since conn.futureIsReady(ping) returned <true>, then response
@@ -176,6 +202,7 @@ main()
 	 * Response->body.data and Response->body.error_stack members.
 	 */
 	printResponse<Buf_t>(conn, *response);
+	//doclabel11-2
 	/* Let's wait for both futures at once. */
 	rid_t futures[2];
 	futures[0] = replace;
@@ -188,7 +215,8 @@ main()
 		assert(response != std::nullopt);
 		printResponse<Buf_t>(conn, *response);
 	}
-	/* Now create another one connection. */
+	//doclabel11-3
+	/* Let's create another connection. */
 	Connection<Buf_t, Net_t> another(client);
 	if (client.connect(another, address, port) != 0) {
 		assert(conn.status.is_failed);
@@ -208,8 +236,11 @@ main()
 	} else {
 		assert(another.futureIsReady(f2));
 	}
+	//doclabel11-4
 	/* Finally, user is responsible for closing connections. */
+	//doclabel12-1
 	client.close(conn);
 	client.close(another);
+	//doclabel12-2
 	return 0;
 }
