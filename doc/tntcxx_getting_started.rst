@@ -40,21 +40,20 @@ Also, make sure you have other necessary software and Tarantool installed.
 
 .. //TBD For the 3d-party  and Tarantool steps, maybe later we can move these details to REAMDE and leave here the links to those sections of README
 
-#.  Make sure you have the following third-party software. If you miss some of
+1.  Make sure you have the following third-party software. If you miss some of
     the items, install them:
 
-    * `Git <https://git-scm.com/book/en/v2/Getting-Started-Installing-Git>`_
-  ``git``, a version control system
-    * `unzip utility <https://linuxize.com/post/how-to-unzip-files-in-linux/#installing-unzip>`_
-    * `gcc compiler <https://gcc.gnu.org/install/>`_ complied with the `C++17 standard <https://gcc.gnu.org/projects/cxx-status.html#cxx17>`_
-    * `cmake and make tools <https://cmake.org/install/>`_.
+    *   `Git <https://git-scm.com/book/en/v2/Getting-Started-Installing-Git>`_, a version control system
+    *   `unzip utility <https://linuxize.com/post/how-to-unzip-files-in-linux/#installing-unzip>`_
+    *   `gcc compiler <https://gcc.gnu.org/install/>`_ complied with the `C++17 standard <https://gcc.gnu.org/projects/cxx-status.html#cxx17>`_
+    *   `cmake and make tools <https://cmake.org/install/>`_.
 
-#.  If you don't have Tarantool on your OS, install it in one of the ways:
+2.  If you don't have Tarantool on your OS, install it in one of the ways:
 
-    * from a package--refer to `OS-specific instructions <https://www.tarantool.io/en/download/>`_
-    * from the `source <https://www.tarantool.io/en/download/os-installation/building-from-source/>`_.
+    *   from a package--refer to `OS-specific instructions <https://www.tarantool.io/en/download/>`_
+    *   from the `source <https://www.tarantool.io/en/download/os-installation/building-from-source/>`_.
 
-#.  Clone the Tarantool C++ connector repository.
+3.  Clone the Tarantool C++ connector repository.
 
     ..  code-block:: bash
 
@@ -99,7 +98,7 @@ the user with the :ref:`super role <authentication-roles>`:
 
 ..  code-block:: lua
 
-    doc/tntcxx_api.rst
+    box.schema.user.grant('guest', 'super')
 
 .. _gs_cxx_connect:
 
@@ -122,7 +121,7 @@ to do the following:
 Embedding connector
 ~~~~~~~~~~~~~~~~~~~
 
- Embed the connector in your C++ application by including the main header:
+Embed the connector in your C++ application by including the main header:
 
 ..  literalinclude:: ./_includes/Simple.cpp
     :start-after: doclabel01-1
@@ -139,7 +138,7 @@ to Tarantool instances asynchronously. To instantiate a client, you should speci
 the buffer and the network provider implementations as template parameters.
 The connector's main class has the following signature:
 
-..  code-block::
+..  code-block:: c
 
     template<class BUFFER, class NetProvider = DefaultNetProvider<BUFFER>>
     class Connector;
@@ -162,6 +161,7 @@ as follows:
     :start-after: doclabel03-1
     :end-before: doclabel03-2
     :language: cpp
+    :dedent: 1
 
 To use the ``BUFFER`` class, the buffer header should also be included:
 
@@ -179,6 +179,7 @@ as ones of the client:
     :start-after: doclabel04-1
     :end-before: doclabel04-2
     :language: cpp
+    :dedent: 1
 
 .. _gs_cxx_connect_connecting:
 
@@ -203,6 +204,7 @@ pass three arguments: connection instance, address, and port.
     :start-after: doclabel06-1
     :end-before: doclabel06-2
     :language: cpp
+    :dedent: 1
 
 .. _gs_cxx_connect_error:
 
@@ -219,6 +221,7 @@ method.
     :start-after: doclabel06-2
     :end-before: doclabel06-3
     :language: cpp
+    :dedent: 1
 
 To reset connection after errors, that is, to clean up the error message and
 connection status, the ``Connection::reset()`` method is used.
@@ -241,9 +244,9 @@ and executing a number of requests from different connections simultaneously.
 
 In our example C++ application, we execute the following types of requests:
 
-* ping
-* replace
-* select.
+* ``ping``
+* ``replace``
+* ``select``.
 
 ..  NOTE::
 
@@ -283,6 +286,7 @@ and the space has the following format:
     :start-after: doclabel07-1
     :end-before: doclabel07-2
     :language: cpp
+    :dedent: 1
 
 **replace**
 
@@ -292,6 +296,7 @@ Equals to Lua request ``<space_name>:replace(pk_value, "111", 1)``.
     :start-after: doclabel08-1
     :end-before: doclabel08-2
     :language: cpp
+    :dedent: 1
 
 **select**
 
@@ -301,6 +306,7 @@ Equals to Lua request ``<space_name>.index[0]:select({pk_value}, {limit = 1})``.
     :start-after: doclabel09-1
     :end-before: doclabel09-2
     :language: cpp
+    :dedent: 1
 
 .. _gs_cxx_requests_send:
 
@@ -329,6 +335,7 @@ The ``futureIsReady()`` function checks availability of a future and returns
     :start-after: doclabel10-1
     :end-before: doclabel10-2
     :language: cpp
+    :dedent: 1
 
 .. // TBD For the detailed information on the connector's API, refer to <link to the API document parts related to the API used here> -- implement this line when API document is ready.
 
@@ -362,6 +369,7 @@ first option.
     :start-after: doclabel11-1
     :end-before: doclabel11-2
     :language: cpp
+    :dedent: 1
 
 For the ``replace`` and ``select`` requests, let's examine the option of
 waiting for both futures at once.
@@ -370,6 +378,7 @@ waiting for both futures at once.
     :start-after: doclabel11-2
     :end-before: doclabel11-3
     :language: cpp
+    :dedent: 1
 
 .. // TBD For the detailed information on the connector's API, refer to <link to the API document parts related to the API used here> -- implement this line when API document is ready.
 
@@ -385,6 +394,7 @@ to Tarantool instance simultaneously.
     :start-after: doclabel11-3
     :end-before: doclabel11-4
     :language: cpp
+    :dedent: 1
 
 .. // TBD For the detailed information on the connector's API, refer to <link to the API document parts related to the API used here> -- implement this line when API document is ready.
 
@@ -399,6 +409,7 @@ Finally, a user is responsible for closing connections.
     :start-after: doclabel12-1
     :end-before: doclabel12-2
     :language: cpp
+    :dedent: 1
 
 .. _gs_cxx_build:
 
