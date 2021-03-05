@@ -73,7 +73,11 @@ struct Tuple {
 
 template<class BUFFER>
 struct Data {
-	//TODO: in general case, select may return many tuples.
+	/**
+	 * Data is returned in form of msgpack array (even in case of
+	 * scalar value). This is size of data array.
+	 */
+	size_t dimension;
 	std::vector<Tuple<BUFFER>> tuples;
 };
 
@@ -137,11 +141,11 @@ struct HeaderReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_MAP> {
 };
 
 template <class BUFFER>
-struct TupleReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_ARR> {
+struct TupleReader : mpp::ReaderTemplate<BUFFER> {
 
-	TupleReader(mpp::Dec<BUFFER>& d, std::vector<Tuple<BUFFER>>& t) :
-		dec(d), tuples(t) {}
-
+	TupleReader(mpp::Dec<BUFFER>& d, Data<BUFFER>& dt) : dec(d), data(dt) {}
+	static constexpr mpp::Type VALID_TYPES = mpp::MP_ARR | mpp::MP_UINT |
+		mpp::MP_INT | mpp::MP_BOOL | mpp::MP_DBL | mpp::MP_STR; //| mpp::MP_NIL;
 	void Value(const iterator_t<BUFFER>& arg, mpp::compact::Type, mpp::ArrValue u)
 	{
 		Tuple<BUFFER> t;
@@ -149,10 +153,30 @@ struct TupleReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_ARR> {
 		t.begin = arg;
 		t.end = t.begin;
 		dec.Skip(&(*t.end));
-		tuples.push_back(t);
+		data.tuples.push_back(t);
+	}
+	/**
+	 * Data does not necessarily contain array, it also can be scalar
+	 * value. In this case store pointer right to its value.
+	 */
+	template <class T>
+	void Value(const iterator_t<BUFFER>& arg, mpp::compact::Type, T v)
+	{
+		(void) v;
+		Tuple<BUFFER> t;
+		t.field_count = 1;
+		t.begin = arg;
+		t.end = t.begin;
+		dec.Skip(&(*t.end));
+		data.tuples.push_back(t);
+	}
+	void WrongType(mpp::Type expected, mpp::Type got)
+	{
+		std::cout << "expected type is " << expected <<
+			  " but got " << got << std::endl;
 	}
 	mpp::Dec<BUFFER>& dec;
-	std::vector<Tuple<BUFFER>>& tuples;
+	Data<BUFFER>& data;
 };
 
 template <class BUFFER>
@@ -162,10 +186,10 @@ struct DataReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_ARR> {
 
 	void Value(const iterator_t<BUFFER>&, mpp::compact::Type, mpp::ArrValue u)
 	{
-		//TODO: parse u.size tuples
-		(void) u;
-		dec.SetReader(false, TupleReader<BUFFER>{dec, data.tuples});
+		data.dimension = u.size;
+		dec.SetReader(false, TupleReader<BUFFER>{dec, data});
 	}
+
 	mpp::Dec<BUFFER>& dec;
 	Data<BUFFER>& data;
 };

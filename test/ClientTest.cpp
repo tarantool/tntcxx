@@ -40,9 +40,17 @@ int WAIT_TIMEOUT = 1000; //milliseconds
 
 using Net_t = DefaultNetProvider<Buf_t >;
 
+
+enum ResultFormat {
+	TUPLES = 0,
+	MULTI_RETURN,
+	SELECT_RETURN
+};
+
 template <class BUFFER>
 void
-printResponse(Connection<BUFFER, Net_t> &conn, Response<BUFFER> &response)
+printResponse(Connection<BUFFER, Net_t> &conn, Response<BUFFER> &response,
+	       enum ResultFormat format = TUPLES)
 {
 	if (response.body.error_stack != std::nullopt) {
 		Error err = (*response.body.error_stack).error;
@@ -51,18 +59,30 @@ printResponse(Connection<BUFFER, Net_t> &conn, Response<BUFFER> &response)
 			  " errno=" << err.saved_errno <<
 			  " type=" << err.type_name <<
 			  " code=" << err.errcode << std::endl;
+		return;
 	}
-	if (response.body.data != std::nullopt) {
-		Data<BUFFER> data = *response.body.data;
-		if (data.tuples.empty()) {
-			std::cout << "Empty result" << std::endl;
-			return;
-		}
-		std::vector<UserTuple> tuples =
-			decodeUserTuple(conn.getInBuf(), data);
-		for (auto const& t : tuples) {
-			std::cout << t << std::endl;
-		}
+	assert(response.body.data != std::nullopt);
+	Data<BUFFER> data = *response.body.data;
+	if (data.tuples.empty()) {
+		std::cout << "Empty result" << std::endl;
+		return;
+	}
+	std::vector<UserTuple> tuples;
+	switch (format) {
+		case TUPLES:
+			tuples = decodeUserTuple(conn.getInBuf(), data);
+			break;
+		case MULTI_RETURN:
+			tuples = decodeMultiReturn(conn.getInBuf(), data);
+			break;
+		case SELECT_RETURN:
+			tuples = decodeSelectReturn(conn.getInBuf(), data);
+			break;
+		default:
+			assert(0);
+	}
+	for (auto const& t : tuples) {
+		std::cout << t << std::endl;
 	}
 }
 
@@ -460,13 +480,18 @@ void
 single_conn_call(Connector<BUFFER> &client)
 {
 	TEST_INIT(0);
-	const static char *func_name = "remote_procedure";
+	const static char *return_replace = "remote_replace";
+	const static char *return_select  = "remote_select";
+	const static char *return_uint    = "remote_uint";
+	const static char *return_multi   = "remote_multi";
+
 	Connection<Buf_t, Net_t> conn(client);
 	int rc = client.connect(conn, localhost, port);
 	fail_unless(rc == 0);
 
-	rid_t f1 = conn.call(func_name, std::make_tuple(5, "value_from_test", 5.55));
-	rid_t f2 = conn.call(func_name, std::make_tuple(6, "value_from_test2", 3.33));
+	TEST_CASE("call remote_replace");
+	rid_t f1 = conn.call(return_replace, std::make_tuple(5, "value_from_test", 5.55));
+	rid_t f2 = conn.call(return_replace, std::make_tuple(6, "value_from_test2", 3.33));
 
 	client.wait(conn, f1, WAIT_TIMEOUT);
 	fail_unless(conn.futureIsReady(f1));
@@ -484,22 +509,45 @@ single_conn_call(Connector<BUFFER> &client)
 	fail_unless(response->body.error_stack == std::nullopt);
 	printResponse<BUFFER>(conn, *response);
 
+	TEST_CASE("call remote_uint");
+	rid_t f4 = conn.call(return_uint, std::make_tuple());
+	client.wait(conn, f4, WAIT_TIMEOUT);
+	fail_unless(conn.futureIsReady(f4));
+	response = conn.getResponse(f4);
+	printResponse<BUFFER>(conn, *response, MULTI_RETURN);
+
+	TEST_CASE("call remote_multi");
+	rid_t f5 = conn.call(return_multi, std::make_tuple());
+	client.wait(conn, f5, WAIT_TIMEOUT);
+	fail_unless(conn.futureIsReady(f5));
+	response = conn.getResponse(f5);
+	printResponse<BUFFER>(conn, *response, MULTI_RETURN);
+
+	TEST_CASE("call remote_select");
+	rid_t f6 = conn.call(return_select, std::make_tuple());
+	client.wait(conn, f6, WAIT_TIMEOUT);
+	fail_unless(conn.futureIsReady(f6));
+	response = conn.getResponse(f6);
+	printResponse<BUFFER>(conn, *response, SELECT_RETURN);
+
 	/*
 	 * Also test that errors during call are handled properly:
 	 * call non-existent function and pass wrong number of arguments.
 	 */
-	rid_t f3 = conn.call("wrong_name", std::make_tuple(7, "aaa", 0.0));
-	client.wait(conn, f3, WAIT_TIMEOUT);
-	fail_unless(conn.futureIsReady(f3));
-	response = conn.getResponse(f3);
+	TEST_CASE("call wrong function");
+	rid_t f7 = conn.call("wrong_name", std::make_tuple(7, "aaa", 0.0));
+	client.wait(conn, f7, WAIT_TIMEOUT);
+	fail_unless(conn.futureIsReady(f7));
+	response = conn.getResponse(f7);
 	fail_unless(response != std::nullopt);
 	fail_unless(response->body.error_stack != std::nullopt);
 	printResponse<BUFFER>(conn, *response);
 
-	rid_t f4 = conn.call(func_name, std::make_tuple(7));
-	client.wait(conn, f4, WAIT_TIMEOUT);
-	fail_unless(conn.futureIsReady(f4));
-	response = conn.getResponse(f4);
+	TEST_CASE("call function with wrong number of arguments");
+	rid_t f8 = conn.call(return_replace, std::make_tuple(7));
+	client.wait(conn, f8, WAIT_TIMEOUT);
+	fail_unless(conn.futureIsReady(f8));
+	response = conn.getResponse(f8);
 	fail_unless(response != std::nullopt);
 	fail_unless(response->body.error_stack != std::nullopt);
 	printResponse<BUFFER>(conn, *response);
