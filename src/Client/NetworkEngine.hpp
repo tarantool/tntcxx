@@ -80,7 +80,8 @@ IOVCountBytes(struct iovec *iovecs, size_t iov_len)
 class NetworkEngine {
 public:
 	NetworkEngine();
-	int connectINET(const std::string_view& addr_str, unsigned port);
+	int connectINET(const std::string_view& addr_str, unsigned port,
+			size_t timeout);
 	int connectUNIX(const std::string_view& path);
 	void close(int socket);
 
@@ -98,7 +99,6 @@ public:
 	void resetPollTimeout();
 	size_t poll_timeout;
 private:
-	constexpr static size_t CONNECT_TIMEOUT = 2;
 	constexpr static size_t EPOLL_QUEUE_LEN = 1024;
 	constexpr static size_t EPOLL_DEFAULT_TIMEOUT = 1000;
 	constexpr static size_t EPOLL_EVENTS_MAX = 128;
@@ -141,7 +141,8 @@ NetworkEngine::setPollSetting(int socket, int setting)
 }
 
 inline int
-NetworkEngine::connectINET(const std::string_view& addr_str, unsigned port)
+NetworkEngine::connectINET(const std::string_view& addr_str, unsigned port,
+			   size_t timeout)
 {
 	struct addrinfo hints, *res;
 	memset(&hints, 0, sizeof(hints));
@@ -176,7 +177,7 @@ NetworkEngine::connectINET(const std::string_view& addr_str, unsigned port)
 	struct timeval tv;
 	FD_ZERO(&fdset);
 	FD_SET(soc.fd, &fdset);
-	tv.tv_sec = CONNECT_TIMEOUT;
+	tv.tv_sec = timeout;
 	tv.tv_usec = 0;
 	int rc = select(soc.fd + 1, NULL, &fdset, NULL, &tv);
 	if (rc == -1) {
@@ -184,7 +185,8 @@ NetworkEngine::connectINET(const std::string_view& addr_str, unsigned port)
 		return -1;
 	}
 	if (rc == 0) {
-		LOG_ERROR("connect() is timed out!");
+		LOG_ERROR("connect() is timed out! Waited for %d seconds",
+			  timeout);
 		return -1;
 	}
 	assert(rc == 1);

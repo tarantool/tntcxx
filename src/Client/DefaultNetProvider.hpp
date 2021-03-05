@@ -53,7 +53,8 @@ public:
 	DefaultNetProvider();
 	~DefaultNetProvider();
 	int connect(Connection<BUFFER, DefaultNetProvider> &conn,
-		    const std::string_view& addr, unsigned port);
+		    const std::string_view& addr, unsigned port,
+		    size_t timeout);
 	void close(Connection<BUFFER, DefaultNetProvider> &conn);
 	/** Add to @m_ready_to_write*/
 	void readyToSend(Connection<BUFFER, DefaultNetProvider> &conn);
@@ -89,11 +90,12 @@ DefaultNetProvider<BUFFER>::~DefaultNetProvider()
 template<class BUFFER>
 int
 DefaultNetProvider<BUFFER>::connect(Connection<BUFFER, DefaultNetProvider> &conn,
-				    const std::string_view& addr, unsigned port)
+				    const std::string_view& addr, unsigned port,
+				    size_t timeout)
 {
 	int socket = -1;
 	socket = port == 0 ? m_NetworkEngine.connectUNIX(addr) :
-			     m_NetworkEngine.connectINET(addr, port);
+			     m_NetworkEngine.connectINET(addr, port, timeout);
 	if (socket < 0) {
 		/* There's no + operator for string and string_view ...*/
 		conn.setError(std::string("Failed to establish connection to ") +

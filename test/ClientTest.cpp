@@ -91,6 +91,9 @@ trivial(Connector<BUFFER> &client)
 	TEST_CASE("Wrong port");
 	rc = client.connect(conn, localhost, -666);
 	fail_unless(rc != 0);
+	TEST_CASE("Connect timeout");
+	rc = client.connect(conn, "8.8.8.8", port, 0);
+	fail_unless(rc != 0);
 }
 
 /** Single connection, separate/sequence pings, no errors */

@@ -43,7 +43,8 @@ public:
 	Connector& operator = (const Connector& connector) = delete;
 
 	int connect(Connection<BUFFER, NetProvider> &conn,
-		    const std::string_view& addr, unsigned port);
+		    const std::string_view& addr, unsigned port,
+		    size_t timeout = DEFAULT_CONNECT_TIMEOUT);
 	void close(Connection<BUFFER, NetProvider> &conn);
 
 	int wait(Connection<BUFFER, NetProvider> &conn, rid_t future,
@@ -58,6 +59,8 @@ public:
 	 * */
 	void readyToDecode(Connection<BUFFER, NetProvider> &conn);
 	void readyToSend(Connection<BUFFER, NetProvider> &conn);
+
+	constexpr static size_t DEFAULT_CONNECT_TIMEOUT = 2;
 private:
 	NetProvider m_NetProvider;
 	/**
@@ -83,14 +86,14 @@ template<class BUFFER, class NetProvider>
 int
 Connector<BUFFER, NetProvider>::connect(Connection<BUFFER, NetProvider> &conn,
 					const std::string_view& addr,
-					unsigned port)
+					unsigned port, size_t timeout)
 {
 	if (conn.socket >= 0 && m_NetProvider.check(conn)) {
 		LOG_ERROR("Current connection to %d is alive! Please close it "
 			  "before connecting to the new address", conn.socket);
 		return -1;
 	}
-	if (m_NetProvider.connect(conn, addr, port) != 0) {
+	if (m_NetProvider.connect(conn, addr, port, timeout) != 0) {
 		LOG_ERROR("Failed to connect to %s:%d",
 			  std::string(addr).c_str(), port);
 		LOG_ERROR("Reason: %s", conn.getError().c_str());
