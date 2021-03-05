@@ -367,6 +367,28 @@ buffer_out()
 	} while (!buf.empty());
 }
 
+/**
+ * Test iterator::get() method.
+ */
+template<size_t N>
+void
+buffer_iterator_get()
+{
+	TEST_INIT(1, N);
+	tnt::Buffer<N> buf;
+	size_t DATA_SIZE = SAMPLES_CNT * 10;
+	fillBuffer(buf, DATA_SIZE);
+	buf.addBack(end_marker);
+	fail_if(buf.debugSelfCheck());
+	char char_res[DATA_SIZE];
+	memset(char_res, '0', DATA_SIZE);
+	auto itr = buf.begin();
+	buf.get(itr, (char *)&char_res, DATA_SIZE);
+	for (size_t i = 0; i < DATA_SIZE; ++i)
+		fail_unless(char_samples[i % SAMPLES_CNT] == char_res[i]);
+	fail_if(buf.debugSelfCheck());
+}
+
 int main()
 {
 	buffer_basic<SMALL_BLOCK_SZ>();
@@ -379,4 +401,6 @@ int main()
 	buffer_release<LARGE_BLOCK_SZ>();
 	buffer_out<SMALL_BLOCK_SZ>();
 	buffer_out<LARGE_BLOCK_SZ>();
+	buffer_iterator_get<SMALL_BLOCK_SZ>();
+	buffer_iterator_get<LARGE_BLOCK_SZ>();
 }

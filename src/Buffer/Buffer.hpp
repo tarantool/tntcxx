@@ -135,6 +135,7 @@ public:
 		size_t operator - (const iterator &a) const;
 		Block * getBlock() {return m_block;}
 		char * getPos() {return m_position;}
+		void get(char *buf, size_t size) { m_buffer.get(*this, buf, size); }
 
 		/** Remove from linked list of iterators. */
 		void unlink() { rlist_del_entry(this, in_iters); }
