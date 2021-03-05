@@ -35,6 +35,7 @@
 #include "../src/Client/Connector.hpp"
 
 const char *localhost = "127.0.0.1";
+int port = 3301;
 int WAIT_TIMEOUT = 1000; //milliseconds
 
 using Net_t = DefaultNetProvider<Buf_t >;
@@ -82,10 +83,10 @@ trivial(Connector<BUFFER> &client)
 	std::cout << conn.getError() << std::endl;
 	/* Connect to the wrong address. */
 	TEST_CASE("Bad address");
-	int rc = client.connect(conn, "asdasd", 3301);
+	int rc = client.connect(conn, "asdasd", port);
 	fail_unless(rc != 0);
 	TEST_CASE("Unreachable address");
-	rc = client.connect(conn, "101.101.101", 3301);
+	rc = client.connect(conn, "101.101.101", port);
 	fail_unless(rc != 0);
 	TEST_CASE("Wrong port");
 	rc = client.connect(conn, localhost, -666);
@@ -99,7 +100,7 @@ single_conn_ping(Connector<BUFFER> &client)
 {
 	TEST_INIT(0);
 	Connection<Buf_t, Net_t> conn(client);
-	int rc = client.connect(conn, localhost, 3301);
+	int rc = client.connect(conn, localhost, port);
 	fail_unless(rc == 0);
 	rid_t f = conn.ping();
 	fail_unless(!conn.futureIsReady(f));
@@ -142,18 +143,18 @@ many_conn_ping(Connector<BUFFER> &client)
 	Connection<Buf_t, Net_t> conn1(client);
 	Connection<Buf_t, Net_t> conn2(client);
 	Connection<Buf_t, Net_t> conn3(client);
-	int rc = client.connect(conn1, localhost, 3301);
+	int rc = client.connect(conn1, localhost, port);
 	fail_unless(rc == 0);
 	/* Try to connect to the same port */
-	rc = client.connect(conn2, localhost, 3301);
+	rc = client.connect(conn2, localhost, port);
 	fail_unless(rc == 0);
 	/*
 	 * Try to re-connect to another address whithout closing
 	 * current connection.
 	 */
-	rc = client.connect(conn2, localhost, 3303);
+	rc = client.connect(conn2, localhost, port + 2);
 	fail_unless(rc != 0);
-	rc = client.connect(conn3, localhost, 3301);
+	rc = client.connect(conn3, localhost, port);
 	fail_unless(rc == 0);
 	rid_t f1 = conn1.ping();
 	rid_t f2 = conn2.ping();
@@ -174,7 +175,7 @@ single_conn_error(Connector<BUFFER> &client)
 {
 	TEST_INIT(0);
 	Connection<Buf_t, Net_t> conn(client);
-	int rc = client.connect(conn, localhost, 3301);
+	int rc = client.connect(conn, localhost, port);
 	fail_unless(rc == 0);
 	/* Fake space id. */
 	uint32_t space_id = -111;
@@ -214,7 +215,7 @@ single_conn_replace(Connector<BUFFER> &client)
 {
 	TEST_INIT(0);
 	Connection<Buf_t, Net_t> conn(client);
-	int rc = client.connect(conn, localhost, 3301);
+	int rc = client.connect(conn, localhost, port);
 	fail_unless(rc == 0);
 	uint32_t space_id = 512;
 	std::tuple data = std::make_tuple(666, "111", 1.01);
@@ -247,7 +248,7 @@ single_conn_insert(Connector<BUFFER> &client)
 {
 	TEST_INIT(0);
 	Connection<Buf_t, Net_t> conn(client);
-	int rc = client.connect(conn, localhost, 3301);
+	int rc = client.connect(conn, localhost, port);
 	fail_unless(rc == 0);
 	TEST_CASE("Successful inserts");
 	uint32_t space_id = 512;
@@ -291,7 +292,7 @@ single_conn_update(Connector<BUFFER> &client)
 {
 	TEST_INIT(0);
 	Connection<Buf_t, Net_t> conn(client);
-	int rc = client.connect(conn, localhost, 3301);
+	int rc = client.connect(conn, localhost, port);
 	fail_unless(rc == 0);
 	TEST_CASE("Successful update");
 	uint32_t space_id = 512;
@@ -326,7 +327,7 @@ single_conn_delete(Connector<BUFFER> &client)
 {
 	TEST_INIT(0);
 	Connection<Buf_t, Net_t> conn(client);
-	int rc = client.connect(conn, localhost, 3301);
+	int rc = client.connect(conn, localhost, port);
 	fail_unless(rc == 0);
 	TEST_CASE("Successful deletes");
 	uint32_t space_id = 512;
@@ -370,7 +371,7 @@ single_conn_upsert(Connector<BUFFER> &client)
 {
 	TEST_INIT(0);
 	Connection<Buf_t, Net_t> conn(client);
-	int rc = client.connect(conn, localhost, 3301);
+	int rc = client.connect(conn, localhost, port);
 	fail_unless(rc == 0);
 	TEST_CASE("upsert-insert");
 	uint32_t space_id = 512;
@@ -401,7 +402,7 @@ single_conn_select(Connector<BUFFER> &client)
 {
 	TEST_INIT(0);
 	Connection<Buf_t, Net_t> conn(client);
-	int rc = client.connect(conn, localhost, 3301);
+	int rc = client.connect(conn, localhost, port);
 	fail_unless(rc == 0);
 	uint32_t space_id = 512;
 	uint32_t index_id = 0;
@@ -458,7 +459,7 @@ single_conn_call(Connector<BUFFER> &client)
 	TEST_INIT(0);
 	const static char *func_name = "remote_procedure";
 	Connection<Buf_t, Net_t> conn(client);
-	int rc = client.connect(conn, localhost, 3301);
+	int rc = client.connect(conn, localhost, port);
 	fail_unless(rc == 0);
 
 	rid_t f1 = conn.call(func_name, std::make_tuple(5, "value_from_test", 5.55));
