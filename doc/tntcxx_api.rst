@@ -26,10 +26,14 @@ Represents a connector client that can handle many connections to
 Tarantool instances asynchronously.
 
 To instantiate a client, you should specify the buffer and the network provider
-implementations as template parameters:
+implementations as template parameters.
 
-..  cpp:class:: template<class BUFFER, class NetProvider = DefaultNetProvider<BUFFER>>
-                class Connector;
+Class signature:
+
+..  code-block:: cpp
+
+    template<class BUFFER, class NetProvider = DefaultNetProvider<BUFFER>>
+    class Connector;
 
 You can either implement your own buffer or network provider or use the default
 ones. The default connector instantiation looks as follows:
