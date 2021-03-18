@@ -38,7 +38,7 @@ const char *localhost = "127.0.0.1";
 int port = 3301;
 int WAIT_TIMEOUT = 1000; //milliseconds
 
-using Net_t = DefaultNetProvider<Buf_t >;
+using Net_t = DefaultNetProvider<Buf_t, NetworkEngine>;
 
 
 enum ResultFormat {

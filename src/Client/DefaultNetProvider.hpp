@@ -47,51 +47,55 @@
 template<class BUFFER, class NetProvider>
 class Connector;
 
-template<class BUFFER>
+template<class BUFFER, class NETWORK>
 class DefaultNetProvider {
 public:
+	using NetProvider_t = DefaultNetProvider<BUFFER, NETWORK>;
+	using Conn_t = Connection<BUFFER, NetProvider_t >;
+	using Connector_t = Connector<BUFFER, NetProvider_t >;
 	DefaultNetProvider();
 	~DefaultNetProvider();
-	int connect(Connection<BUFFER, DefaultNetProvider> &conn,
-		    const std::string_view& addr, unsigned port,
+	int connect(Conn_t &conn, const std::string_view& addr, unsigned port,
 		    size_t timeout);
-	void close(Connection<BUFFER, DefaultNetProvider> &conn);
+	void close(Conn_t &conn);
 	/** Add to @m_ready_to_write*/
-	void readyToSend(Connection<BUFFER, DefaultNetProvider> &conn);
+	void readyToSend(Conn_t &conn);
 	/** Read and write to sockets; polling using epoll. */
-	int wait(Connector<BUFFER, DefaultNetProvider> &connector, int timeout);
+	int wait(Connector_t &connector, int timeout);
 
-	bool check(Connection<BUFFER, DefaultNetProvider> &conn);
+	bool check(Conn_t &conn);
 private:
 	static constexpr int DEFAULT_TIMEOUT = 100;
 	static constexpr size_t EVENT_POLL_COUNT_MAX = 64;
 
-	void send(Connection<BUFFER, DefaultNetProvider> &conn);
-	int recv(Connection<BUFFER, DefaultNetProvider> &conn);
+	void send(Conn_t &conn);
+	int recv(Conn_t &conn);
 
-	NetworkEngine m_NetworkEngine;
+	NETWORK m_NetworkEngine;
 	/** <socket : connection> map. Contains both ready to read/send connections */
-	std::unordered_map<int, Connection<BUFFER, DefaultNetProvider> *> m_Connections;
+	std::unordered_map<int, Conn_t *> m_Connections;
 	rlist m_ready_to_write;
+
+
 };
 
-template<class BUFFER>
-DefaultNetProvider<BUFFER>::DefaultNetProvider() : m_NetworkEngine()
+template<class BUFFER, class NETWORK>
+DefaultNetProvider<BUFFER, NETWORK>::DefaultNetProvider() : m_NetworkEngine()
 {
 	rlist_create(&m_ready_to_write);
 }
 
-template<class BUFFER>
-DefaultNetProvider<BUFFER>::~DefaultNetProvider()
+template<class BUFFER, class NETWORK>
+DefaultNetProvider<BUFFER, NETWORK>::~DefaultNetProvider()
 {
 	assert(rlist_empty(&m_ready_to_write));
 }
 
-template<class BUFFER>
+template<class BUFFER, class NETWORK>
 int
-DefaultNetProvider<BUFFER>::connect(Connection<BUFFER, DefaultNetProvider> &conn,
-				    const std::string_view& addr, unsigned port,
-				    size_t timeout)
+DefaultNetProvider<BUFFER, NETWORK>::connect(Conn_t &conn,
+					     const std::string_view& addr,
+					     unsigned port, size_t timeout)
 {
 	int socket = -1;
 	socket = port == 0 ? m_NetworkEngine.connectUNIX(addr) :
@@ -133,9 +137,9 @@ DefaultNetProvider<BUFFER>::connect(Connection<BUFFER, DefaultNetProvider> &conn
 	return 0;
 }
 
-template<class BUFFER>
+template<class BUFFER, class NETWORK>
 void
-DefaultNetProvider<BUFFER>::close(Connection<BUFFER, DefaultNetProvider> &connection)
+DefaultNetProvider<BUFFER, NETWORK>::close(Conn_t &connection)
 {
 #ifndef NDEBUG
 	struct sockaddr sa;
@@ -159,9 +163,9 @@ DefaultNetProvider<BUFFER>::close(Connection<BUFFER, DefaultNetProvider> &connec
 	connection.socket = -1;
 }
 
-template<class BUFFER>
+template<class BUFFER, class NETWORK>
 void
-DefaultNetProvider<BUFFER>::readyToSend(Connection<BUFFER, DefaultNetProvider> &conn)
+DefaultNetProvider<BUFFER, NETWORK>::readyToSend(Conn_t &conn)
 {
 	if (conn.status.is_send_blocked) {
 #ifndef NDEBUG
@@ -186,9 +190,9 @@ DefaultNetProvider<BUFFER>::readyToSend(Connection<BUFFER, DefaultNetProvider> &
 	conn.status.is_ready_to_send = true;
 }
 
-template<class BUFFER>
+template<class BUFFER, class NETWORK>
 int
-DefaultNetProvider<BUFFER>::recv(Connection<BUFFER, DefaultNetProvider> &conn)
+DefaultNetProvider<BUFFER, NETWORK>::recv(Conn_t &conn)
 {
 	assert(! conn.status.is_failed);
 	//TODO: refactor this part. Get rid of readyToRecv and pass
@@ -225,9 +229,9 @@ DefaultNetProvider<BUFFER>::recv(Connection<BUFFER, DefaultNetProvider> &conn)
 	return 0;
 }
 
-template<class BUFFER>
+template<class BUFFER, class NETWORK>
 void
-DefaultNetProvider<BUFFER>::send(Connection<BUFFER, DefaultNetProvider> &conn)
+DefaultNetProvider<BUFFER, NETWORK>::send(Conn_t &conn)
 {
 	assert(! conn.status.is_failed);
 	while (hasDataToSend(conn)) {
@@ -272,10 +276,9 @@ DefaultNetProvider<BUFFER>::send(Connection<BUFFER, DefaultNetProvider> &conn)
 	}
 }
 
-template<class BUFFER>
+template<class BUFFER, class NETWORK>
 int
-DefaultNetProvider<BUFFER>::wait(Connector<BUFFER, DefaultNetProvider> &connector,
-				 int timeout)
+DefaultNetProvider<BUFFER, NETWORK>::wait(Connector_t &connector, int timeout)
 {
 	(void) connector;
 	assert(timeout >= 0);
@@ -317,9 +320,9 @@ DefaultNetProvider<BUFFER>::wait(Connector<BUFFER, DefaultNetProvider> &connecto
 	return 0;
 }
 
-template<class BUFFER>
+template<class BUFFER, class NETWORK>
 bool
-DefaultNetProvider<BUFFER>::check(Connection<BUFFER, DefaultNetProvider> &connection)
+DefaultNetProvider<BUFFER, NETWORK>::check(Conn_t &connection)
 {
 	int error = 0;
 	socklen_t len = sizeof(error);

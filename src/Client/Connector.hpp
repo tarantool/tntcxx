@@ -33,7 +33,7 @@
 #include "DefaultNetProvider.hpp"
 #include "../Utils/Timer.hpp"
 
-template<class BUFFER, class NetProvider = DefaultNetProvider<BUFFER>>
+template<class BUFFER, class NetProvider = DefaultNetProvider<BUFFER, NetworkEngine>>
 class Connector
 {
 public:
