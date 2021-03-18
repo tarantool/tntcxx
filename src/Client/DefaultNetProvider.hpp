@@ -31,6 +31,7 @@
  */
 #include <assert.h>
 #include <chrono>
+#include <sys/epoll.h>
 #include <errno.h>
 #include <unistd.h>
 #include <stdexcept>
@@ -65,31 +66,71 @@ public:
 
 	bool check(Conn_t &conn);
 private:
-	static constexpr int DEFAULT_TIMEOUT = 100;
+	static constexpr size_t DEFAULT_TIMEOUT = 100;
 	static constexpr size_t EVENT_POLL_COUNT_MAX = 64;
+	static constexpr size_t EPOLL_QUEUE_LEN = 1024;
+	static constexpr size_t EPOLL_EVENTS_MAX = 128;
 
 	void send(Conn_t &conn);
 	int recv(Conn_t &conn);
+
+	int poll(struct ConnectionEvent *fds, size_t *fd_count,
+		 int timeout = DEFAULT_TIMEOUT);
+	int setPollSetting(int socket, int setting);
+	int registerEpoll(int socket);
 
 	NETWORK m_NetworkEngine;
 	/** <socket : connection> map. Contains both ready to read/send connections */
 	std::unordered_map<int, Conn_t *> m_Connections;
 	rlist m_ready_to_write;
-
-
+	int m_EpollFd;
 };
 
 template<class BUFFER, class NETWORK>
 DefaultNetProvider<BUFFER, NETWORK>::DefaultNetProvider() : m_NetworkEngine()
 {
+	m_EpollFd = epoll_create(EPOLL_QUEUE_LEN);
+	if (m_EpollFd == -1) {
+		LOG_ERROR("Failed to initialize epoll: %s", strerror(errno));
+		abort();
+	}
 	rlist_create(&m_ready_to_write);
 }
 
 template<class BUFFER, class NETWORK>
 DefaultNetProvider<BUFFER, NETWORK>::~DefaultNetProvider()
 {
+	::close(m_EpollFd);
+	m_EpollFd = 0;
 	assert(rlist_empty(&m_ready_to_write));
 }
+
+template<class BUFFER, class NETWORK>
+int
+DefaultNetProvider<BUFFER, NETWORK>::registerEpoll(int socket)
+{
+	/* Configure epoll with new socket. */
+	assert(m_EpollFd >= 0);
+	struct epoll_event event;
+	event.events = EPOLLIN;
+	event.data.fd = socket;
+	if (epoll_ctl(m_EpollFd, EPOLL_CTL_ADD, socket, &event) != 0)
+		return -1;
+	return 0;
+}
+
+template<class BUFFER, class NETWORK>
+int
+DefaultNetProvider<BUFFER, NETWORK>::setPollSetting(int socket, int setting)
+{
+	struct epoll_event event;
+	event.events = setting;
+	event.data.fd = socket;
+	if (epoll_ctl(m_EpollFd, EPOLL_CTL_MOD, socket, &event) != 0)
+		return -1;
+	return 0;
+}
+
 
 template<class BUFFER, class NETWORK>
 int
@@ -132,6 +173,11 @@ DefaultNetProvider<BUFFER, NETWORK>::connect(Conn_t &conn,
 	LOG_DEBUG("Greetings are decoded");
 	LOG_DEBUG("Authentication processing...");
 	//TODO: add authentication step.
+	if (registerEpoll(socket) != 0) {
+		conn.setError(std::string("Failed to register epoll watcher"));
+		::close(socket);
+		return -1;
+	}
 	conn.socket = socket;
 	m_Connections[socket] = &conn;
 	return 0;
@@ -159,8 +205,41 @@ DefaultNetProvider<BUFFER, NETWORK>::close(Conn_t &connection)
 	}
 #endif
 	m_NetworkEngine.close(connection.socket);
+	if (connection.socket >= 0) {
+		struct epoll_event event;
+		event.events = EPOLLIN;
+		event.data.fd = connection.socket;
+		/*
+		 * Descriptor is automatically removed from epoll handler
+		 * when all descriptors are closed. So in case
+		 * there's other descriptors on open socket, invoke
+		 * epoll_ctl manually.
+		 */
+		epoll_ctl(m_EpollFd, EPOLL_CTL_DEL, connection.socket, &event);
+	}
 	m_Connections.erase(connection.socket);
 	connection.socket = -1;
+}
+
+template<class BUFFER, class NETWORK>
+int
+DefaultNetProvider<BUFFER, NETWORK>::poll(struct ConnectionEvent *fds,
+					  size_t *fd_count, int timeout)
+{
+	static struct epoll_event events[EPOLL_EVENTS_MAX];
+	*fd_count = 0;
+	int event_cnt = epoll_wait(m_EpollFd, events, EPOLL_EVENTS_MAX,
+				   timeout);
+	if (event_cnt == -1)
+		return -1;
+	assert(event_cnt >= 0);
+	for (int i = 0; i < event_cnt; ++i) {
+		fds[*fd_count].sock = events[i].data.fd;
+		fds[*fd_count].event = events[i].events;
+		(*fd_count)++;
+	}
+	assert(*fd_count == (size_t) event_cnt);
+	return 0;
 }
 
 template<class BUFFER, class NETWORK>
@@ -245,7 +324,7 @@ DefaultNetProvider<BUFFER, NETWORK>::send(Conn_t &conn)
 		if (rc != 0) {
 			if (errno == EWOULDBLOCK || errno == EAGAIN) {
 				int setting = EPOLLIN | EPOLLOUT;
-				if (m_NetworkEngine.setPollSetting(conn.socket,
+				if (setPollSetting(conn.socket,
 							       setting) != 0) {
 					LOG_ERROR("Failed to change epoll mode: "
 						  "epoll_ctl() returned with errno: %s",
@@ -267,7 +346,7 @@ DefaultNetProvider<BUFFER, NETWORK>::send(Conn_t &conn)
 	}
 	/* All data from connection has been successfully written. */
 	if (conn.status.is_send_blocked) {
-		if (m_NetworkEngine.setPollSetting(conn.socket, EPOLLIN) != 0) {
+		if (setPollSetting(conn.socket, EPOLLIN) != 0) {
 			LOG_ERROR("Failed to change epoll mode: epoll_ctl() "
 				  "returned with errno: %s", strerror(errno));
 			abort();
@@ -295,7 +374,7 @@ DefaultNetProvider<BUFFER, NETWORK>::wait(Connector_t &connector, int timeout)
 	/* Firstly poll connections to point out if there's data to read. */
 	static struct ConnectionEvent events[EVENT_POLL_COUNT_MAX];
 	size_t event_cnt = 0;
-	if (m_NetworkEngine.poll((ConnectionEvent *)&events, &event_cnt,
+	if (poll((ConnectionEvent *)&events, &event_cnt,
 				 timeout) != 0) {
 		LOG_ERROR("Poll failed: %s", strerror(errno));
 		return -1;

@@ -38,7 +38,6 @@
 #include <string_view>
 
 #include <stdlib.h>
-#include <sys/epoll.h>
 #include <sys/ioctl.h>
 #include <sys/select.h>
 #include <sys/uio.h>
@@ -54,7 +53,6 @@
 #undef offsetof
 #endif
 #define offsetof(type, member) ((size_t) &((type *)0)->member)
-
 
 /** Simple wrapper to implement RAII over socket. */
 struct Socket {
@@ -91,54 +89,10 @@ public:
 	int recv(int socket, struct iovec *iov, size_t iov_len);
 	int recvall(int socket, struct iovec *iov, size_t iov_len,
 		    size_t total, size_t *read_bytes, bool dont_wait);
-	size_t readyToRecv(int socket) /* throw */;
-
-	int poll(struct ConnectionEvent *fds, size_t *fd_count,
-		 int timeout = EPOLL_DEFAULT_TIMEOUT);
-	int setPollSetting(int socket, int setting);
-	void resetPollTimeout();
-	size_t poll_timeout;
-private:
-	constexpr static size_t EPOLL_QUEUE_LEN = 1024;
-	constexpr static size_t EPOLL_DEFAULT_TIMEOUT = 1000;
-	constexpr static size_t EPOLL_EVENTS_MAX = 128;
-
-	int registerEpoll(int socket);
-	int m_EpollFd;
+	size_t readyToRecv(int socket);
 };
 
-NetworkEngine::NetworkEngine()
-{
-	m_EpollFd = epoll_create(EPOLL_QUEUE_LEN);
-	if (m_EpollFd == -1){
-		LOG_ERROR("Failed to initialize epoll: %s", strerror(errno));
-		abort();
-	}
-}
-
-inline int
-NetworkEngine::registerEpoll(int socket)
-{
-	/* Configure epoll with new socket. */
-	assert(m_EpollFd >= 0);
-	struct epoll_event event;
-	event.events = EPOLLIN;
-	event.data.fd = socket;
-	if (epoll_ctl(m_EpollFd, EPOLL_CTL_ADD, socket, &event) != 0)
-		return -1;
-	return 0;
-}
-
-inline int
-NetworkEngine::setPollSetting(int socket, int setting)
-{
-	struct epoll_event event;
-	event.events = setting;
-	event.data.fd = socket;
-	if (epoll_ctl(m_EpollFd, EPOLL_CTL_MOD, socket, &event) != 0)
-		return -1;
-	return 0;
-}
+NetworkEngine::NetworkEngine() { }
 
 inline int
 NetworkEngine::connectINET(const std::string_view& addr_str, unsigned port,
@@ -200,10 +154,6 @@ NetworkEngine::connectINET(const std::string_view& addr_str, unsigned port,
 		LOG_ERROR("connect() failed: %s",  strerror(so_error));
 		return -1;
 	}
-	if (registerEpoll(soc.fd) != 0) {
-		LOG_ERROR("Failed to register epoll event");
-		return -1;
-	}
 	if (fcntl(soc.fd, F_SETFL, O_NONBLOCK) != 0) {
 		LOG_ERROR("fcntl() failed: %s", strerror(errno));
 		return -1;
@@ -236,11 +186,15 @@ NetworkEngine::connectUNIX(const std::string_view& path)
 	std::strcpy(addr.sun_path, std::string(path).c_str());
 	if (::connect(soc.fd, (struct sockaddr *)&addr, sizeof(addr)) != 0)
 		return -1;
-	if (registerEpoll(soc.fd) != 0)
-		return -1;
 	int sock = soc.fd;
 	soc.fd = -1;
 	return sock;
+}
+
+inline void
+NetworkEngine::close(int socket)
+{
+	::close(socket);
 }
 
 inline int
@@ -327,41 +281,4 @@ NetworkEngine::readyToRecv(int socket)
 	if (ioctl(socket, FIONREAD, &bytes) < 0)
 		return -1;
 	return bytes;
-}
-
-inline void
-NetworkEngine::close(int socket)
-{
-	if (socket >= 0) {
-		struct epoll_event event;
-		event.events = EPOLLIN;
-		event.data.fd = socket;
-		/*
-		 * Descriptor is automatically removed from epoll handler
-		 * when all descriptors are closed. So in case
-		 * there's other descriptors on open socket, invoke
-		 * epoll_ctl manually.
-		 */
-		epoll_ctl(m_EpollFd, EPOLL_CTL_DEL, socket, &event);
-	}
-	::close(socket);
-}
-
-inline int
-NetworkEngine::poll(struct ConnectionEvent *fds, size_t *fd_count, int timeout)
-{
-	static struct epoll_event events[EPOLL_EVENTS_MAX];
-	*fd_count = 0;
-	int event_cnt = epoll_wait(m_EpollFd, events, EPOLL_EVENTS_MAX,
-				   timeout);
-	if (event_cnt == -1)
-		return -1;
-	assert(event_cnt >= 0);
-	for (int i = 0; i < event_cnt; ++i) {
-		fds[*fd_count].sock = events[i].data.fd;
-		fds[*fd_count].event = events[i].events;
-		(*fd_count)++;
-	}
-	assert(*fd_count == (size_t) event_cnt);
-	return 0;
 }
