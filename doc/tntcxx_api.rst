@@ -2,14 +2,15 @@
 Tarantool C++ connector API
 ===========================
 
-The official C++ connector for Tarantool is located `here <https://github.com/tarantool/tntcxx/>`_.
+The official C++ connector for Tarantool is located in the
+`tanartool/tntcxx <https://github.com/tarantool/tntcxx/>`_ repository.
 
 It is not supplied as part of the Tarantool repository and requires additional
 actions for usage.
-The connector itself is a header-only library, and, as such, doesn't require
+The connector itself is a header-only library and, as such, doesn't require
 installation and building. All you need is to clone the connector
 source code and embed it in your C++ project. See the :doc:`C++ connector Getting started </getting_started/getting_started_cxx>`
-article for details and examples.
+document for details and examples.
 
 Below is the description of the connector public API.
 
@@ -22,8 +23,8 @@ Below is the description of the connector public API.
 Сlass ``Connector``
 -------------------
 
-Represents a connector client that can handle many connections to
-Tarantool instances asynchronously.
+The ``Connector`` class is a template class that defines a connector client
+which can handle many connections to Tarantool instances asynchronously.
 
 To instantiate a client, you should specify the buffer and the network provider
 implementations as template parameters.
