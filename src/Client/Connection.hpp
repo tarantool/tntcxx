@@ -222,6 +222,7 @@ public:
 	struct rlist m_in_read;
 	/** Link NetworkProvider::m_ready_to_write */
 	struct rlist m_in_write;
+	void readyToDecode();
 private:
 	static constexpr size_t AVAILABLE_IOVEC_COUNT = 32;
 	static constexpr size_t GC_STEP_CNT = 5;
@@ -310,6 +311,13 @@ bool
 Connection<BUFFER, NetProvider>::futureIsReady(rid_t future)
 {
 	return m_Futures.find(future) != m_Futures.end();
+}
+
+template<class BUFFER, class NetProvider>
+void
+Connection<BUFFER, NetProvider>::readyToDecode()
+{
+	m_Connector.readyToDecode(*this);
 }
 
 template<class BUFFER, class NetProvider>
