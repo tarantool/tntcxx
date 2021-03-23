@@ -135,7 +135,7 @@ Connector<BUFFER, NetProvider>::wait(Connection<BUFFER, NetProvider> &conn,
 		return -1;
 	}
 	while (! conn.futureIsReady(future) && !timer.isExpired()) {
-		if (m_NetProvider.wait(*this, timeout - timer.elapsed()) != 0) {
+		if (m_NetProvider.wait(timeout - timer.elapsed()) != 0) {
 			return -1;
 		}
 		if (conn.status.is_failed != 0) {
@@ -194,7 +194,7 @@ Connector<BUFFER, NetProvider>::waitAny(int timeout)
 	Timer timer{timeout};
 	timer.start();
 	while (rlist_empty(&m_ready_to_read) && !timer.isExpired()) {
-		m_NetProvider.wait(*this, timeout - timer.elapsed());
+		m_NetProvider.wait(timeout - timer.elapsed());
 	}
 	using Conn_t = Connection<BUFFER, NetProvider>;
 	Connection<BUFFER, NetProvider> *conn =

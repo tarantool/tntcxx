@@ -62,7 +62,7 @@ public:
 	/** Add to @m_ready_to_write*/
 	void readyToSend(Conn_t &conn);
 	/** Read and write to sockets; polling using epoll. */
-	int wait(Connector_t &connector, int timeout);
+	int wait(int timeout);
 
 	bool check(Conn_t &conn);
 private:
@@ -356,9 +356,8 @@ DefaultNetProvider<BUFFER, NETWORK>::send(Conn_t &conn)
 
 template<class BUFFER, class NETWORK>
 int
-DefaultNetProvider<BUFFER, NETWORK>::wait(Connector_t &connector, int timeout)
+DefaultNetProvider<BUFFER, NETWORK>::wait(int timeout)
 {
-	(void) connector;
 	assert(timeout >= 0);
 	if (timeout == 0)
 		timeout = DEFAULT_TIMEOUT;
@@ -385,7 +384,7 @@ DefaultNetProvider<BUFFER, NETWORK>::wait(Connector_t &connector, int timeout)
 			LOG_DEBUG("Registered poll event %d: %d socket is ready to read",
 				  i, conn->socket);
 			if (recv(*conn) == 0)
-				connector.readyToDecode(*conn);
+				conn->readyToDecode();
 		}
 		if ((events[i].event & EPOLLOUT) != 0) {
 			/* We are watching only for blocked sockets. */
