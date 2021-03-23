@@ -79,7 +79,6 @@ private:
 	int setPollSetting(int socket, int setting);
 	int registerEpoll(int socket);
 
-	NETWORK m_NetworkEngine;
 	/** <socket : connection> map. Contains both ready to read/send connections */
 	std::unordered_map<int, Conn_t *> m_Connections;
 	rlist m_ready_to_write;
@@ -87,7 +86,7 @@ private:
 };
 
 template<class BUFFER, class NETWORK>
-DefaultNetProvider<BUFFER, NETWORK>::DefaultNetProvider() : m_NetworkEngine()
+DefaultNetProvider<BUFFER, NETWORK>::DefaultNetProvider()
 {
 	m_EpollFd = epoll_create(EPOLL_QUEUE_LEN);
 	if (m_EpollFd == -1) {
@@ -139,8 +138,8 @@ DefaultNetProvider<BUFFER, NETWORK>::connect(Conn_t &conn,
 					     unsigned port, size_t timeout)
 {
 	int socket = -1;
-	socket = port == 0 ? m_NetworkEngine.connectUNIX(addr) :
-			     m_NetworkEngine.connectINET(addr, port, timeout);
+	socket = port == 0 ? NETWORK::connectUNIX(addr) :
+			NETWORK::connectINET(addr, port, timeout);
 	if (socket < 0) {
 		/* There's no + operator for string and string_view ...*/
 		conn.setError(std::string("Failed to establish connection to ") +
@@ -155,7 +154,7 @@ DefaultNetProvider<BUFFER, NETWORK>::connect(Conn_t &conn,
 		inBufferToIOV(conn, Iproto::GREETING_SIZE, &iov_cnt);
 	size_t read_bytes = 0;
 	LOG_DEBUG("Receiving greetings...");
-	int rc = m_NetworkEngine.recvall(socket, iov, iov_cnt,
+	int rc = NETWORK::recvall(socket, iov, iov_cnt,
 					 Iproto::GREETING_SIZE, &read_bytes,
 					 false);
 	if (rc < 0) {
@@ -204,7 +203,7 @@ DefaultNetProvider<BUFFER, NETWORK>::close(Conn_t &connection)
 			  "address %s", connection.socket, addr);
 	}
 #endif
-	m_NetworkEngine.close(connection.socket);
+	NETWORK::close(connection.socket);
 	if (connection.socket >= 0) {
 		struct epoll_event event;
 		event.events = EPOLLIN;
@@ -276,7 +275,7 @@ DefaultNetProvider<BUFFER, NETWORK>::recv(Conn_t &conn)
 	assert(! conn.status.is_failed);
 	//TODO: refactor this part. Get rid of readyToRecv and pass
 	//input buffer directly to recv allocating new blocks on demand.
-	size_t total = m_NetworkEngine.readyToRecv(conn.socket);
+	size_t total = NETWORK::readyToRecv(conn.socket);
 	if (total < 0) {
 		LOG_ERROR("Failed to check socket: ioctl returned errno %s",
 			  strerror(errno));
@@ -290,7 +289,7 @@ DefaultNetProvider<BUFFER, NETWORK>::recv(Conn_t &conn)
 	size_t iov_cnt = 0;
 	struct iovec *iov =
 		inBufferToIOV(conn, total, &iov_cnt);
-	int rc = m_NetworkEngine.recvall(conn.socket, iov, iov_cnt,
+	int rc = NETWORK::recvall(conn.socket, iov, iov_cnt,
 					 total, &read_bytes, true);
 	hasNotRecvBytes(conn, total - read_bytes);
 	LOG_DEBUG("read %d bytes from %d socket", read_bytes, conn.socket);
@@ -317,7 +316,7 @@ DefaultNetProvider<BUFFER, NETWORK>::send(Conn_t &conn)
 		size_t sent_bytes = 0;
 		size_t iov_cnt = 0;
 		struct iovec *iov = outBufferToIOV(conn, &iov_cnt);
-		int rc = m_NetworkEngine.sendall(conn.socket, iov, iov_cnt,
+		int rc = NETWORK::sendall(conn.socket, iov, iov_cnt,
 						 &sent_bytes);
 		hasSentBytes(conn, sent_bytes);
 		LOG_DEBUG("send %d bytes to the %d socket", sent_bytes, conn.socket);

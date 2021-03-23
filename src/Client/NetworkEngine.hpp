@@ -77,22 +77,19 @@ IOVCountBytes(struct iovec *iovecs, size_t iov_len)
 
 class NetworkEngine {
 public:
-	NetworkEngine();
-	int connectINET(const std::string_view& addr_str, unsigned port,
-			size_t timeout);
-	int connectUNIX(const std::string_view& path);
-	void close(int socket);
+	static int connectINET(const std::string_view& addr_str, unsigned port,
+			       size_t timeout);
+	static int connectUNIX(const std::string_view& path);
+	static void close(int socket);
 
-	int send(int socket, struct iovec *iov, size_t iov_len);
-	int sendall(int socket, struct iovec *iov, size_t iov_len,
-		    size_t *sent_bytes);
-	int recv(int socket, struct iovec *iov, size_t iov_len);
-	int recvall(int socket, struct iovec *iov, size_t iov_len,
-		    size_t total, size_t *read_bytes, bool dont_wait);
-	size_t readyToRecv(int socket);
+	static int send(int socket, struct iovec *iov, size_t iov_len);
+	static int sendall(int socket, struct iovec *iov, size_t iov_len,
+			   size_t *sent_bytes);
+	static int recv(int socket, struct iovec *iov, size_t iov_len);
+	static int recvall(int socket, struct iovec *iov, size_t iov_len,
+			   size_t total, size_t *read_bytes, bool dont_wait);
+	static size_t readyToRecv(int socket);
 };
-
-NetworkEngine::NetworkEngine() { }
 
 inline int
 NetworkEngine::connectINET(const std::string_view& addr_str, unsigned port,
