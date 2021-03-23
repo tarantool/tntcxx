@@ -20,8 +20,8 @@ Below is the description of the connector public API.
 
 .. _tntcxx_api_connector:
 
-Сlass ``Connector``
--------------------
+Connector class
+---------------
 
 The ``Connector`` class is a template class that defines a connector client
 which can handle many connections to Tarantool instances asynchronously.
@@ -249,8 +249,8 @@ Public methods
 
 .. _tntcxx_api_connection:
 
-Сlass ``Connection``
---------------------
+Connection class
+----------------
 
 ..  NOTE::
 
