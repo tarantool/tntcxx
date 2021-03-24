@@ -24,27 +24,23 @@ Below is the description of the connector public API.
 Connector class
 ---------------
 
-The ``Connector`` class is a template class that defines a connector client
-which can handle many connections to Tarantool instances asynchronously.
+..  cpp:class:: template<class BUFFER, class NetProvider = DefaultNetProvider<BUFFER>> \
+                class Connector;
 
-To instantiate a client, you should specify the buffer and the network provider
-implementations as template parameters.
+    The ``Connector`` class is a template class that defines a connector client
+    which can handle many connections to Tarantool instances asynchronously.
 
-Class signature:
+    To instantiate a client, you should specify the buffer and the network provider
+    implementations as template parameters. You can either implement your own buffer
+    or network provider or use the default ones.
 
-..  code-block:: cpp
+    The default connector instantiation looks as follows:
 
-    template<class BUFFER, class NetProvider = DefaultNetProvider<BUFFER>>
-    class Connector;
+    ..  code-block:: cpp
 
-You can either implement your own buffer or network provider or use the default
-ones. The default connector instantiation looks as follows:
-
-..  code-block:: cpp
-
-    using Buf_t = tnt::Buffer<16 * 1024>;
-    using Net_t = DefaultNetProvider<Buf_t >;
-    Connector<Buf_t, Net_t> client;
+        using Buf_t = tnt::Buffer<16 * 1024>;
+        using Net_t = DefaultNetProvider<Buf_t >;
+        Connector<Buf_t, Net_t> client;
 
 
 Public methods
@@ -63,7 +59,8 @@ Public methods
     Connects to a Tarantool instance that is listening on ``addr:port``.
     On successful connection, the method returns ``0``. If the host
     doesn't reply within the timeout period or another error occurs,
-    it returns ``-1``. Then, ``connection.getError()`` gives the error message.
+    it returns ``-1``. Then, :ref:`Connection.getError() <tntcxx_api_connection_geterror>`
+    gives the error message.
 
     :param conn: object of the :ref:`Connection <tntcxx_api_connection>`
                  class.
@@ -100,16 +97,18 @@ Public methods
     The main method responsible for sending a request and checking the response
     readiness.
 
-    You should prepare a request beforehand by using
-    a method of the :ref:`Connection <tntcxx_api_connection>` class, such as
-    ``ping()``, ``select()``, ``replace()``, and so on, which encodes the request
+    You should prepare a request beforehand by using the necessary
+    method of the :ref:`Connection <tntcxx_api_connection>` class, such as
+    :ref:`ping() <tntcxx_api_connection_ping>`
+    and so on, which encodes the request
     in the `MessagePack <https://msgpack.org/>`_ format and saves it in
     the output connection buffer.
 
     ``wait()`` sends the request and is polling the ``future`` for the response
     readiness. Once the response is ready, ``wait()`` returns ``0``.
     If at ``timeout`` the response isn't ready or another error occurs,
-    it returns ``-1``. Then, ``connection.getError()`` gives the error message.
+    it returns ``-1``. Then, :ref:`Connection.getError() <tntcxx_api_connection_geterror>`
+    gives the error message.
     ``timeout = 0`` means the method is polling the ``future`` until the response
     is ready.
 
@@ -117,7 +116,8 @@ Public methods
                  class.
     :param future: request ID returned by a request method of
                     the :ref:`Connection <tntcxx_api_connection>` class, such as,
-                    ``ping()``, ``select()``, ``replace()``, and so on.
+                    :ref:`ping() <tntcxx_api_connection_ping>`
+                    and so on.
     :param timeout: waiting timeout, milliseconds. Optional. Defaults to ``0``.
 
     :return: ``0`` on receiving a response, or ``-1`` otherwise.
@@ -146,8 +146,8 @@ Public methods
     Similar to :ref:`wait() <tntcxx_api_connector_wait>`, the method sends
     the requests prepared and checks the response readiness, but can send
     several different requests stored in the ``futures`` array.
-    Exceeding the timeout leads to an error; ``connection.getError()`` gives
-    the error message.
+    Exceeding the timeout leads to an error; :ref:`Connection.getError() <tntcxx_api_connection_geterror>`
+    gives the error message.
     ``timeout = 0`` means the method is polling the ``futures``
     until all the responses are ready.
 
@@ -155,7 +155,7 @@ Public methods
                  class.
     :param *futures: array with the request IDs returned by request
                      methods of the :ref:`Connection <tntcxx_api_connection>`
-                     class, such as, ``ping()``, ``select()``, ``replace()``,
+                     class, such as, :ref:`ping() <tntcxx_api_connection_ping>`
                      and so on.
     :param future_count: size of the ``futures`` array.
     :param timeout: waiting timeout, milliseconds. Optional. Defaults to ``0``.
@@ -191,7 +191,8 @@ Public methods
     any first response to be ready. Upon the response readiness, ``waitAny()``
     returns the corresponding connection object.
     If at ``timeout`` no response is ready or another error occurs, it returns
-    ``nullptr``. Then, ``connection.getError()`` gives the error message.
+    ``nullptr``. Then, :ref:`Connection.getError() <tntcxx_api_connection_geterror>`
+    gives the error message.
     ``timeout = 0`` means no time limitation while waiting for the response
     readiness.
 
@@ -251,369 +252,234 @@ Public methods
 Connection class
 ----------------
 
-.. // class description TBD
+..  cpp:class:: template<class BUFFER, class NetProvider> \
+                class Connection;
 
-Class signature:
+    The ``Connection`` class is a template class that defines a connection objects
+    which is required to interact with a Tarantool instance. Each connection object
+    is bound to a single socket.
 
-..  code-block:: cpp
+    Similar to a :ref:`connector client <tntcxx_api_connector>`, a connection
+    object also takes the buffer and the network provider as template
+    parameters, and they must be the same as ones of the client. For example:
 
-    template<class BUFFER, class NetProvider>
-    class Connection;
+    ..  code-block:: cpp
 
-Public types:
+        //Instantiating a connector client
+        using Buf_t = tnt::Buffer<16 * 1024>;
+        using Net_t = DefaultNetProvider<Buf_t >;
+        Connector<Buf_t, Net_t> client;
 
-* :ref:`rid_t <tntcxx_api_connection_ridt>`
+        //Instantiating connection objects
+        Connection<Buf_t, Net_t> conn01(client);
+        Connection<Buf_t, Net_t> conn02(client);
+
+.. contents::
+   :local:
+   :depth: 1
+
+Public types
+~~~~~~~~~~~~
 
 .. _tntcxx_api_connection_ridt:
 
 ..  cpp:type:: size_t rid_t
 
-    //TBD Alias of the built-in ``size_t`` type.
+    The alias of the built-in ``size_t`` type. ``rid_t`` is used for entities
+    that return or contain a request ID.
 
-Public methods:
+Public methods
+~~~~~~~~~~~~~~
 
-* call()
-* futureIsReady()
-* getResponse()
-* getError()
-* reset()
-* ping()
-* select()
-* replace()
-* insert()
-* update()
-* upsert()
-* delete()
-
+* :ref:`call() <tntcxx_api_connection_call>`
+* :ref:`futureIsReady() <tntcxx_api_connection_futureisready>`
+* :ref:`getResponse() <tntcxx_api_connection_getresponse>`
+* :ref:`getError() <tntcxx_api_connection_geterror>`
+* :ref:`reset() <tntcxx_api_connection_reset>`
+* :ref:`ping() <tntcxx_api_connection_ping>`
 
 .. _tntcxx_api_connection_call:
 
 ..  cpp:function:: template <class T> \
                     rid_t call(const std::string &func, const T &args)
 
-    <TBD>
+    Executes a call of a remote stored-procedure similar to :ref:`conn:call() <net_box_call>`.
+    The method returns the request ID that is used to get the response by
+    :ref:`getResponse() <tntcxx_api_connection_getresponse>`.
 
-    :param func: <TBD>
-    :param args: <TBD>
+    :param func: a remote stored-procedure name
+    :param args: procedure's arguments
 
-    :return: <TBD>
+    :return: a request ID
     :rtype: rid_t
 
-    **Possible errors:** <TBD>
+    **Possible errors:** none.
 
     **Example:**
 
+    The following function is defined on the Tarantool instance you are
+    connected to:
+
+    ..  code-block:: lua
+
+        box.execute("DROP TABLE IF EXISTS t;")
+        box.execute("CREATE TABLE t(id INT PRIMARY KEY, a TEXT, b DOUBLE);")
+
+        function remote_replace(arg1, arg2, arg3)
+            return box.space.T:replace({arg1, arg2, arg3})
+        end
+
+    The function call can look as follows:
+
     ..  code-block:: cpp
 
-        <TBD>
+        rid_t f1 = conn.call("remote_replace", std::make_tuple(5, "some_sring", 5.55));
 
 .. _tntcxx_api_connection_futureisready:
 
 ..  cpp:function:: bool futureIsReady(rid_t future)
 
-    //TBD Checks availability of a future and returns ``true`` if the future is
-    available, or ``false`` otherwise.
+    Checks availability of a request ID (``future``)
+    returned by any of the request methods, such as, :ref:`ping() <tntcxx_api_connection_ping>`
+    and so on.
 
-    :param future: request ID returned by a request method, such as,
-                    ``ping()``, ``select()``, ``replace()``, and so on.
+    ``futureIsReady()`` returns ``true`` if the ``future`` is available
+    or ``false`` otherwise.
+
+    :param future: a request ID
 
     :return: ``true`` or ``false``
     :rtype: bool
 
-    **Possible errors:** <TBD>
+    **Possible errors:** none.
 
     **Example:**
 
     ..  code-block:: cpp
 
-        <TBD>
+        rid_t ping = conn.ping();
+        conn.futureIsReady(ping);
 
 .. _tntcxx_api_connection_getresponse:
 
 ..  cpp:function:: std::optional<Response<BUFFER>> getResponse(rid_t future)
 
-    //TBD
-    To get the response when it is ready, use the Connection::getResponse() method. It takes the request ID and returns an optional object containing the response. If the response is not ready yet, the method returns std::nullopt. Note that on each future, getResponse() can be called only once: it erases the request ID from the internal map once it is returned to a user.
+    The method takes a request ID (``future``) as an argument and returns
+    an optional object containing a response. If the response is not ready,
+    the method returns ``std::nullopt``.
+    Note that for each ``future`` the method can be called only once because it
+    erases the request ID from the internal map as soon as the response is
+    returned to a user.
 
-    A response consists of a header and a body (response.header and response.body). Depending on success of the request execution on the server side, body may contain either runtime error(s) accessible by response.body.error_stack or data (tuples)–response.body.data. In turn, data is a vector of tuples. However, tuples are not decoded and come in the form of pointers to the start and the end of msgpacks. See the “Decoding and reading the data” section to understand how to decode tuples.
+    A response consists of a header (``response.header``) and a body
+    (``response.body``). Depending on success of the request execution on
+    the server side, body may contain either runtime errors accessible by
+    ``response.body.error_stack`` or data (tuples) accessible by
+    ``response.body.data``. Data is a vector of tuples. However,
+    tuples are not decoded and come in the form of pointers to the start and
+    the end of MessagePacks. For details on decoding the data received, refer to
+    :ref:`"Decoding and reading the data" <gs_cxx_reader>`.
 
-    :param future: request ID returned by a request method, such as,
-                    ``ping()``, ``select()``, ``replace()``, and so on.
+    :param future: a request ID
 
-    :return: <TBD>
+    :return: a response object or ``std::nullopt``
     :rtype: std::optional<Response<BUFFER>>
 
-    **Possible errors:** <TBD>
+    **Possible errors:** none.
 
     **Example:**
 
     ..  code-block:: cpp
 
-        <TBD>
+        rid_t ping = conn.ping();
+        std::optional<Response<Buf_t>> response = conn.getResponse(ping);
 
 .. _tntcxx_api_connection_geterror:
 
 ..  cpp:function:: std::string& getError()
 
-    <TBD>
+    Returns an error message for the last error occured during the execution of
+    methods of the :ref:`Connector <tntcxx_api_connector>` and
+    :ref:`Connection <tntcxx_api_connection>` classes.
 
-    :param: none
-
-    :return: <TBD>
+    :return: an error message
     :rtype: std::string&
 
-    **Possible errors:** <TBD>
+    **Possible errors:** none.
 
     **Example:**
 
     ..  code-block:: cpp
 
-        <TBD>
+        int rc = client.connect(conn, address, port);
+
+        if (rc != 0) {
+            assert(conn.status.is_failed);
+            std::cerr << conn.getError() << std::endl;
+            return -1;
+        }
 
 .. _tntcxx_api_connection_reset:
 
 ..  cpp:function:: void reset()
 
-    //TBD Resets a connection after errors, that is, cleans up the error message
-    and connection status.
-
-    :param: none
+    Resets a connection after errors, that is, cleans up the error message
+    and the connection status.
 
     :return: none
     :rtype: none
 
-    **Possible errors:**
+    **Possible errors:** none.
 
     **Example:**
 
     ..  code-block:: cpp
 
-        <TBD>
+        if (client.wait(conn, ping, WAIT_TIMEOUT) != 0) {
+            assert(conn.status.is_failed);
+            std::cerr << conn.getError() << std::endl;
+            conn.reset();
+        }
 
 .. _tntcxx_api_connection_ping:
 
 ..  cpp:function:: rid_t ping()
 
-    <TBD>
+    Prepares a request to ping a Tarantool instance.
 
-    :param: none
+    The method encodes the request in the `MessagePack <https://msgpack.org/>`_
+    format and queues it in the output connection buffer to be sent later
+    by one of :ref:`Connector's <tntcxx_api_connector>` methods, namely,
+    :ref:`wait() <tntcxx_api_connector_wait>`, `waitAll() <tntcxx_api_connector_waitall>`,
+    or :ref:`waitAny() <tntcxx_api_connector_waitany>`.
 
-    :return: <TBD>
+    Returns the request ID that is used to get the response by
+    the :ref:`getResponce() <tntcxx_api_connection_getresponse>` method.
+
+    :return: a request ID
     :rtype: rid_t
 
-    **Possible errors:** <TBD>
+    **Possible errors:** none.
 
     **Example:**
 
     ..  code-block:: cpp
 
-        <TBD>
+        rid_t ping = conn.ping();
 
+Nested classes and their methods
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. _tntcxx_api_connection_space:
+..  NOTE::
 
-..  cpp:class:: Space : Connection
+    Description of the ``Space`` and ``Index`` nested classes and their methods
+    listed below will be added to this document later.
 
-    //TBD A public wrapper to access the request methods in the Tarantool way,
-    like, ``box.space[space_id].replace()``.
+Methods:
 
-    .. _tntcxx_api_connection_select:
-
-    ..  cpp:function:: template <class T> \
-                        rid_t select(const T& key, uint32_t index_id = 0, uint32_t limit = UINT32_MAX, uint32_t offset = 0, IteratorType iterator = EQ)
-
-        <TBD>
-
-        :param key: <TBD>
-        :param index_id: <TBD>
-        :param limit: <TBD>
-        :param offset: <TBD>
-        :param iterator: <TBD>
-
-        :return: <TBD>
-        :rtype: rid_t
-
-        **Possible errors:** <TBD>
-
-        **Example:**
-
-        ..  code-block:: cpp
-
-            <TBD>
-
-    .. _tntcxx_api_connection_replace:
-
-    ..  cpp:function:: template <class T> \
-                        rid_t replace(const T &tuple)
-
-        <TBD>
-
-        :param tuple: <TBD>
-
-        :return: <TBD>
-        :rtype: rid_t
-
-        **Possible errors:** <TBD>
-
-        **Example:**
-
-        ..  code-block:: cpp
-
-            <TBD>
-
-    .. _tntcxx_api_connection_insert:
-
-    ..  cpp:function:: template <class T> \
-                        rid_t insert(const T &tuple)
-
-        <TBD>
-
-        :param tuple: <TBD>
-
-        :return: <TBD>
-        :rtype: rid_t
-
-        **Possible errors:** <TBD>
-
-        **Example:**
-
-        ..  code-block:: cpp
-
-            <TBD>
-
-    .. _tntcxx_api_connection_update:
-
-    ..  cpp:function:: template <class K, class T> \
-                        rid_t update(const K &key, const T &tuple, uint32_t index_id = 0)
-
-        <TBD>
-
-        :param key: <TBD>
-        :param tuple: <TBD>
-        :param index_id: <TBD>
-
-        :return: <TBD>
-        :rtype: rid_t
-
-        **Possible errors:** <TBD>
-
-        **Example:**
-
-        ..  code-block:: cpp
-
-            <TBD>
-
-    .. _tntcxx_api_connection_upsert:
-
-    ..  cpp:function:: template <class T, class O> \
-                        rid_t upsert(const T &tuple, const O &ops, uint32_t index_base = 0)
-
-        <TBD>
-
-        :param tuple: <TBD>
-        :param ops: <TBD>
-        :param index_base: <TBD>
-
-        :return: <TBD>
-        :rtype: rid_t
-
-        **Possible errors:** <TBD>
-
-        **Example:**
-
-        ..  code-block:: cpp
-
-            <TBD>
-
-    .. _tntcxx_api_connection_delete:
-
-    ..  cpp:function:: template <class T> \
-                        rid_t delete_(const T &key, uint32_t index_id = 0)
-
-        <TBD>
-
-        :param key: <TBD>
-        :param index_id: <TBD>
-
-        :return: <TBD>
-        :rtype: rid_t
-
-        **Possible errors:** <TBD>
-
-        **Example:**
-
-        ..  code-block:: cpp
-
-            <TBD>
-
-
-.. _tntcxx_api_connection_index:
-
-..  cpp:class:: Index : Space, Connection
-
-    //TBD A public wrapper to access the request methods in the Tarantool way,
-    like, ``box.space[sid].index[iid].select()``.
-
-    .. _tntcxx_api_connection_select_i:
-
-    ..  cpp:function:: template <class T> \
-                        rid_t select(const T &key, uint32_t limit = UINT32_MAX, uint32_t offset = 0, IteratorType iterator = EQ)
-
-        <TBD>
-
-        :param key: <TBD>
-        :param limit: <TBD>
-        :param offset: <TBD>
-        :param iterator: <TBD>
-
-        :return: <TBD>
-        :rtype: rid_t
-
-        **Possible errors:** <TBD>
-
-        **Example:**
-
-        ..  code-block:: cpp
-
-            <TBD>
-
-    .. _tntcxx_api_connection_update_i:
-
-    ..  cpp:function:: template <class K, class T> \
-                        rid_t update(const K &key, const T &tuple)
-
-        <TBD>
-
-        :param key: <TBD>
-        :param tuple: <TBD>
-
-        :return: <TBD>
-        :rtype: rid_t
-
-        **Possible errors:** <TBD>
-
-        **Example:**
-
-        ..  code-block:: cpp
-
-            <TBD>
-
-    .. _tntcxx_api_connection_delete_i:
-
-    ..  cpp:function:: template <class T> \
-                        rid_t delete_(const T &key)
-
-        <TBD>
-
-        :param key: <TBD>
-
-        :return: <TBD>
-        :rtype: rid_t
-
-        **Possible errors:** <TBD>
-
-        **Example:**
-
-        ..  code-block:: cpp
-
-            <TBD>
+* select()
+* replace()
+* insert()
+* update()
+* upsert()
+* delete()
