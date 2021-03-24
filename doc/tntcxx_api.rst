@@ -17,7 +17,7 @@ Below is the description of the connector public API.
 
 .. contents::
    :local:
-   :depth: 1
+   :depth: 2
 
 .. _tntcxx_api_connector:
 
