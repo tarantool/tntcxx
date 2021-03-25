@@ -470,9 +470,85 @@ Public methods
 Nested classes and their methods
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+* :ref:`Space <tntcxx_api_connection_space>`
+
+.. _tntcxx_api_connection_space:
+
+Space class
+^^^^^^^^^^^
+
+..  cpp:class:: OuterScope::Space : Connection //TBD Do we need this?
+
+    ``Space`` is a nested class of the :ref:`Connection <tntcxx_api_connection>`
+    class. It is a public wrapper to access the request methods in the way
+    similar to Tarantool, like, ``space[space_id].select()``,
+    ``space[space_id].select()``, and so on.
+
+    All the ``Space`` class methods listed below work in the following way:
+
+    *   A method encodes the corresponding request in the `MessagePack <https://msgpack.org/>`_
+        format and queues it in the output connection buffer to be sent later
+        by one of :ref:`Connector's <tntcxx_api_connector>` methods, namely,
+        :ref:`wait() <tntcxx_api_connector_wait>`, `waitAll() <tntcxx_api_connector_waitall>`,
+        or :ref:`waitAny() <tntcxx_api_connector_waitany>`.
+
+    *   A method returns the request ID that is used to get the response by
+        the :ref:`getResponce() <tntcxx_api_connection_getresponse>` method.
+
+    **Public methods**:
+
+    * :ref:`select() <tntcxx_api_connection_select>`
+    * :ref:`replace() <tntcxx_api_connection_replace>`
+    * :ref:`insert() <tntcxx_api_connection_insert>`
+    * :ref:`update() <tntcxx_api_connection_update>`
+    * :ref:`upsert() <tntcxx_api_connection_upsert>`
+    * :ref:`delete() <tntcxx_api_connection_delete>`
+
+.. _tntcxx_api_connection_select:
+
+..  cpp:function:: template <class T> \
+                    rid_t select(const T& key, uint32_t index_id = 0, uint32_t limit = UINT32_MAX, uint32_t offset = 0, IteratorType iterator = EQ)
+
+    Searches for a tuple or a set of tuples in the given space. The method works
+    similar to :doc:`/reference/reference_lua/box_space/select` and performs the
+    search against the primary index (``index_id = 0``) by default. In other
+    words, ``space[space_id].select()`` equals to
+    ``space[space_id].index[0].select()``.
+
+    As all the methods of the ``rid_t`` type, this method returns just the
+    request ID. To get the actual data containing the tuples selected, first
+    you need to get the response by using the :ref:`getResponce() <tntcxx_api_connection_getresponse>`
+    method and then :ref:`"decode" <gs_cxx_reader>` the data.
+
+    :param const T&         key: value to be matched against the index key.
+    :param uint32_t         index_id: index ID. Optional. Defaults to ``0``.
+    :param uint32_t         limit: maximum number of tuples. Optional.
+                                    Defaults to ``UINT32_MAX``.
+    :param uint32_t         offset: number of tuples to skip. Optional.
+                                    Defaults to ``0``.
+    :param IteratorType     iterator: the type of iterator. Optional.
+                                        Defaults to ``EQ``.
+
+    :return: a request ID
+    :rtype: rid_t
+
+    **Possible errors:** none.
+
+    **Example:**
+
+    ..  code-block:: cpp
+
+        /* Equals to space:select({key_value}, {limit = 1})*/
+        uint32_t space_id = 512;
+        int key_value = 5;
+        uint32_t limit = 1;
+        auto i = conn.space[space_id];
+        rid_t select = i.select(std::make_tuple(key_value), index_id, limit, offset, iter);
+
+
 ..  NOTE::
 
-    Description of the ``Space`` and ``Index`` nested classes and their methods
+    Description of other methods of the ``Space`` and ``Index`` nested classes
     listed below will be added to this document later.
 
 Methods:
