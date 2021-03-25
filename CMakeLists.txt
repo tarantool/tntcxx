@@ -10,7 +10,8 @@ MESSAGE(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 
 SET(CMAKE_CXX_STANDARD 17)
 SET(CMAKE_C_STANDARD 17)
-ADD_COMPILE_OPTIONS(-Wall -Wextra -Werror)
+# For libev build we have to turn off Werror: otherwise it is impossible to build.
+#ADD_COMPILE_OPTIONS(-Wall -Wextra -Werror)
 
 INCLUDE_DIRECTORIES(.)
 INCLUDE_DIRECTORIES(./src)

@@ -316,8 +316,7 @@ DefaultNetProvider<BUFFER, NETWORK>::send(Conn_t &conn)
 		if (rc != 0) {
 			if (errno == EWOULDBLOCK || errno == EAGAIN) {
 				int setting = EPOLLIN | EPOLLOUT;
-				if (setPollSetting(conn.socket,
-							       setting) != 0) {
+				if (setPollSetting(conn.socket, setting) != 0) {
 					LOG_ERROR("Failed to change epoll mode: "
 						  "epoll_ctl() returned with errno: %s",
 						  strerror(errno));
@@ -365,8 +364,7 @@ DefaultNetProvider<BUFFER, NETWORK>::wait(int timeout)
 	/* Firstly poll connections to point out if there's data to read. */
 	static struct ConnectionEvent events[EVENT_POLL_COUNT_MAX];
 	size_t event_cnt = 0;
-	if (poll((ConnectionEvent *)&events, &event_cnt,
-				 timeout) != 0) {
+	if (poll((ConnectionEvent *)&events, &event_cnt, timeout) != 0) {
 		LOG_ERROR("Poll failed: %s", strerror(errno));
 		return -1;
 	}

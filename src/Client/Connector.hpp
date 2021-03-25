@@ -211,7 +211,6 @@ template<class BUFFER, class NetProvider>
 void
 Connector<BUFFER, NetProvider>::readyToSend(Connection<BUFFER, NetProvider> &conn)
 {
-	LOG_DEBUG("Connection %s is ready to send", conn.toString().c_str());
 	m_NetProvider.readyToSend(conn);
 }
 
@@ -219,7 +218,7 @@ template<class BUFFER, class NetProvider>
 void
 Connector<BUFFER, NetProvider>::readyToDecode(Connection<BUFFER, NetProvider> &conn)
 {
-	//LOG_DEBUG("Connection to socket %d is ready to decode", conn.socket);
+	//assert(rlist_empty(&m_ready_to_read));
 	rlist_add_tail(&m_ready_to_read, &conn.m_in_read);
 	conn.status.is_ready_to_decode = true;
 }

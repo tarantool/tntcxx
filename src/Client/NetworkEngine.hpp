@@ -75,6 +75,12 @@ IOVCountBytes(struct iovec *iovecs, size_t iov_len)
 	return iov_bytes;
 }
 
+static inline bool
+netWouldBlock(int err)
+{
+	return err == EAGAIN || err == EWOULDBLOCK || err == EINTR;
+}
+
 class NetworkEngine {
 public:
 	static int connectINET(const std::string_view& addr_str, unsigned port,

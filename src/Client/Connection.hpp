@@ -223,9 +223,9 @@ public:
 	/** Link NetworkProvider::m_ready_to_write */
 	struct rlist m_in_write;
 	void readyToDecode();
-private:
 	static constexpr size_t AVAILABLE_IOVEC_COUNT = 32;
 	static constexpr size_t GC_STEP_CNT = 5;
+private:
 	Connector<BUFFER, NetProvider> &m_Connector;
 
 	BUFFER m_InBuf;
