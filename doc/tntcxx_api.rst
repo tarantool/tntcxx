@@ -24,7 +24,7 @@ Below is the description of the connector public API.
 Connector class
 ---------------
 
-..  cpp:class:: template<class BUFFER, class NetProvider = DefaultNetProvider<BUFFER>> \
+..  cpp:class:: template <class BUFFER, class NetProvider = DefaultNetProvider<BUFFER>> \
                 class Connector;
 
     The ``Connector`` class is a template class that defines a connector client
@@ -253,7 +253,7 @@ Public methods
 Connection class
 ----------------
 
-..  cpp:class:: template<class BUFFER, class NetProvider> \
+..  cpp:class:: template <class BUFFER, class NetProvider> \
                 class Connection;
 
     The ``Connection`` class is a template class that defines a connection objects
@@ -456,7 +456,7 @@ Public methods
     The method encodes the request in the `MessagePack <https://msgpack.org/>`_
     format and queues it in the output connection buffer to be sent later
     by one of :ref:`Connector's <tntcxx_api_connector>` methods, namely,
-    :ref:`wait() <tntcxx_api_connector_wait>`, `waitAll() <tntcxx_api_connector_waitall>`,
+    :ref:`wait() <tntcxx_api_connector_wait>`, :ref:`waitAll() <tntcxx_api_connector_waitall>`,
     or :ref:`waitAny() <tntcxx_api_connector_waitany>`.
 
     Returns the request ID that is used to get the response by
@@ -484,7 +484,7 @@ Nested classes and their methods
 Space class
 ^^^^^^^^^^^
 
-..  cpp:class:: OuterScope::Space : Connection
+..  cpp:class:: Space : Connection
 
     ``Space`` is a nested class of the :ref:`Connection <tntcxx_api_connection>`
     class. It is a public wrapper to access the data-manipulation methods in the way
@@ -496,7 +496,7 @@ Space class
     *   A method encodes the corresponding request in the `MessagePack <https://msgpack.org/>`_
         format and queues it in the output connection buffer to be sent later
         by one of :ref:`Connector's <tntcxx_api_connector>` methods, namely,
-        :ref:`wait() <tntcxx_api_connector_wait>`, `waitAll() <tntcxx_api_connector_waitall>`,
+        :ref:`wait() <tntcxx_api_connector_wait>`, :ref:`waitAll() <tntcxx_api_connector_waitall>`,
         or :ref:`waitAny() <tntcxx_api_connector_waitany>`.
 
     *   A method returns the request ID. To get and read the actual data
@@ -709,7 +709,7 @@ Space class
 Index class
 ^^^^^^^^^^^
 
-..  cpp:class:: OuterScope::Index : Space, Connection
+..  cpp:class:: Index : Space
 
     ``Index`` is a nested class of the :ref:`Space <tntcxx_api_connection_space>`
     class. It is a public wrapper to access the data-manipulation methods in the way
@@ -721,7 +721,7 @@ Index class
     *   A method encodes the corresponding request in the `MessagePack <https://msgpack.org/>`_
         format and queues it in the output connection buffer to be sent later
         by one of :ref:`Connector's <tntcxx_api_connector>` methods, namely,
-        :ref:`wait() <tntcxx_api_connector_wait>`, `waitAll() <tntcxx_api_connector_waitall>`,
+        :ref:`wait() <tntcxx_api_connector_wait>`, :ref:`waitAll() <tntcxx_api_connector_waitall>`,
         or :ref:`waitAny() <tntcxx_api_connector_waitany>`.
 
     *   A method returns the request ID that is used to get the response by
