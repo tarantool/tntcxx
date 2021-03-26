@@ -502,7 +502,7 @@ Space class
     *   A method returns the request ID. To get and read the actual data
         requested, first you need to get the response object by using the
         :ref:`getResponce() <tntcxx_api_connection_getresponse>` method
-        and then :ref:`"decode" <gs_cxx_reader>` the data.
+        and then :ref:`decode <gs_cxx_reader>` the data.
 
     **Public methods**:
 
