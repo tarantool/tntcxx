@@ -529,7 +529,7 @@ Space class
     :param uint32_t         index_id: index ID. Optional. Defaults to ``0``.
     :param uint32_t         limit: maximum number of tuples to select. Optional.
                                     Defaults to ``UINT32_MAX``.
-    :param uint32_t         offset: //TBD number of tuples to skip. Optional.
+    :param uint32_t         offset: number of tuples to skip. Optional.
                                     Defaults to ``0``.
     :param IteratorType     iterator: the type of iterator. Optional.
                                         Defaults to ``EQ``.
@@ -659,7 +659,8 @@ Space class
     :param const T&     tuple: a tuple to insert.
     :param const O&     ops: parameters for the update operation, namely,
                              ``operator, field_identifier, value``.
-    :param uint32_t     index_base: //TBD Optional. Defaults to ``0``.
+    :param uint32_t     index_base: starting number to count fields in a tuple:
+                                    ``0`` or ``1``. Optional. Defaults to ``0``.
 
     :return: a request ID
     :rtype: rid_t
@@ -702,7 +703,7 @@ Space class
         /* Equals to space_object:delete(123) in Tarantool*/
         uint32_t space_id = 512;
         std::tuple key = std::make_tuple(123);
-        rid_t f1 = conn.space[space_id].delete_(key); //TBD
+        rid_t f1 = conn.space[space_id].delete_(key);
 
 .. _tntcxx_api_connection_index:
 
@@ -749,7 +750,7 @@ Index class
     :param const T&         key: value to be matched against the index key.
     :param uint32_t         limit: maximum number of tuples to select. Optional.
                                     Defaults to ``UINT32_MAX``.
-    :param uint32_t         offset: //TBD start tuple number. Optional.
+    :param uint32_t         offset: number of tuples to skip. Optional.
                                     Defaults to ``0``.
     :param IteratorType     iterator: the type of iterator. Optional.
                                         Defaults to ``EQ``.
@@ -778,7 +779,7 @@ Index class
 
     This is an alternative to :ref:`space.update() <tntcxx_api_connection_update>`.
     The method updates a tuple in the given space but searches for the tuple
-    against a particular index. //TBD This index should be unique.
+    against a particular index.
     The method works similar to :doc:`/reference/reference_lua/box_index/update`.
 
     The ``tuple`` parameter specifies an update operation, an identifier of the
@@ -815,7 +816,7 @@ Index class
 
     This is an alternative to :ref:`space.delete() <tntcxx_api_connection_delete>`.
     The method deletes a tuple in the given space but searches for the tuple
-    against a particular index. //TBD This index should be unique.
+    against a particular index.
     The method works similar to :doc:`/reference/reference_lua/box_index/delete`.
 
     :param const T&     key: value to be matched against the index key.
@@ -833,4 +834,4 @@ Index class
         uint32_t space_id = 512;
         uint32_t index_id = 1;
         std::tuple key = std::make_tuple(123);
-        rid_t f1 = conn.space[space_id].index[index_id].delete_(key); //TBD
+        rid_t f1 = conn.space[space_id].index[index_id].delete_(key);
