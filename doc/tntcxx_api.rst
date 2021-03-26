@@ -62,12 +62,12 @@ Public methods
     it returns ``-1``. Then, :ref:`Connection.getError() <tntcxx_api_connection_geterror>`
     gives the error message.
 
-    :param Connection<BUFFER, NetProvider>& conn: object of the :ref:`Connection <tntcxx_api_connection>`
-                                                    class.
-    :param const std::string_view& addr: address of the host where a Tarantool
-                                            instance is running.
-    :param unsinged port: port that a Tarantool instance is listening on.
-    :param size_t timeout: connection timeout, seconds. Optional. Defaults to ``2``.
+    :param conn: object of the :ref:`Connection <tntcxx_api_connection>`
+                    class.
+    :param addr: address of the host where a Tarantool
+                    instance is running.
+    :param port: port that a Tarantool instance is listening on.
+    :param timeout: connection timeout, seconds. Optional. Defaults to ``2``.
 
     :return: ``0`` on success, or ``-1`` otherwise.
     :rtype: int
@@ -113,13 +113,13 @@ Public methods
     ``timeout = 0`` means the method is polling the ``future`` until the response
     is ready.
 
-    :param Connection<BUFFER, NetProvider>& conn: object of the :ref:`Connection <tntcxx_api_connection>`
-                                                    class.
-    :param rid_t future: request ID returned by a request method of
-                            the :ref:`Connection <tntcxx_api_connection>` class, such as,
-                            :ref:`ping() <tntcxx_api_connection_ping>`
-                            and so on.
-    :param int timeout: waiting timeout, milliseconds. Optional. Defaults to ``0``.
+    :param conn: object of the :ref:`Connection <tntcxx_api_connection>`
+                    class.
+    :param future: request ID returned by a request method of
+                    the :ref:`Connection <tntcxx_api_connection>` class, such as,
+                    :ref:`ping() <tntcxx_api_connection_ping>`
+                    and so on.
+    :param timeout: waiting timeout, milliseconds. Optional. Defaults to ``0``.
 
     :return: ``0`` on receiving a response, or ``-1`` otherwise.
     :rtype: int
@@ -152,14 +152,14 @@ Public methods
     ``timeout = 0`` means the method is polling the ``futures``
     until all the responses are ready.
 
-    :param Connection<BUFFER, NetProvider>& conn: object of the :ref:`Connection <tntcxx_api_connection>`
-                                                    class.
-    :param rid_t* futures: array with the request IDs returned by request
-                            methods of the :ref:`Connection <tntcxx_api_connection>`
-                            class, such as, :ref:`ping() <tntcxx_api_connection_ping>`
-                            and so on.
-    :param size_t future_count: size of the ``futures`` array.
-    :param int timeout: waiting timeout, milliseconds. Optional. Defaults to ``0``.
+    :param conn: object of the :ref:`Connection <tntcxx_api_connection>`
+                    class.
+    :param futures: array with the request IDs returned by request
+                    methods of the :ref:`Connection <tntcxx_api_connection>`
+                    class, such as, :ref:`ping() <tntcxx_api_connection_ping>`
+                    and so on.
+    :param future_count: size of the ``futures`` array.
+    :param timeout: waiting timeout, milliseconds. Optional. Defaults to ``0``.
 
     :return: none
     :rtype: none
@@ -197,7 +197,7 @@ Public methods
     ``timeout = 0`` means no time limitation while waiting for the response
     readiness.
 
-    :param int timeout: waiting timeout, milliseconds. Optional. Defaults to ``0``.
+    :param timeout: waiting timeout, milliseconds. Optional. Defaults to ``0``.
 
     :return: object of the :ref:`Connection <tntcxx_api_connection>` class
              on success, or ``nullptr`` on error.
@@ -234,9 +234,8 @@ Public methods
     Closes the connection established earlier by
     the :ref:`connect() <tntcxx_api_connector_connect>` method.
 
-    :param Connection<BUFFER, NetProvider>& conn: connection object of the
-                                                    :ref:`Connection <tntcxx_api_connection>`
-                                                    class.
+    :param conn: connection object of the :ref:`Connection <tntcxx_api_connection>`
+                    class.
 
     :return: none
     :rtype: none
@@ -314,8 +313,8 @@ Public methods
     The method returns the request ID that is used to get the response by
     :ref:`getResponse() <tntcxx_api_connection_getresponse>`.
 
-    :param const std::string&   func: a remote stored-procedure name.
-    :param const T&             args: procedure's arguments.
+    :param func: a remote stored-procedure name.
+    :param args: procedure's arguments.
 
     :return: a request ID
     :rtype: rid_t
@@ -353,7 +352,7 @@ Public methods
     ``futureIsReady()`` returns ``true`` if the ``future`` is available
     or ``false`` otherwise.
 
-    :param rid_t future: a request ID.
+    :param future: a request ID.
 
     :return: ``true`` or ``false``
     :rtype: bool
@@ -387,7 +386,7 @@ Public methods
     the end of MessagePacks. For details on decoding the data received, refer to
     :ref:`"Decoding and reading the data" <gs_cxx_reader>`.
 
-    :param rid_t future: a request ID
+    :param future: a request ID
 
     :return: a response object or ``std::nullopt``
     :rtype: std::optional<Response<BUFFER>>
@@ -525,14 +524,14 @@ Space class
     words, ``space[space_id].select()`` equals to
     ``space[space_id].index[0].select()``.
 
-    :param const T&         key: value to be matched against the index key.
-    :param uint32_t         index_id: index ID. Optional. Defaults to ``0``.
-    :param uint32_t         limit: maximum number of tuples to select. Optional.
-                                    Defaults to ``UINT32_MAX``.
-    :param uint32_t         offset: number of tuples to skip. Optional.
-                                    Defaults to ``0``.
-    :param IteratorType     iterator: the type of iterator. Optional.
-                                        Defaults to ``EQ``.
+    :param key: value to be matched against the index key.
+    :param index_id: index ID. Optional. Defaults to ``0``.
+    :param limit: maximum number of tuples to select. Optional.
+                    Defaults to ``UINT32_MAX``.
+    :param offset: number of tuples to skip. Optional.
+                    Defaults to ``0``.
+    :param iterator: the type of iterator. Optional.
+                        Defaults to ``EQ``.
 
     :return: a request ID
     :rtype: rid_t
@@ -559,7 +558,7 @@ Space class
     already exists, ``replace()`` replaces the existing tuple with a new
     one. The method works similar to :doc:`/reference/reference_lua/box_space/replace`.
 
-    :param const T& tuple: a tuple to insert.
+    :param tuple: a tuple to insert.
 
     :return: a request ID
     :rtype: rid_t
@@ -584,7 +583,7 @@ Space class
     Inserts a tuple into the given space.
     The method works similar to :doc:`/reference/reference_lua/box_space/insert`.
 
-    :param const T&     tuple: a tuple to insert.
+    :param tuple: a tuple to insert.
 
     :return: a request ID
     :rtype: rid_t
@@ -618,10 +617,10 @@ Space class
     as in Tarantool. Refer to the description of :doc:` </reference/reference_lua/box_space/update>`
     and example below for details.
 
-    :param const K&     key: value to be matched against the index key.
-    :param const T&     tuple: parameters for the update operation, namely,
+    :param key: value to be matched against the index key.
+    :param tuple: parameters for the update operation, namely,
                                 ``operator, field_identifier, value``.
-    :param uint32_t     index_id: index ID. Optional. Defaults to ``0``.
+    :param index_id: index ID. Optional. Defaults to ``0``.
 
     :return: a request ID
     :rtype: rid_t
@@ -656,10 +655,10 @@ Space class
     :ref:`insert() <tntcxx_api_connection_insert>` and the ``tuple`` parameter
     is used.
 
-    :param const T&     tuple: a tuple to insert.
-    :param const O&     ops: parameters for the update operation, namely,
+    :param tuple: a tuple to insert.
+    :param ops: parameters for the update operation, namely,
                              ``operator, field_identifier, value``.
-    :param uint32_t     index_base: starting number to count fields in a tuple:
+    :param index_base: starting number to count fields in a tuple:
                                     ``0`` or ``1``. Optional. Defaults to ``0``.
 
     :return: a request ID
@@ -688,8 +687,8 @@ Space class
     by default. In other words, ``space[space_id].delete()`` equals to
     ``space[space_id].index[0].delete()``.
 
-    :param const T&     key: value to be matched against the index key.
-    :param uint32_t     index_id: index ID. Optional. Defaults to ``0``.
+    :param key: value to be matched against the index key.
+    :param index_id: index ID. Optional. Defaults to ``0``.
 
     :return: a request ID
     :rtype: rid_t
@@ -747,13 +746,13 @@ Index class
     a particular index and works similar to
     :doc:`/reference/reference_lua/box_index/select`.
 
-    :param const T&         key: value to be matched against the index key.
-    :param uint32_t         limit: maximum number of tuples to select. Optional.
-                                    Defaults to ``UINT32_MAX``.
-    :param uint32_t         offset: number of tuples to skip. Optional.
-                                    Defaults to ``0``.
-    :param IteratorType     iterator: the type of iterator. Optional.
-                                        Defaults to ``EQ``.
+    :param key: value to be matched against the index key.
+    :param limit: maximum number of tuples to select. Optional.
+                  Defaults to ``UINT32_MAX``.
+    :param offset: number of tuples to skip. Optional.
+                    Defaults to ``0``.
+    :param iterator: the type of iterator. Optional.
+                     Defaults to ``EQ``.
 
     :return: a request ID
     :rtype: rid_t
@@ -788,9 +787,9 @@ Index class
     as in Tarantool. Refer to the description of :doc:` </reference/reference_lua/box_index/update>`
     and example below for details.
 
-    :param const K&     key: value to be matched against the index key.
-    :param const T&     tuple: parameters for the update operation, namely,
-                                ``operator, field_identifier, value``.
+    :param key: value to be matched against the index key.
+    :param tuple: parameters for the update operation, namely,
+                    ``operator, field_identifier, value``.
 
     :return: a request ID
     :rtype: rid_t
@@ -819,7 +818,7 @@ Index class
     against a particular index.
     The method works similar to :doc:`/reference/reference_lua/box_index/delete`.
 
-    :param const T&     key: value to be matched against the index key.
+    :param key: value to be matched against the index key.
 
     :return: a request ID
     :rtype: rid_t
