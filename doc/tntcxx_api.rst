@@ -511,7 +511,7 @@ Space class
     * :ref:`insert() <tntcxx_api_connection_insert>`
     * :ref:`update() <tntcxx_api_connection_update>`
     * :ref:`upsert() <tntcxx_api_connection_upsert>`
-    * :ref:`delete() <tntcxx_api_connection_delete>`
+    * :ref:`delete_() <tntcxx_api_connection_delete>`
 
 .. _tntcxx_api_connection_select:
 
@@ -684,8 +684,8 @@ Space class
     Deletes a tuple in the given space.
     The method works similar to :doc:`/reference/reference_lua/box_space/delete`
     and searches for the tuple to delete against the primary index (``index_id = 0``)
-    by default. In other words, ``space[space_id].delete()`` equals to
-    ``space[space_id].index[0].delete()``.
+    by default. In other words, ``space[space_id].delete_()`` equals to
+    ``space[space_id].index[0].delete_()``.
 
     :param key: value to be matched against the index key.
     :param index_id: index ID. Optional. Defaults to ``0``.
@@ -734,7 +734,7 @@ Index class
 
     * :ref:`select() <tntcxx_api_connection_select_i>`
     * :ref:`update() <tntcxx_api_connection_update_i>`
-    * :ref:`delete() <tntcxx_api_connection_delete_i>`
+    * :ref:`delete_() <tntcxx_api_connection_delete_i>`
 
 .. _tntcxx_api_connection_select_i:
 
@@ -813,7 +813,7 @@ Index class
 ..  cpp:function:: template <class T> \
                     rid_t delete_(const T &key)
 
-    This is an alternative to :ref:`space.delete() <tntcxx_api_connection_delete>`.
+    This is an alternative to :ref:`space.delete_() <tntcxx_api_connection_delete>`.
     The method deletes a tuple in the given space but searches for the tuple
     against a particular index.
     The method works similar to :doc:`/reference/reference_lua/box_index/delete`.
