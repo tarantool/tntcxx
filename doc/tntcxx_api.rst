@@ -1,6 +1,6 @@
 .. _tntcxx_api:
 
-Tarantool C++ connector API
+C++ connector API
 ===========================
 
 The official C++ connector for Tarantool is located in the
@@ -62,11 +62,12 @@ Public methods
     it returns ``-1``. Then, :ref:`Connection.getError() <tntcxx_api_connection_geterror>`
     gives the error message.
 
-    :param conn: object of the :ref:`Connection <tntcxx_api_connection>`
-                 class.
-    :param addr: address of the host where a Tarantool instance is running.
-    :param port: port that a Tarantool instance is listening on.
-    :param timeout: connection timeout, seconds. Optional. Defaults to ``2``.
+    :param Connection<BUFFER, NetProvider>& conn: object of the :ref:`Connection <tntcxx_api_connection>`
+                                                    class.
+    :param const std::string_view& addr: address of the host where a Tarantool
+                                            instance is running.
+    :param unsinged port: port that a Tarantool instance is listening on.
+    :param size_t timeout: connection timeout, seconds. Optional. Defaults to ``2``.
 
     :return: ``0`` on success, or ``-1`` otherwise.
     :rtype: int
@@ -92,7 +93,7 @@ Public methods
 
 .. _tntcxx_api_connector_wait:
 
-..  cpp:function:: int wait(Connection<BUFFER, NetProvider>& conn, rid_t future, int timeout = 0)
+..  cpp:function:: int wait(Connection<BUFFER, NetProvider> &conn, rid_t future, int timeout = 0)
 
     The main method responsible for sending a request and checking the response
     readiness.
@@ -112,13 +113,13 @@ Public methods
     ``timeout = 0`` means the method is polling the ``future`` until the response
     is ready.
 
-    :param conn: object of the :ref:`Connection <tntcxx_api_connection>`
-                 class.
-    :param future: request ID returned by a request method of
-                    the :ref:`Connection <tntcxx_api_connection>` class, such as,
-                    :ref:`ping() <tntcxx_api_connection_ping>`
-                    and so on.
-    :param timeout: waiting timeout, milliseconds. Optional. Defaults to ``0``.
+    :param Connection<BUFFER, NetProvider>& conn: object of the :ref:`Connection <tntcxx_api_connection>`
+                                                    class.
+    :param rid_t future: request ID returned by a request method of
+                            the :ref:`Connection <tntcxx_api_connection>` class, such as,
+                            :ref:`ping() <tntcxx_api_connection_ping>`
+                            and so on.
+    :param int timeout: waiting timeout, milliseconds. Optional. Defaults to ``0``.
 
     :return: ``0`` on receiving a response, or ``-1`` otherwise.
     :rtype: int
@@ -141,7 +142,7 @@ Public methods
 
 .. _tntcxx_api_connector_waitall:
 
-..  cpp:function:: void waitAll(Connection<BUFFER, NetProvider>& conn, rid_t *futures, size_t future_count, int timeout = 0)
+..  cpp:function:: void waitAll(Connection<BUFFER, NetProvider> &conn, rid_t *futures, size_t future_count, int timeout = 0)
 
     Similar to :ref:`wait() <tntcxx_api_connector_wait>`, the method sends
     the requests prepared and checks the response readiness, but can send
@@ -151,14 +152,14 @@ Public methods
     ``timeout = 0`` means the method is polling the ``futures``
     until all the responses are ready.
 
-    :param conn: object of the :ref:`Connection <tntcxx_api_connection>`
-                 class.
-    :param *futures: array with the request IDs returned by request
-                     methods of the :ref:`Connection <tntcxx_api_connection>`
-                     class, such as, :ref:`ping() <tntcxx_api_connection_ping>`
-                     and so on.
-    :param future_count: size of the ``futures`` array.
-    :param timeout: waiting timeout, milliseconds. Optional. Defaults to ``0``.
+    :param Connection<BUFFER, NetProvider>& conn: object of the :ref:`Connection <tntcxx_api_connection>`
+                                                    class.
+    :param rid_t* futures: array with the request IDs returned by request
+                            methods of the :ref:`Connection <tntcxx_api_connection>`
+                            class, such as, :ref:`ping() <tntcxx_api_connection_ping>`
+                            and so on.
+    :param size_t future_count: size of the ``futures`` array.
+    :param int timeout: waiting timeout, milliseconds. Optional. Defaults to ``0``.
 
     :return: none
     :rtype: none
@@ -196,7 +197,7 @@ Public methods
     ``timeout = 0`` means no time limitation while waiting for the response
     readiness.
 
-    :param timeout: waiting timeout, milliseconds. Optional. Defaults to ``0``.
+    :param int timeout: waiting timeout, milliseconds. Optional. Defaults to ``0``.
 
     :return: object of the :ref:`Connection <tntcxx_api_connection>` class
              on success, or ``nullptr`` on error.
@@ -233,8 +234,9 @@ Public methods
     Closes the connection established earlier by
     the :ref:`connect() <tntcxx_api_connector_connect>` method.
 
-    :param conn: connection object of the :ref:`Connection <tntcxx_api_connection>`
-                 class.
+    :param Connection<BUFFER, NetProvider>& conn: connection object of the
+                                                    :ref:`Connection <tntcxx_api_connection>`
+                                                    class.
 
     :return: none
     :rtype: none
@@ -274,6 +276,11 @@ Connection class
         Connection<Buf_t, Net_t> conn01(client);
         Connection<Buf_t, Net_t> conn02(client);
 
+    The ``Connection`` class has two nested classes, namely,
+    :ref:`Space <tntcxx_api_connection_space>` and :ref:`Index <tntcxx_api_connection_index>`
+    that implement the data-manipulation methods like ``select()``,
+    ``replace()``, and so on.
+
 .. contents::
    :local:
    :depth: 1
@@ -307,8 +314,8 @@ Public methods
     The method returns the request ID that is used to get the response by
     :ref:`getResponse() <tntcxx_api_connection_getresponse>`.
 
-    :param func: a remote stored-procedure name
-    :param args: procedure's arguments
+    :param const std::string&   func: a remote stored-procedure name.
+    :param const T&             args: procedure's arguments.
 
     :return: a request ID
     :rtype: rid_t
@@ -346,7 +353,7 @@ Public methods
     ``futureIsReady()`` returns ``true`` if the ``future`` is available
     or ``false`` otherwise.
 
-    :param future: a request ID
+    :param rid_t future: a request ID.
 
     :return: ``true`` or ``false``
     :rtype: bool
@@ -380,7 +387,7 @@ Public methods
     the end of MessagePacks. For details on decoding the data received, refer to
     :ref:`"Decoding and reading the data" <gs_cxx_reader>`.
 
-    :param future: a request ID
+    :param rid_t future: a request ID
 
     :return: a response object or ``std::nullopt``
     :rtype: std::optional<Response<BUFFER>>
@@ -471,18 +478,19 @@ Nested classes and their methods
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 * :ref:`Space <tntcxx_api_connection_space>`
+* :ref:`Index <tntcxx_api_connection_index>`
 
 .. _tntcxx_api_connection_space:
 
 Space class
 ^^^^^^^^^^^
 
-..  cpp:class:: OuterScope::Space : Connection //TBD Do we need this?
+..  cpp:class:: OuterScope::Space : Connection
 
     ``Space`` is a nested class of the :ref:`Connection <tntcxx_api_connection>`
-    class. It is a public wrapper to access the request methods in the way
-    similar to Tarantool, like, ``space[space_id].select()``,
-    ``space[space_id].select()``, and so on.
+    class. It is a public wrapper to access the data-manipulation methods in the way
+    similar to the Tarantool submodule :doc:`box.space</reference/reference_lua/box_space>`,
+    like, ``space[space_id].select()``, ``space[space_id].replace()``, and so on.
 
     All the ``Space`` class methods listed below work in the following way:
 
@@ -492,8 +500,10 @@ Space class
         :ref:`wait() <tntcxx_api_connector_wait>`, `waitAll() <tntcxx_api_connector_waitall>`,
         or :ref:`waitAny() <tntcxx_api_connector_waitany>`.
 
-    *   A method returns the request ID that is used to get the response by
-        the :ref:`getResponce() <tntcxx_api_connection_getresponse>` method.
+    *   A method returns the request ID. To get and read the actual data
+        requested, first you need to get the response object by using the
+        :ref:`getResponce() <tntcxx_api_connection_getresponse>` method
+        and then :ref:`"decode" <gs_cxx_reader>` the data.
 
     **Public methods**:
 
@@ -515,16 +525,11 @@ Space class
     words, ``space[space_id].select()`` equals to
     ``space[space_id].index[0].select()``.
 
-    As all the methods of the ``rid_t`` type, this method returns just the
-    request ID. To get the actual data containing the tuples selected, first
-    you need to get the response by using the :ref:`getResponce() <tntcxx_api_connection_getresponse>`
-    method and then :ref:`"decode" <gs_cxx_reader>` the data.
-
     :param const T&         key: value to be matched against the index key.
     :param uint32_t         index_id: index ID. Optional. Defaults to ``0``.
-    :param uint32_t         limit: maximum number of tuples. Optional.
+    :param uint32_t         limit: maximum number of tuples to select. Optional.
                                     Defaults to ``UINT32_MAX``.
-    :param uint32_t         offset: number of tuples to skip. Optional.
+    :param uint32_t         offset: //TBD number of tuples to skip. Optional.
                                     Defaults to ``0``.
     :param IteratorType     iterator: the type of iterator. Optional.
                                         Defaults to ``EQ``.
@@ -538,24 +543,294 @@ Space class
 
     ..  code-block:: cpp
 
-        /* Equals to space:select({key_value}, {limit = 1})*/
+        /* Equals to space_object:select({key_value}, {limit = 1}) in Tarantool*/
         uint32_t space_id = 512;
         int key_value = 5;
         uint32_t limit = 1;
         auto i = conn.space[space_id];
         rid_t select = i.select(std::make_tuple(key_value), index_id, limit, offset, iter);
 
+.. _tntcxx_api_connection_replace:
 
-..  NOTE::
+..  cpp:function:: template <class T> \
+                    rid_t replace(const T &tuple)
 
-    Description of other methods of the ``Space`` and ``Index`` nested classes
-    listed below will be added to this document later.
+    Inserts a tuple into the given space. If a tuple with the same primary key
+    already exists, ``replace()`` replaces the existing tuple with a new
+    one. The method works similar to :doc:`/reference/reference_lua/box_space/replace`.
 
-Methods:
+    :param const T& tuple: a tuple to insert.
 
-* select()
-* replace()
-* insert()
-* update()
-* upsert()
-* delete()
+    :return: a request ID
+    :rtype: rid_t
+
+    **Possible errors:** none.
+
+    **Example:**
+
+    ..  code-block:: cpp
+
+        /* Equals to space_object:replace(key_value, "111", 1.01) in Tarantool*/
+        uint32_t space_id = 512;
+        int key_value = 5;
+        std::tuple data = std::make_tuple(key_value, "111", 1.01);
+        rid_t replace = conn.space[space_id].replace(data);
+
+.. _tntcxx_api_connection_insert:
+
+..  cpp:function:: template <class T> \
+                    rid_t insert(const T &tuple)
+
+    Inserts a tuple into the given space.
+    The method works similar to :doc:`/reference/reference_lua/box_space/insert`.
+
+    :param const T&     tuple: a tuple to insert.
+
+    :return: a request ID
+    :rtype: rid_t
+
+    **Possible errors:** none.
+
+    **Example:**
+
+    ..  code-block:: cpp
+
+        /* Equals to space_object:insert(key_value, "112", 2.22) in Tarantool*/
+        uint32_t space_id = 512;
+        int key_value = 6;
+        std::tuple data = std::make_tuple(key_value, "112", 2.22);
+        rid_t insert = conn.space[space_id].insert(data);
+
+.. _tntcxx_api_connection_update:
+
+..  cpp:function:: template <class K, class T> \
+                    rid_t update(const K &key, const T &tuple, uint32_t index_id = 0)
+
+    Updates a tuple in the given space.
+    The method works similar to :doc:`/reference/reference_lua/box_space/update`
+    and searches for the tuple to update against the primary index (``index_id = 0``)
+    by default. In other words, ``space[space_id].update()`` equals to
+    ``space[space_id].index[0].update()``.
+
+    The ``tuple`` parameter specifies an update operation, an identifier of the
+    field to update, and a new field value. The set of available operations and
+    the format of specifying an operation and a field identifier is the same
+    as in Tarantool. Refer to the description of :doc:` </reference/reference_lua/box_space/update>`
+    and example below for details.
+
+    :param const K&     key: value to be matched against the index key.
+    :param const T&     tuple: parameters for the update operation, namely,
+                                ``operator, field_identifier, value``.
+    :param uint32_t     index_id: index ID. Optional. Defaults to ``0``.
+
+    :return: a request ID
+    :rtype: rid_t
+
+    **Possible errors:** none.
+
+    **Example:**
+
+    ..  code-block:: cpp
+
+        /* Equals to space_object:update(key, {{'=', 1, 'update' }, {'+', 2, 12}}) in Tarantool*/
+        uint32_t space_id = 512;
+        std::tuple key = std::make_tuple(5);
+        std::tuple op1 = std::make_tuple("=", 1, "update");
+        std::tuple op2 = std::make_tuple("+", 2, 12);
+        rid_t f1 = conn.space[space_id].update(key, std::make_tuple(op1, op2));
+
+.. _tntcxx_api_connection_upsert:
+
+..  cpp:function:: template <class T, class O> \
+                    rid_t upsert(const T &tuple, const O &ops, uint32_t index_base = 0)
+
+    Updates or inserts a tuple in the given space.
+    The method works similar to :doc:`/reference/reference_lua/box_space/upsert`.
+
+    If there is an existing tuple that matches the key fields of ``tuple``,
+    the request has the same effect as
+    :ref:`update() <tntcxx_api_connection_update>` and the ``ops`` parameter
+    is used.
+    If there is no existing tuple that matches the key fields of ``tuple``,
+    the request has the same effect as
+    :ref:`insert() <tntcxx_api_connection_insert>` and the ``tuple`` parameter
+    is used.
+
+    :param const T&     tuple: a tuple to insert.
+    :param const O&     ops: parameters for the update operation, namely,
+                             ``operator, field_identifier, value``.
+    :param uint32_t     index_base: //TBD Optional. Defaults to ``0``.
+
+    :return: a request ID
+    :rtype: rid_t
+
+    **Possible errors:** none.
+
+    **Example:**
+
+    ..  code-block:: cpp
+
+        /* Equals to space_object:upsert({333, "upsert-insert", 0.0}, {{'=', 1, 'upsert-update'}}) in Tarantool*/
+        uint32_t space_id = 512;
+        std::tuple tuple = std::make_tuple(333, "upsert-insert", 0.0);
+        std::tuple op1 = std::make_tuple("=", 1, "upsert-update");
+        rid_t f1 = conn.space[space_id].upsert(tuple, std::make_tuple(op1));
+
+.. _tntcxx_api_connection_delete:
+
+..  cpp:function:: template <class T> \
+                    rid_t delete_(const T &key, uint32_t index_id = 0)
+
+    Deletes a tuple in the given space.
+    The method works similar to :doc:`/reference/reference_lua/box_space/delete`
+    and searches for the tuple to delete against the primary index (``index_id = 0``)
+    by default. In other words, ``space[space_id].delete()`` equals to
+    ``space[space_id].index[0].delete()``.
+
+    :param const T&     key: value to be matched against the index key.
+    :param uint32_t     index_id: index ID. Optional. Defaults to ``0``.
+
+    :return: a request ID
+    :rtype: rid_t
+
+    **Possible errors:** none.
+
+    **Example:**
+
+    ..  code-block:: cpp
+
+        /* Equals to space_object:delete(123) in Tarantool*/
+        uint32_t space_id = 512;
+        std::tuple key = std::make_tuple(123);
+        rid_t f1 = conn.space[space_id].delete_(key); //TBD
+
+.. _tntcxx_api_connection_index:
+
+Index class
+^^^^^^^^^^^
+
+..  cpp:class:: OuterScope::Index : Space, Connection
+
+    ``Index`` is a nested class of the :ref:`Space <tntcxx_api_connection_space>`
+    class. It is a public wrapper to access the data-manipulation methods in the way
+    similar to the Tarantool submodule :doc:`box.index </reference/reference_lua/box_index>`,
+    like, ``space[space_id].index[index_id].select()`` and so on.
+
+    All the ``Index`` class methods listed below work in the following way:
+
+    *   A method encodes the corresponding request in the `MessagePack <https://msgpack.org/>`_
+        format and queues it in the output connection buffer to be sent later
+        by one of :ref:`Connector's <tntcxx_api_connector>` methods, namely,
+        :ref:`wait() <tntcxx_api_connector_wait>`, `waitAll() <tntcxx_api_connector_waitall>`,
+        or :ref:`waitAny() <tntcxx_api_connector_waitany>`.
+
+    *   A method returns the request ID that is used to get the response by
+        the :ref:`getResponce() <tntcxx_api_connection_getresponse>` method.
+        Refer to the :ref:`getResponce() <tntcxx_api_connection_getresponse>`
+        description to understand the response structure and how to read
+        the requested data.
+
+    **Public methods**:
+
+    * :ref:`select() <tntcxx_api_connection_select_i>`
+    * :ref:`update() <tntcxx_api_connection_update_i>`
+    * :ref:`delete() <tntcxx_api_connection_delete_i>`
+
+.. _tntcxx_api_connection_select_i:
+
+..  cpp:function:: template <class T> \
+                    rid_t select(const T &key, uint32_t limit = UINT32_MAX, uint32_t offset = 0, IteratorType iterator = EQ)
+
+    This is an alternative to :ref:`space.select() <tntcxx_api_connection_select>`.
+    The method searches for a tuple or a set of tuples in the given space against
+    a particular index and works similar to
+    :doc:`/reference/reference_lua/box_index/select`.
+
+    :param const T&         key: value to be matched against the index key.
+    :param uint32_t         limit: maximum number of tuples to select. Optional.
+                                    Defaults to ``UINT32_MAX``.
+    :param uint32_t         offset: //TBD start tuple number. Optional.
+                                    Defaults to ``0``.
+    :param IteratorType     iterator: the type of iterator. Optional.
+                                        Defaults to ``EQ``.
+
+    :return: a request ID
+    :rtype: rid_t
+
+    **Possible errors:** none.
+
+    **Example:**
+
+    ..  code-block:: cpp
+
+        /* Equals to index_object:select({key}, {limit = 1}) in Tarantool*/
+        uint32_t space_id = 512;
+        uint32_t index_id = 1;
+        int key = 10;
+        uint32_t limit = 1;
+        auto i = conn.space[space_id].index[index_id];
+        rid_t select = i.select(std::make_tuple(key), limit, offset, iter);
+
+.. _tntcxx_api_connection_update_i:
+
+..  cpp:function:: template <class K, class T> \
+                    rid_t update(const K &key, const T &tuple)
+
+    This is an alternative to :ref:`space.update() <tntcxx_api_connection_update>`.
+    The method updates a tuple in the given space but searches for the tuple
+    against a particular index. //TBD This index should be unique.
+    The method works similar to :doc:`/reference/reference_lua/box_index/update`.
+
+    The ``tuple`` parameter specifies an update operation, an identifier of the
+    field to update, and a new field value. The set of available operations and
+    the format of specifying an operation and a field identifier is the same
+    as in Tarantool. Refer to the description of :doc:` </reference/reference_lua/box_index/update>`
+    and example below for details.
+
+    :param const K&     key: value to be matched against the index key.
+    :param const T&     tuple: parameters for the update operation, namely,
+                                ``operator, field_identifier, value``.
+
+    :return: a request ID
+    :rtype: rid_t
+
+    **Possible errors:** none.
+
+    **Example:**
+
+    ..  code-block:: cpp
+
+        /* Equals to index_object:update(key, {{'=', 1, 'update' }, {'+', 2, 12}}) in Tarantool*/
+        uint32_t space_id = 512;
+        uint32_t index_id = 1;
+        std::tuple key = std::make_tuple(10);
+        std::tuple op1 = std::make_tuple("=", 1, "update");
+        std::tuple op2 = std::make_tuple("+", 2, 12);
+        rid_t f1 = conn.space[space_id].index[index_id].update(key, std::make_tuple(op1, op2));
+
+.. _tntcxx_api_connection_delete_i:
+
+..  cpp:function:: template <class T> \
+                    rid_t delete_(const T &key)
+
+    This is an alternative to :ref:`space.delete() <tntcxx_api_connection_delete>`.
+    The method deletes a tuple in the given space but searches for the tuple
+    against a particular index. //TBD This index should be unique.
+    The method works similar to :doc:`/reference/reference_lua/box_index/delete`.
+
+    :param const T&     key: value to be matched against the index key.
+
+    :return: a request ID
+    :rtype: rid_t
+
+    **Possible errors:** none.
+
+    **Example:**
+
+    ..  code-block:: cpp
+
+        /* Equals to index_object:delete(123) in Tarantool*/
+        uint32_t space_id = 512;
+        uint32_t index_id = 1;
+        std::tuple key = std::make_tuple(123);
+        rid_t f1 = conn.space[space_id].index[index_id].delete_(key); //TBD
