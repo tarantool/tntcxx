@@ -210,7 +210,7 @@ public:
 
 	template<class B, class N>
 	friend
-	int decodeResponse(Connection<B, N> &conn);
+	enum DecodeStatus decodeResponse(Connection<B, N> &conn);
 
 	template<class B, class N>
 	friend
@@ -508,20 +508,30 @@ hasDataToDecode(Connection<BUFFER, NetProvider> &conn)
 }
 
 template<class BUFFER, class NetProvider>
-int
+DecodeStatus
 decodeResponse(Connection<BUFFER, NetProvider> &conn)
 {
 	static int gc_step = 0;
 	Response<BUFFER> response;
+	response.size = conn.m_Decoder.decodeResponseSize();
+	if (response.size < 0) {
+		conn.setError("Failed to decode response size");
+		return DECODE_ERR;
+	}
+	response.size += MP_RESPONSE_SIZE;
+	if (! conn.m_InBuf.has(conn.m_EndDecoded, response.size)) {
+		conn.m_Decoder.reset(conn.m_EndDecoded);
+		return DECODE_NEEDMORE;
+	}
 	if (conn.m_Decoder.decodeResponse(response) != 0) {
-		conn.setError("Failed to decode response");
-		return -1;
+		conn.setError("Failed to decode response, skipping bytes..");
+		conn.m_EndDecoded += response.size;
+		return DECODE_ERR;
 	}
 	conn.m_Futures.insert({response.header.sync, response});
 	LOG_DEBUG("Header: sync=%d, code=%d, schema=%d", response.header.sync,
 		  response.header.code, response.header.schema_id);
-	LOG_DEBUG("Decoded %d bytes", response.size + 5);
-	conn.m_EndDecoded += response.size + 5;
+	conn.m_EndDecoded += response.size;
 	if ((gc_step++ % Connection<BUFFER, NetProvider>::GC_STEP_CNT) == 0)
 		conn.m_InBuf.flush();
 	if (! hasDataToDecode(conn)) {
@@ -529,7 +539,7 @@ decodeResponse(Connection<BUFFER, NetProvider> &conn)
 		rlist_del(&conn.m_in_read);
 		LOG_DEBUG("Removed %p from the read list", &conn.m_in_write);
 	}
-	return 0;
+	return DECODE_SUCC;
 }
 
 template<class BUFFER, class NetProvider>

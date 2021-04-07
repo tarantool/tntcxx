@@ -125,9 +125,11 @@ Connector<BUFFER, NetProvider>::wait(Connection<BUFFER, NetProvider> &conn,
 				  "and reset connection status.");
 			return -1;
 		}
-		//TODO: skip data that can't be decoded.
-		if (decodeResponse(conn) != 0)
+		DecodeStatus rc = decodeResponse(conn);
+		if (rc == DECODE_ERR)
 			return -1;
+		if (rc == DECODE_NEEDMORE)
+			break;
 	}
 	if (! m_NetProvider.check(conn)) {
 		LOG_ERROR("Connection has been lost: %s. Please re-connect "
@@ -145,17 +147,17 @@ Connector<BUFFER, NetProvider>::wait(Connection<BUFFER, NetProvider> &conn,
 		}
 		if (conn.status.is_ready_to_decode) {
 			while (hasDataToDecode(conn)) {
-				LOG_DEBUG("Connection has data to decode...");
-				if (decodeResponse(conn) != 0) {
-					LOG_ERROR("Failed to decode response: %s",
-						  conn.getError().c_str());
+				DecodeStatus rc = decodeResponse(conn);
+				if (rc == DECODE_ERR)
 					return -1;
-				}
+				if (rc == DECODE_NEEDMORE)
+					break;
 			}
 		}
 	}
 	if (! conn.futureIsReady(future)) {
-		LOG_ERROR("Connection has been timed out: future is not ready");
+		LOG_ERROR("Connection has been timed out: future %d is not ready",
+			  future);
 		return -1;
 	}
 	LOG_DEBUG("Feature %d is ready and decoded", future);

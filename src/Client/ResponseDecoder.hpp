@@ -39,6 +39,15 @@
 #include "../Utils/Logger.hpp"
 #include "../Utils/Base64.hpp"
 
+enum DecodeStatus {
+	DECODE_SUCC = 0,
+	DECODE_ERR = -1,
+	DECODE_NEEDMORE = 1
+};
+
+/** Size in bytes of encoded into msgpack size of packet*/
+static constexpr size_t MP_RESPONSE_SIZE = 5;
+
 template<class BUFFER>
 class ResponseDecoder {
 public:
@@ -49,9 +58,10 @@ public:
 	ResponseDecoder& operator = (const ResponseDecoder& decoder) = delete;
 
 	int decodeResponse(Response<BUFFER> &response);
+	int decodeResponseSize();
 	void reset(const iterator_t<BUFFER> &itr);
+
 private:
-	int decodePreHeader();
 	int decodeHeader(Header &header);
 	int decodeBody(Body<BUFFER> &body);
 	mpp::Dec<BUFFER> m_Dec;
@@ -59,9 +69,9 @@ private:
 
 template<class BUFFER>
 int
-ResponseDecoder<BUFFER>::decodePreHeader()
+ResponseDecoder<BUFFER>::decodeResponseSize()
 {
-	int size;
+	int size = -1;
 	m_Dec.SetReader(false, mpp::SimpleReader<BUFFER, mpp::MP_UINT, int>{size});
 	mpp::ReadResult_t res = m_Dec.Read();
 	//TODO: raise more detailed error
@@ -96,11 +106,6 @@ template<class BUFFER>
 int
 ResponseDecoder<BUFFER>::decodeResponse(Response<BUFFER> &response)
 {
-	response.size = decodePreHeader();
-	if (response.size < 0) {
-		LOG_ERROR("Failed to decode response size");
-		return -1;
-	}
 	if (decodeHeader(response.header) != 0) {
 		LOG_ERROR("Failed to decode header");
 		return -1;
