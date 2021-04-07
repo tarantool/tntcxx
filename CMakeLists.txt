@@ -20,6 +20,7 @@ ADD_EXECUTABLE(CStrUnit.test src/Utils/CStr.hpp test/CStrUnitTest.cpp)
 ADD_EXECUTABLE(BufferUnit.test src/Buffer/Buffer.hpp test/BufferUnitTest.cpp)
 ADD_EXECUTABLE(EncDecUnit.test src/mpp/mpp.hpp test/EncDecTest.cpp)
 add_executable(Client.test src/Client/Connector.hpp test/ClientTest.cpp)
+ADD_EXECUTABLE(ClientPerfTest.test src/Client/Connector.hpp test/ClientPerfTest.cpp)
 
 ENABLE_TESTING()
 ADD_TEST(NAME MempoolUnitTest.test COMMAND MempoolUnitTest.test)
