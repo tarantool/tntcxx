@@ -988,22 +988,26 @@ template <size_t N, class allocator>
 bool
 Buffer<N, allocator>::has(const iterator& itr, size_t size)
 {
+
 	struct Block *block = itr.m_block;
 	struct Block *last_block = lastBlock();
+	char *pos = itr.m_position;
 	if (block != last_block) {
-		size_t have = itr.m_block->end() - itr.m_position;
+		size_t have = itr.m_block->end() - pos;
 		if (size <= have)
 			return true;
 		size -= have;
 		block = rlist_next_entry(block, in_blocks);
+		pos = block->begin();
 	}
 	while (block != last_block) {
 		if (size <= Block::DATA_SIZE)
 			return true;
 		size -= Block::DATA_SIZE;
 		block = rlist_next_entry(block, in_blocks);
+		pos = block->begin();
 	}
-	size_t have = m_end - block->data;
+	size_t have = m_end - pos ;
 	return size <= have;
 }
 
