@@ -152,12 +152,9 @@ DefaultNetProvider<BUFFER, NETWORK>::connect(Conn_t &conn,
 	size_t iov_cnt = 0;
 	struct iovec *iov =
 		inBufferToIOV(conn, Iproto::GREETING_SIZE, &iov_cnt);
-	size_t read_bytes = 0;
 	LOG_DEBUG("Receiving greetings...");
-	int rc = NETWORK::recvall(socket, iov, iov_cnt,
-					 Iproto::GREETING_SIZE, &read_bytes,
-					 false);
-	if (rc < 0) {
+	int read_bytes = NETWORK::recvall(socket, iov, iov_cnt, false);
+	if (read_bytes < 0) {
 		conn.setError(std::string("Failed to receive greetings: ") +
 			      strerror(errno));
 		::close(socket);
@@ -273,8 +270,6 @@ int
 DefaultNetProvider<BUFFER, NETWORK>::recv(Conn_t &conn)
 {
 	assert(! conn.status.is_failed);
-	//TODO: refactor this part. Get rid of readyToRecv and pass
-	//input buffer directly to recv allocating new blocks on demand.
 	size_t total = NETWORK::readyToRecv(conn.socket);
 	if (total < 0) {
 		LOG_ERROR("Failed to check socket: ioctl returned errno %s",
@@ -285,15 +280,13 @@ DefaultNetProvider<BUFFER, NETWORK>::recv(Conn_t &conn)
 		LOG_DEBUG("Socket %d has no data to read", conn.socket);
 		return -1;
 	}
-	size_t read_bytes = 0;
 	size_t iov_cnt = 0;
 	struct iovec *iov =
 		inBufferToIOV(conn, total, &iov_cnt);
-	int rc = NETWORK::recvall(conn.socket, iov, iov_cnt,
-					 total, &read_bytes, true);
+	int read_bytes = NETWORK::recvall(conn.socket, iov, iov_cnt, true);
 	hasNotRecvBytes(conn, total - read_bytes);
 	LOG_DEBUG("read %d bytes from %d socket", read_bytes, conn.socket);
-	if (rc != 0) {
+	if (read_bytes < 0) {
 		if (errno == EWOULDBLOCK || errno == EAGAIN)
 			return -1;
 		conn.setError(std::string("Failed to receive response: ") +
@@ -304,7 +297,7 @@ DefaultNetProvider<BUFFER, NETWORK>::recv(Conn_t &conn)
 		}
 		return -1;
 	}
-	return 0;
+	return total - read_bytes;
 }
 
 template<class BUFFER, class NETWORK>

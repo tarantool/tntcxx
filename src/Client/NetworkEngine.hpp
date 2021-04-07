@@ -87,7 +87,7 @@ public:
 			   size_t *sent_bytes);
 	static int recv(int socket, struct iovec *iov, size_t iov_len);
 	static int recvall(int socket, struct iovec *iov, size_t iov_len,
-			   size_t total, size_t *read_bytes, bool dont_wait);
+			   bool dont_wait);
 	static size_t readyToRecv(int socket);
 };
 
@@ -246,7 +246,7 @@ NetworkEngine::recv(int socket, struct iovec *iov, size_t iov_len)
 
 inline int
 NetworkEngine::recvall(int socket, struct iovec *iov, size_t iov_len,
-		       size_t total, size_t *read_bytes, bool dont_wait)
+		       bool dont_wait)
 {
 	struct msghdr msg;
 	memset(&msg, 0, sizeof(msg));
@@ -254,21 +254,18 @@ NetworkEngine::recvall(int socket, struct iovec *iov, size_t iov_len,
 	msg.msg_iovlen = iov_len;
 
 	int flags = dont_wait ? MSG_DONTWAIT : 0;
-	*read_bytes = 0;
-	while (total > *read_bytes) {
-		int rc = recvmsg(socket, &msg, flags);
-		if (rc == -1)
-			return -1;
-		*read_bytes += rc;
-		while ((size_t) rc > iov->iov_len) {
-			rc -= iov->iov_len;
-			iov = iov + 1;
-			assert(msg.msg_iovlen > 0);
-			msg.msg_iovlen--;
-		}
-		msg.msg_iov = iov;
+	int rc = recvmsg(socket, &msg, flags);
+	if (rc == -1)
+		return -1;
+	int read_bytes = rc;
+	while ((size_t) read_bytes > iov->iov_len) {
+		read_bytes -= iov->iov_len;
+		iov = iov + 1;
+		assert(msg.msg_iovlen > 0);
+		msg.msg_iovlen--;
 	}
-	return 0;
+	msg.msg_iov = iov;
+	return rc;
 }
 
 inline size_t
