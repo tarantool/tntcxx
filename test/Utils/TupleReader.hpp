@@ -49,10 +49,10 @@ operator<<(std::ostream& strm, const UserTuple &t)
 }
 
 using Buf_t = tnt::Buffer<16 * 1024>;
-using BufIter_t = typename Buf_t::iterator;
 
 template <class BUFFER>
 struct TupleValueReader : mpp::DefaultErrorHandler {
+	using BufIter_t = typename BUFFER::iterator;
 	explicit TupleValueReader(mpp::Dec<BUFFER>& d, UserTuple& t) : dec(d), tuple(t) {}
 	static constexpr mpp::Type VALID_TYPES = mpp::MP_UINT | mpp::MP_STR | mpp::MP_DBL;
 	template <class T>
@@ -86,6 +86,7 @@ struct TupleValueReader : mpp::DefaultErrorHandler {
 
 template <class BUFFER>
 struct ArrayReader : mpp::DefaultErrorHandler {
+	using BufIter_t = typename BUFFER::iterator;
 	explicit ArrayReader(mpp::Dec<BUFFER>& d, UserTuple& t) : dec(d), tuple(t) {}
 	static constexpr mpp::Type VALID_TYPES = mpp::MP_ARR;
 
@@ -101,6 +102,7 @@ struct ArrayReader : mpp::DefaultErrorHandler {
 /** Parse extra array and save iterators to the corresponding tuples. */
 template <class BUFFER>
 struct SelectArrayReader : mpp::DefaultErrorHandler {
+	using BufIter_t = typename BUFFER::iterator;
 	explicit SelectArrayReader(mpp::Dec<BUFFER>& d, std::vector<BufIter_t> &t,
 				   size_t &fc) : dec(d), tuples(t),
 				   field_count(fc) {}
@@ -169,7 +171,7 @@ decodeSelectReturn(BUFFER &buf, Data<BUFFER> &data)
 	auto t = data.tuples[0];
 	mpp::Dec dec(buf);
 	dec.SetPosition(*t.begin);
-	std::vector<BufIter_t> itrs;
+	std::vector<typename BUFFER::iterator> itrs;
 	size_t tuple_sz = 0;
 	dec.SetReader(false, SelectArrayReader{dec, itrs, tuple_sz});
 	mpp::ReadResult_t res = dec.Read();
