@@ -251,6 +251,7 @@ public:
 	/** Return 0 if everythng is correct. */
 	int debugSelfCheck();
 
+	static int blockSize() { return N; }
 #ifndef NDEBUG
 	/** Print content of buffer to @a output in human-readable format. */
 	template<size_t size, class alloc>
