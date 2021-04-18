@@ -169,6 +169,7 @@ public:
 	void SetReader(bool second, T&& t);
 	void Skip(BufferIterator_t *saveEnd = nullptr);
 	void SetPosition(const BufferIterator_t &itr);
+	BufferIterator_t getPosition() { return m_Cur; }
 
 	inline ReadResult_t Read();
 

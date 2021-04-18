@@ -132,7 +132,7 @@ decodeUserTuple(BUFFER &buf, Data<BUFFER> &data)
 	std::vector<UserTuple> results;
 	for(auto const& t: data.tuples) {
 		assert(t.begin != std::nullopt);
-		assert(t.end != std::nullopt);
+		assert(data.end != *t.begin);
 		UserTuple tuple;
 		mpp::Dec dec(buf);
 		dec.SetPosition(*t.begin);
@@ -150,7 +150,7 @@ decodeMultiReturn(BUFFER &buf, Data<BUFFER> &data)
 {
 	auto t = data.tuples[0];
 	assert(t.begin != std::nullopt);
-	assert(t.end != std::nullopt);
+	assert(data.end != *t.begin);
 	UserTuple tuple;
 	mpp::Dec dec(buf);
 	dec.SetPosition(*t.begin);

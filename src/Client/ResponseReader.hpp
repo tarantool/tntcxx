@@ -67,18 +67,19 @@ struct ErrorStack {
 template<class BUFFER>
 struct Tuple {
 	std::optional<iterator_t<BUFFER>> begin;
-	std::optional<iterator_t<BUFFER>> end;
 	size_t field_count;
 };
 
 template<class BUFFER>
 struct Data {
+	Data(const iterator_t<BUFFER> &itr) : end(itr) {}
 	/**
 	 * Data is returned in form of msgpack array (even in case of
 	 * scalar value). This is size of data array.
 	 */
 	size_t dimension;
 	std::vector<Tuple<BUFFER>> tuples;
+	iterator_t<BUFFER> end;
 };
 
 template<class BUFFER>
@@ -153,8 +154,7 @@ struct TupleReader : mpp::ReaderTemplate<BUFFER> {
 		Tuple<BUFFER> t;
 		t.field_count = u.size;
 		t.begin = arg;
-		t.end = t.begin;
-		dec.Skip(&(*t.end));
+		dec.Skip();
 		data.tuples.push_back(t);
 	}
 	/**
@@ -168,8 +168,7 @@ struct TupleReader : mpp::ReaderTemplate<BUFFER> {
 		Tuple<BUFFER> t;
 		t.field_count = 1;
 		t.begin = arg;
-		t.end = t.begin;
-		dec.Skip(&(*t.end));
+		dec.Skip();
 		data.tuples.push_back(t);
 	}
 	void WrongType(mpp::Type expected, mpp::Type got)
@@ -365,14 +364,14 @@ struct BodyKeyReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_UINT> {
 
 	BodyKeyReader(mpp::Dec<BUFFER>& d, Body<BUFFER>& b) : dec(d), body(b) {}
 
-	void Value(const iterator_t<BUFFER>&, mpp::compact::Type, uint64_t key)
+	void Value(const iterator_t<BUFFER>& itr, mpp::compact::Type, uint64_t key)
 	{
 		using Str_t = mpp::SimpleStrReader<BUFFER, sizeof(Error::msg)>;
 		using Err_t = ErrorReader<BUFFER>;
 		using Data_t = DataReader<BUFFER>;
 		switch (key) {
 			case Iproto::DATA: {
-				body.data = Data<BUFFER>();
+				body.data = Data<BUFFER>(itr);
 				dec.SetReader(true, Data_t{dec, *body.data});
 				break;
 			}

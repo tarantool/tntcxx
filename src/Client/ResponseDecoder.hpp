@@ -99,6 +99,8 @@ ResponseDecoder<BUFFER>::decodeBody(Body<BUFFER> &body)
 	mpp::ReadResult_t res = m_Dec.Read();
 	if (res != mpp::READ_SUCCESS)
 		return -1;
+	if (body.data != std::nullopt)
+		body.data->end = m_Dec.getPosition();
 	return 0;
 }
 
