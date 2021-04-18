@@ -112,8 +112,7 @@ struct SelectArrayReader : mpp::DefaultErrorHandler {
 	{
 		BufIter_t itr = arg;
 		tuples.push_back(itr);
-		BufIter_t skip = arg;
-		dec.Skip(&skip);
+		dec.Skip();
 	}
 	void Value(const BufIter_t&, mpp::compact::Type, mpp::ArrValue arr)
 	{
