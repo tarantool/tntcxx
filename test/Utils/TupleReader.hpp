@@ -131,11 +131,10 @@ decodeUserTuple(BUFFER &buf, Data<BUFFER> &data)
 {
 	std::vector<UserTuple> results;
 	for(auto const& t: data.tuples) {
-		assert(t.begin != std::nullopt);
-		assert(data.end != *t.begin);
+		assert(data.end != t.begin);
 		UserTuple tuple;
 		mpp::Dec dec(buf);
-		dec.SetPosition(*t.begin);
+		dec.SetPosition(t.begin);
 		dec.SetReader(false, ArrayReader<BUFFER>{dec, tuple});
 		mpp::ReadResult_t res = dec.Read();
 		assert(res == mpp::READ_SUCCESS);
@@ -149,11 +148,10 @@ std::vector<UserTuple>
 decodeMultiReturn(BUFFER &buf, Data<BUFFER> &data)
 {
 	auto t = data.tuples[0];
-	assert(t.begin != std::nullopt);
-	assert(data.end != *t.begin);
+	assert(data.end != t.begin);
 	UserTuple tuple;
 	mpp::Dec dec(buf);
-	dec.SetPosition(*t.begin);
+	dec.SetPosition(t.begin);
 	dec.SetReader(false, TupleValueReader<BUFFER>{dec, tuple});
 	for (size_t i = 0; i < data.dimension; ++i) {
 		mpp::ReadResult_t res = dec.Read();
@@ -169,7 +167,7 @@ decodeSelectReturn(BUFFER &buf, Data<BUFFER> &data)
 	std::vector<UserTuple> results;
 	auto t = data.tuples[0];
 	mpp::Dec dec(buf);
-	dec.SetPosition(*t.begin);
+	dec.SetPosition(t.begin);
 	std::vector<typename BUFFER::iterator> itrs;
 	size_t tuple_sz = 0;
 	dec.SetReader(false, SelectArrayReader{dec, itrs, tuple_sz});
