@@ -389,7 +389,7 @@ Enc<BUFFER>::add_arr(CStr<C...> prefix, T size)
 		return;
 	}
 	if constexpr (sizeof(T) > 2) if (size > UINT16_MAX) {
-		auto add = CStr<'\xdb'>{};
+		auto add = CStr<'\xdd'>{};
 		m_Buf.addBack(prefix.join(add));
 		m_Buf.addBack(enc_bswap(static_cast<uint32_t>(size)));
 		return;
