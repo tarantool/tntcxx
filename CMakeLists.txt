@@ -9,12 +9,16 @@ ENDIF()
 MESSAGE(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 
 SET(CMAKE_CXX_STANDARD 17)
-SET(CMAKE_C_STANDARD 17)
+SET(CMAKE_C_STANDARD 11)
 # For libev build we have to turn off Werror: otherwise it is impossible to build.
 #ADD_COMPILE_OPTIONS(-Wall -Wextra -Werror)
 
 INCLUDE_DIRECTORIES(.)
 INCLUDE_DIRECTORIES(./src)
+INCLUDE_DIRECTORIES(./third_party/libev)
+ADD_LIBRARY(ev STATIC third_party/libev/ev.c)
+TARGET_COMPILE_DEFINITIONS(ev PRIVATE EV_STANDALONE=1)
+TARGET_COMPILE_OPTIONS(ev PRIVATE -w)
 ADD_EXECUTABLE(MempoolUnitTest.test src/Utils/Mempool.hpp test/MempoolUnitTest.cpp)
 ADD_EXECUTABLE(CStrUnit.test src/Utils/CStr.hpp test/CStrUnitTest.cpp)
 ADD_EXECUTABLE(Base64Unit.test src/Utils/Base64.hpp test/Base64UnitTest.cpp)
