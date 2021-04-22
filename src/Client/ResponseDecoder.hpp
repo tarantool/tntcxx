@@ -37,7 +37,7 @@
 #include "IprotoConstants.hpp"
 #include "ResponseReader.hpp"
 #include "../Utils/Logger.hpp"
-#include "../Utils/Base64.hpp"
+#include "../Utils/NewBase64.hpp"
 
 enum DecodeStatus {
 	DECODE_SUCC = 0,
@@ -131,43 +131,32 @@ versionId(unsigned major, unsigned minor, unsigned patch)
 }
 
 inline int
-parseGreeting(const char *greetingbuf, Greeting &greeting) {
-	if (memcmp(greetingbuf, "Tarantool ", strlen("Tarantool ")) != 0 ||
-	    greetingbuf[Iproto::GREETING_SIZE / 2 - 1] != '\n' ||
-	    greetingbuf[Iproto::GREETING_SIZE - 1] != '\n')
+parseGreeting(std::string_view raw, Greeting &greeting) {
+	assert(raw.size() == Iproto::GREETING_SIZE);
+	std::string_view line1 = raw.substr(0, Iproto::GREETING_LINE1_SIZE);
+	std::string_view line2 = raw.substr(Iproto::GREETING_LINE1_SIZE,
+					    Iproto::GREETING_LINE2_SIZE);
+	if (line1.back() != '\n' || line2.back() != '\n')
 		return -1;
-	int h = Iproto::GREETING_SIZE / 2;
-	const char *pos = greetingbuf + strlen("Tarantool ");
-	const char *end = greetingbuf + h;
-	/* skip spaces */
-	for (; pos < end && *pos == ' '; ++pos);
-	/* Extract a version string - a string until ' ' */
-	char version[20];
-	const char *vend = (const char *) memchr(pos, ' ', end - pos);
-	if (vend == NULL || (size_t)(vend - pos) >= sizeof(version))
-		return -1;
-	memcpy(version, pos, vend - pos);
-	version[vend - pos] = '\0';
-	pos = vend + 1;
-	/* skip spaces */
-	for (; pos < end && *pos == ' '; ++pos);
 
+	// Parse 1st line.
+	std::string_view name("Tarantool ");
+	if (line1.substr(0, name.size()) != name)
+		return -1;
+	std::string_view version_etc = line1.substr(name.size());
 	/* Parse a version string */
 	unsigned major, minor, patch;
-	if (sscanf(version, "%u.%u.%u", &major, &minor, &patch) != 3)
+	if (sscanf(version_etc.data(), "%u.%u.%u", &major, &minor, &patch) != 3)
 		return -1;
 	greeting.version_id = versionId(major, minor, patch);
-	/* Decode salt */
-	std::string_view salt_encoded(std::string_view(greetingbuf + h,
-				      Iproto::GREETING_SALT_LEN_MAX));
-	try {
-		greeting.salt = base64_decode(salt_encoded);
-	} catch (const std::runtime_error &e) {
-		LOG_ERROR("Failed to decode salt: %s", e.what());
-		return -1;
-	}
-	if (greeting.salt.length() < Iproto::SCRAMBLE_SIZE ||
-	    greeting.salt.length() >= (uint32_t) h)
+
+	// Parse 2nd line.
+	std::string_view salt_encoded = line2.substr(0, Iproto::GREETING_MAX_SALT_SIZE);
+	auto [in, out] = base64::decode(salt_encoded.begin(), salt_encoded.end(),
+					greeting.salt);
+	greeting.salt_size = out - greeting.salt;
+	assert(greeting.salt_size <= sizeof(greeting.salt));
+	if (greeting.salt_size < Iproto::SCRAMBLE_SIZE)
 		return -1;
 	return 0;
 }

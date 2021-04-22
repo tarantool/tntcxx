@@ -546,16 +546,28 @@ template<class BUFFER, class NetProvider>
 int
 decodeGreeting(Connection<BUFFER, NetProvider> &conn)
 {
+	//TODO: that's not zero-copy, should be rewritten in that pattern.
 	char greeting_buf[Iproto::GREETING_SIZE];
-	conn.m_InBuf.get(conn.m_EndDecoded, greeting_buf,
-			 sizeof(greeting_buf));
+	conn.m_InBuf.get(conn.m_EndDecoded, greeting_buf, sizeof(greeting_buf));
 	conn.m_EndDecoded += sizeof(greeting_buf);
 	assert(conn.m_EndDecoded == conn.m_InBuf.end());
 	conn.m_Decoder.reset(conn.m_EndDecoded);
-	if (parseGreeting((const char *) &greeting_buf, conn.m_Greeting) != 0)
+	if (parseGreeting(std::string_view{greeting_buf, Iproto::GREETING_SIZE},
+			  conn.m_Greeting) != 0)
 		return -1;
 	LOG_DEBUG("Version: %d", conn.m_Greeting.version_id);
-	//TODO: print salt at least in hex format.
-	LOG_DEBUG("Salt: %s", conn.m_Greeting.salt.c_str());
+
+#ifndef NDEBUG
+	//print salt in hex format.
+	char hex_salt[Iproto::MAX_SALT_SIZE * 2 + 1];
+	const char *hex = "0123456789abcdef";
+	for (size_t i = 0; i < conn.m_Greeting.salt_size; i++) {
+		uint8_t u = conn.m_Greeting.salt[i];
+		hex_salt[i * 2] = hex[u / 16];
+		hex_salt[i * 2 + 1] = hex[u % 16];
+	}
+	hex_salt[conn.m_Greeting.salt_size * 2] = 0;
+	LOG_DEBUG("Salt: %s", hex_salt);
+#endif
 	return 0;
 }

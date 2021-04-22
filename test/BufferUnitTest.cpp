@@ -106,7 +106,7 @@ buffer_basic()
 	fail_unless(buf.empty());
 	fail_if(buf.debugSelfCheck());
 	/* Test non-template ::addBack() method. */
-	buf.addBack((const char *)&char_samples, SAMPLES_CNT);
+	buf.addBack(char_samples, SAMPLES_CNT);
 	fail_unless(! buf.empty());
 	fail_if(buf.debugSelfCheck());
 	char char_res[SAMPLES_CNT];

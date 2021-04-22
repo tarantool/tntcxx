@@ -96,7 +96,9 @@ struct Response {
 
 struct Greeting {
 	uint32_t version_id;
-	std::string salt;
+	size_t salt_size;
+	// Note that the salt is not null-terminated.
+	char salt[Iproto::MAX_SALT_SIZE];
 };
 
 template <class BUFFER>
