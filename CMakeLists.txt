@@ -10,8 +10,7 @@ MESSAGE(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 
 SET(CMAKE_CXX_STANDARD 17)
 SET(CMAKE_C_STANDARD 11)
-# For libev build we have to turn off Werror: otherwise it is impossible to build.
-#ADD_COMPILE_OPTIONS(-Wall -Wextra -Werror)
+ADD_COMPILE_OPTIONS(-Wall -Wextra -Werror)
 
 INCLUDE_DIRECTORIES(.)
 INCLUDE_DIRECTORIES(./src)
@@ -24,8 +23,10 @@ ADD_EXECUTABLE(CStrUnit.test src/Utils/CStr.hpp test/CStrUnitTest.cpp)
 ADD_EXECUTABLE(Base64Unit.test src/Utils/Base64.hpp test/Base64UnitTest.cpp)
 ADD_EXECUTABLE(BufferUnit.test src/Buffer/Buffer.hpp test/BufferUnitTest.cpp)
 ADD_EXECUTABLE(EncDecUnit.test src/mpp/mpp.hpp test/EncDecTest.cpp)
-add_executable(Client.test src/Client/Connector.hpp test/ClientTest.cpp)
+ADD_EXECUTABLE(Client.test src/Client/Connector.hpp test/ClientTest.cpp)
 ADD_EXECUTABLE(ClientPerfTest.test src/Client/Connector.hpp test/ClientPerfTest.cpp)
+TARGET_LINK_LIBRARIES(ClientPerfTest.test ev)
+TARGET_LINK_LIBRARIES(Client.test ev)
 
 ENABLE_TESTING()
 ADD_TEST(NAME MempoolUnitTest.test COMMAND MempoolUnitTest.test)

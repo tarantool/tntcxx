@@ -29,9 +29,6 @@
  * THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
-#define EV_STANDALONE 1
-#include "libev/ev.c"
-
 #include <assert.h>
 #include <chrono>
 #include <errno.h>
@@ -45,6 +42,7 @@
 #include "Connector.hpp"
 #include "NetworkEngine.hpp"
 #include "../Utils/rlist.h"
+#include "ev.h"
 
 template<class BUFFER, class NETWORK>
 class Connector;
