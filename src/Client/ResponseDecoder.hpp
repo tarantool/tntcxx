@@ -152,8 +152,8 @@ parseGreeting(std::string_view raw, Greeting &greeting) {
 
 	// Parse 2nd line.
 	std::string_view salt_encoded = line2.substr(0, Iproto::GREETING_MAX_SALT_SIZE);
-	auto [in, out] = base64::decode(salt_encoded.begin(), salt_encoded.end(),
-					greeting.salt);
+	char *out = base64::decode(salt_encoded.begin(), salt_encoded.end(),
+				   greeting.salt).second;
 	greeting.salt_size = out - greeting.salt;
 	assert(greeting.salt_size <= sizeof(greeting.salt));
 	if (greeting.salt_size < Iproto::SCRAMBLE_SIZE)
