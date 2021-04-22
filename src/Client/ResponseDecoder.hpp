@@ -37,7 +37,7 @@
 #include "IprotoConstants.hpp"
 #include "ResponseReader.hpp"
 #include "../Utils/Logger.hpp"
-#include "../Utils/NewBase64.hpp"
+#include "../Utils/Base64.hpp"
 
 enum DecodeStatus {
 	DECODE_SUCC = 0,

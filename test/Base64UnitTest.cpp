@@ -29,7 +29,7 @@
  * SUCH DAMAGE.
  */
 
-#include "../src/Utils/NewBase64.hpp"
+#include "../src/Utils/Base64.hpp"
 
 #include <cassert>
 #include <cstring>
