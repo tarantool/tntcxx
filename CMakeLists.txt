@@ -22,6 +22,7 @@ ADD_EXECUTABLE(MempoolUnitTest.test src/Utils/Mempool.hpp test/MempoolUnitTest.c
 ADD_EXECUTABLE(CStrUnit.test src/Utils/CStr.hpp test/CStrUnitTest.cpp)
 ADD_EXECUTABLE(Base64Unit.test src/Utils/Base64.hpp test/Base64UnitTest.cpp)
 ADD_EXECUTABLE(BufferUnit.test src/Buffer/Buffer.hpp test/BufferUnitTest.cpp)
+ADD_EXECUTABLE(BufferPerf.test src/Buffer/Buffer.hpp test/BufferPerfTest.cpp)
 ADD_EXECUTABLE(EncDecUnit.test src/mpp/mpp.hpp test/EncDecTest.cpp)
 ADD_EXECUTABLE(Client.test src/Client/Connector.hpp test/ClientTest.cpp)
 ADD_EXECUTABLE(ClientPerfTest.test src/Client/Connector.hpp test/ClientPerfTest.cpp)

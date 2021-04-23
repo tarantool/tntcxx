@@ -43,7 +43,7 @@ public:
 	{
 		m_finish = std::chrono::high_resolution_clock::now();
 	}
-	double result()
+	double result() const
 	{
 		using namespace std::chrono;
 		duration<double> time =
