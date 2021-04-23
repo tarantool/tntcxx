@@ -228,6 +228,25 @@ test_static()
 	fail_unless(mp_t::defaultInstance().statBlockCount() == 0);
 }
 
+template<size_t S, size_t M>
+void
+test_alignment()
+{
+	TEST_INIT(2, S, M);
+
+	size_t alignment = 1;
+	while (S % (alignment * 2) == 0)
+		alignment *= 2;
+
+	tnt::MempoolInstance<S, M, true> mp;
+
+	for (size_t i = 0; i < 100; i++) {
+		char *p = mp.allocate();
+		uintptr_t u = (uintptr_t)p;
+		fail_unless(u % alignment == 0);
+	}
+}
+
 int main()
 {
 	test_default<8>();
@@ -247,4 +266,13 @@ int main()
 	test_holder<16, 256>();
 
 	test_static<16, 256>();
+
+	test_alignment<8, 2>();
+	test_alignment<8, 13>();
+	test_alignment<8, 64>();
+	test_alignment<13, 8>();
+	test_alignment<13, 64>();
+	test_alignment<120, 2>();
+	test_alignment<120, 13>();
+	test_alignment<120, 64>();
 }
