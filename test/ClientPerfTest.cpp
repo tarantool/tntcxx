@@ -31,6 +31,7 @@
 #include "Utils/Helpers.hpp"
 #include "Utils/TupleReader.hpp"
 #include "Utils/System.hpp"
+#include "Utils/PerfTimer.hpp"
 
 #include "../src/Client/Connector.hpp"
 #include "../src/Client/LibevNetProvider.hpp"
@@ -50,30 +51,6 @@ static constexpr size_t GIANT_BUFFER_SIZE   = 128 * 1024;
 /** In total 1 million requests per test. */
 constexpr size_t NUM_REQ = 2000;
 constexpr size_t NUM_TEST = 500;
-
-using namespace std::chrono;
-
-class PerfTimer {
-public:
-	PerfTimer() {};
-	void start()
-	{
-		_start = high_resolution_clock::now();
-	}
-	void stop()
-	{
-		_finish = high_resolution_clock::now();
-	}
-	double result()
-	{
-		duration<double> time =
-			duration_cast<duration<double>>(_finish - _start);
-		return time.count();
-	}
-private:
-	high_resolution_clock::time_point _start;
-	high_resolution_clock::time_point _finish;
-};
 
 struct RequestResult {
 	double rps;
