@@ -37,7 +37,7 @@
 #include "Utils/Helpers.hpp"
 
 constexpr static size_t SMALL_BLOCK_SZ = 32;
-constexpr static size_t LARGE_BLOCK_SZ = 104;
+constexpr static size_t LARGE_BLOCK_SZ = 128;
 
 static char char_samples[] = {
 	'0', '1', '2', '3', '4', '5', '6', '7', '8', '9'

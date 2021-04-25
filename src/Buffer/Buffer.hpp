@@ -50,14 +50,17 @@ namespace tnt {
  * Exception safe C++ IO buffer.
  *
  * Allocator requirements (API):
- * allocate() - static allocation method, must throw an exception in case it fails.
+ * allocate() - allocation method, must throw an exception in case it fails.
+ * Must return a chunk of memory, which end is aligned by N.
+ * In other words, address of a the next after the last byte in a chunk must
+ * be round in terms of `% N == 0` (note that N is always a power of 2).
  * Returns chunk of memory of @REAL_SIZE size (which is less or equal to N).
- * deallocate() - static release method, takes a pointer to memory allocated
+ * deallocate() - release method, takes a pointer to memory allocated
  * by @allocate and frees it. Must not throw an exception.
  * REAL_SIZE - constant determines real size of allocated chunk (excluding
  * overhead taken by allocator).
  */
-template <size_t N = 16 * 1024, class allocator = MempoolStatic<N>>
+template <size_t N = 16 * 1024, class allocator = MempoolHolder<N>>
 class Buffer
 {
 private:
@@ -76,8 +79,7 @@ private:
 		/** Prevent base class from being instantiated. */
 		BlockBase() = default;
 		~BlockBase() = default;
-		BlockBase(BlockBase &) = delete;
-		BlockBase& operator=(BlockBase &) = delete;
+		BlockBase(const BlockBase &) = delete;
 	};
 	struct Block : BlockBase
 	{
@@ -90,8 +92,11 @@ private:
 		 */
 		char data[DATA_SIZE];
 
-		void* operator new(size_t size);
-		void operator delete(void *ptr);
+		/**
+		 * Default new/delete are prohibited.
+		 */
+		void* operator new(size_t size) = delete;
+		void operator delete(void *ptr) = delete;
 
 		char  *begin() { return data; }
 		char  *end()   { return data + DATA_SIZE; }
@@ -167,8 +172,8 @@ public:
 
 	};
 	/** =============== Buffer definition =============== */
-	/** Only default constructor is available. */
-	Buffer();
+	/** Copy of any kind is disabled. */
+	Buffer(const allocator& all = allocator());
 	Buffer(const Buffer& buf) = delete;
 	Buffer& operator = (const Buffer& buf) = delete;
 	~Buffer();
@@ -273,31 +278,19 @@ private:
 	char *m_begin;
 	/** Last block can be partially filled, so store end border as well. */
 	char *m_end;
+
+	/** Instance of an allocator. */
+	allocator m_all;
 };
-
-template <size_t N, class allocator>
-void*
-Buffer<N, allocator>::Block::operator new(size_t size)
-{
-	assert(size >= sizeof(Block));
-	(void)size;
-	return allocator::allocate();
-}
-
-template <size_t N, class allocator>
-void
-Buffer<N, allocator>::Block::operator delete(void *ptr)
-{
-	allocator::deallocate((char *)ptr);
-}
-
 
 template <size_t N, class allocator>
 typename Buffer<N, allocator>::Block *
 Buffer<N, allocator>::newBlock(struct rlist *addToList)
 {
-	Block *b = new Block;
-	assert(b != nullptr);
+	char *ptr = m_all.allocate();
+	assert(ptr != nullptr);
+	assert((uintptr_t(ptr) + m_all.REAL_SIZE) % N == 0);
+	Block *b = ::new(ptr) Block;
 	rlist_add_tail(addToList, &b->in_blocks);
 	b->id = m_blockId++;
 	return b;
@@ -308,7 +301,8 @@ void
 Buffer<N, allocator>::delBlock(Block *b)
 {
 	rlist_del(&b->in_blocks);
-	delete b;
+	b->~Block();
+	m_all.deallocate(reinterpret_cast<char *>(b));
 }
 
 template <size_t N, class allocator>
@@ -503,8 +497,9 @@ Buffer<N, allocator>::iterator::moveBackward(size_t step)
 }
 
 template <size_t N, class allocator>
-Buffer<N, allocator>::Buffer() : m_blockId(0)
+Buffer<N, allocator>::Buffer(const allocator &all) : m_blockId(0), m_all(all)
 {
+	static_assert((N & (N - 1)) == 0, "N must be power of 2");
 	static_assert(allocator::REAL_SIZE > sizeof(BlockBase),
 		      "Allocation size must be more that 16 bytes");
 	static_assert(allocator::REAL_SIZE % alignof(BlockBase) == 0,
@@ -523,14 +518,8 @@ template <size_t N, class allocator>
 Buffer<N, allocator>::~Buffer()
 {
 	/* Delete blocks and release occupied memory. */
-	/**
-	 * TODO: that part is identical to Blocks::~Blocks().
-	 * Perhaps that functionality should be moved to common parent.
-	 */
 	while (!rlist_empty(&m_blocks)) {
-		Block *b = firstBlock();
-		rlist_del(&b->in_blocks);
-		delete b;
+		delBlock(firstBlock());
 	}
 }
 
