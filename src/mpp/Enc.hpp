@@ -39,6 +39,7 @@
 #include "Constants.hpp"
 #include "Types.hpp"
 #include "Traits.hpp"
+#include "../Utils/Wrappers.hpp"
 
 //TODO : add std::variant
 //TODO : add time_t?
