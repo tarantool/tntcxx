@@ -123,7 +123,7 @@ Embedding connector
 
 Embed the connector in your C++ application by including the main header:
 
-..  literalinclude:: ./_includes/Simple.cpp
+..  literalinclude:: ./_includes/examples/Simple.cpp
     :start-after: doclabel01-1
     :end-before: doclabel01-2
     :language: cpp
@@ -152,12 +152,12 @@ You can either implement your own buffer or network provider or use the default
 ones as we do in our example. So, the default connector instantiation looks
 as follows:
 
-..  literalinclude:: ./_includes/Simple.cpp
+..  literalinclude:: ./_includes/examples/Simple.cpp
     :start-after: doclabel02-1
     :end-before: doclabel02-2
     :language: cpp
 
-..  literalinclude:: ./_includes/Simple.cpp
+..  literalinclude:: ./_includes/examples/Simple.cpp
     :start-after: doclabel03-1
     :end-before: doclabel03-2
     :language: cpp
@@ -165,7 +165,7 @@ as follows:
 
 To use the ``BUFFER`` class, the buffer header should also be included:
 
-..  literalinclude:: ./_includes/Simple.cpp
+..  literalinclude:: ./_includes/examples/Simple.cpp
     :start-after: doclabel01-2
     :end-before: doclabel01-3
     :language: cpp
@@ -175,7 +175,7 @@ also need to create connection objects. A connection also takes the buffer and
 the network provider as template parameters. Note that they must be the same
 as ones of the client:
 
-..  literalinclude:: ./_includes/Simple.cpp
+..  literalinclude:: ./_includes/examples/Simple.cpp
     :start-after: doclabel04-1
     :end-before: doclabel04-2
     :language: cpp
@@ -191,7 +191,7 @@ the ``3301`` port on ``localhost``.
 Let's define the corresponding variables as well as the ``WAIT_TIMEOUT`` variable
 for connection timeout.
 
-..  literalinclude:: ./_includes/Simple.cpp
+..  literalinclude:: ./_includes/examples/Simple.cpp
     :start-after: doclabel05-1
     :end-before: doclabel05-2
     :language: cpp
@@ -200,7 +200,7 @@ To connect to the Tarantool instance, we should invoke
 the ``Connector::connect()`` method of the client object and
 pass three arguments: connection instance, address, and port.
 
-..  literalinclude:: ./_includes/Simple.cpp
+..  literalinclude:: ./_includes/examples/Simple.cpp
     :start-after: doclabel06-1
     :end-before: doclabel06-2
     :language: cpp
@@ -217,7 +217,7 @@ error message corresponding to the last error occured during
 communication with the instance, we can invoke the ``Connection::getError()``
 method.
 
-..  literalinclude:: ./_includes/Simple.cpp
+..  literalinclude:: ./_includes/examples/Simple.cpp
     :start-after: doclabel06-2
     :end-before: doclabel06-3
     :language: cpp
@@ -282,7 +282,7 @@ and the space has the following format:
 
 **ping**
 
-..  literalinclude:: ./_includes/Simple.cpp
+..  literalinclude:: ./_includes/examples/Simple.cpp
     :start-after: doclabel07-1
     :end-before: doclabel07-2
     :language: cpp
@@ -292,7 +292,7 @@ and the space has the following format:
 
 Equals to Lua request ``<space_name>:replace(pk_value, "111", 1)``.
 
-..  literalinclude:: ./_includes/Simple.cpp
+..  literalinclude:: ./_includes/examples/Simple.cpp
     :start-after: doclabel08-1
     :end-before: doclabel08-2
     :language: cpp
@@ -302,7 +302,7 @@ Equals to Lua request ``<space_name>:replace(pk_value, "111", 1)``.
 
 Equals to Lua request ``<space_name>.index[0]:select({pk_value}, {limit = 1})``.
 
-..  literalinclude:: ./_includes/Simple.cpp
+..  literalinclude:: ./_includes/examples/Simple.cpp
     :start-after: doclabel09-1
     :end-before: doclabel09-2
     :language: cpp
@@ -331,7 +331,7 @@ Now let's send our requests to the Tarantool instance.
 The ``futureIsReady()`` function checks availability of a future and returns
 ``true`` or ``false``.
 
-..  literalinclude:: ./_includes/Simple.cpp
+..  literalinclude:: ./_includes/examples/Simple.cpp
     :start-after: doclabel10-1
     :end-before: doclabel10-2
     :language: cpp
@@ -365,7 +365,7 @@ we can either wait for one specific future or for all of them at once.
 We'll try both options in our example. For the ``ping`` request, let's use the
 first option.
 
-..  literalinclude:: ./_includes/Simple.cpp
+..  literalinclude:: ./_includes/examples/Simple.cpp
     :start-after: doclabel11-1
     :end-before: doclabel11-2
     :language: cpp
@@ -374,7 +374,7 @@ first option.
 For the ``replace`` and ``select`` requests, let's examine the option of
 waiting for both futures at once.
 
-..  literalinclude:: ./_includes/Simple.cpp
+..  literalinclude:: ./_includes/examples/Simple.cpp
     :start-after: doclabel11-2
     :end-before: doclabel11-3
     :language: cpp
@@ -390,7 +390,7 @@ Several connections at once
 Now, let's have a look at the case when we establish two connections
 to Tarantool instance simultaneously.
 
-..  literalinclude:: ./_includes/Simple.cpp
+..  literalinclude:: ./_includes/examples/Simple.cpp
     :start-after: doclabel11-3
     :end-before: doclabel11-4
     :language: cpp
@@ -405,7 +405,7 @@ Closing connections
 
 Finally, a user is responsible for closing connections.
 
-..  literalinclude:: ./_includes/Simple.cpp
+..  literalinclude:: ./_includes/examples/Simple.cpp
     :start-after: doclabel12-1
     :end-before: doclabel12-2
     :language: cpp
@@ -452,7 +452,7 @@ the user has to write their own
 decoders (readers) based on the database schema and include them in one's
 application:
 
-..  literalinclude:: ./_includes/Simple.cpp
+..  literalinclude:: ./_includes/examples/Simple.cpp
     :start-after: doclabel01-3
     :end-before: doclabel01-4
     :language: cpp
@@ -463,7 +463,7 @@ To show the logic of decoding a response, we will use
 First, the structure corresponding our :ref:`example space format <gs_cxx_prereq_tnt_run>`
 is defined:
 
-..  literalinclude:: ./_includes/Reader.hpp
+..  literalinclude:: ./_includes/examples/Reader.hpp
     :start-after: doclabel13-1
     :end-before: doclabel13-2
     :language: cpp
@@ -500,7 +500,7 @@ structures, it's enough to provide a byte-to-byte copy. Since there are
 fields of three different types in our schema, let's define the corresponding
 ``Value()`` functions:
 
-..  literalinclude:: ./_includes/Reader.hpp
+..  literalinclude:: ./_includes/examples/Reader.hpp
     :start-after: doclabel14-1
     :end-before: doclabel14-2
     :language: cpp
@@ -514,7 +514,7 @@ It's also important to understand that a tuple itself is wrapped in an array,
 so, in fact, we should parse the array first. Let's define another reader
 for that purpose.
 
-..  literalinclude:: ./_includes/Reader.hpp
+..  literalinclude:: ./_includes/examples/Reader.hpp
     :start-after: doclabel15-1
     :end-before: doclabel15-2
     :language: cpp
@@ -530,7 +530,7 @@ work, we should create a decoder, set its iterator to the position of
 the encoded tuple, and invoke the ``Read()`` method (the code block below is
 from the `example application <https://github.com/tarantool/tntcxx/blob/master/examples/Simple.cpp>`_).
 
-..  literalinclude:: ./_includes/Simple.cpp
+..  literalinclude:: ./_includes/examples/Simple.cpp
     :start-after: doclabel16-1
     :end-before: doclabel16-2
     :language: cpp
