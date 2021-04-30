@@ -40,7 +40,7 @@
 #include <tuple> /* for std::tie */
 
 #include "../Utils/Mempool.hpp"
-#include "../Utils/rlist.h"
+#include "../Utils/List.hpp"
 #include "../Utils/CStr.hpp"
 #include "../Utils/Wrappers.hpp"
 
@@ -65,31 +65,26 @@ class Buffer
 {
 private:
 	/** =============== Block definition =============== */
-	struct BlockBase
+	/** Blocks are organized into linked list. */
+	struct Block : SingleLink<Block>
 	{
-		/** Blocks are organized into linked list. */
-		struct rlist in_blocks;
+		Block(List<Block>& addTo, size_t aid)
+			: SingleLink<Block>(addTo, true), id(aid) {}
+
 		/**
 		 * Each block is enumerated with incrementally increasing
 		 * sequence id.
 		 * It is used to compare block's positions in the buffer.
 		 */
 		size_t id;
-	protected:
-		/** Prevent base class from being instantiated. */
-		BlockBase() = default;
-		~BlockBase() = default;
-		BlockBase(const BlockBase &) = delete;
-	};
-	struct Block : BlockBase
-	{
-		static constexpr size_t DATA_SIZE =
-			allocator::REAL_SIZE - sizeof(BlockBase);
+
 		/**
 		 * Block itself is allocated in the same chunk so the size
 		 * of available memory to keep the data is less than allocator
 		 * provides.
 		 */
+		static constexpr size_t DATA_SIZE = allocator::REAL_SIZE -
+			sizeof(SingleLink<Block>) - sizeof(id);
 		char data[DATA_SIZE];
 
 		/**
@@ -100,11 +95,9 @@ private:
 
 		char  *begin() { return data; }
 		char  *end()   { return data + DATA_SIZE; }
-		Block *prev()  { return rlist_prev_entry(this, in_blocks); }
-		Block *next()  { return rlist_next_entry(this, in_blocks); }
 	};
 
-	Block *newBlock(struct rlist *addToList);
+	Block *newBlock(List<Block>& addToList);
 	void delBlock(Block *b);
 	Block *delBlockAndPrev(Block *b);
 	Block *delBlockAndNext(Block *b);
@@ -113,24 +106,29 @@ private:
 	 * Allocate a number of blocks to fit required size. This structure is
 	 * used to RAII idiom to keep several blocks allocation consistent.
 	 */
-	struct Blocks : public rlist {
-		Blocks(Buffer &buf) : m_parent(buf) { rlist_create(this); }
+	struct Blocks : public List<Block> {
+		Blocks(Buffer &buf) : m_parent(buf) { }
 		~Blocks();
 		Buffer &m_parent;
 	};
 public:
 	/** =============== Iterator definition =============== */
-	class iterator : public std::iterator<std::input_iterator_tag, char>
+	class iterator
+		: public std::iterator<std::input_iterator_tag, char>,
+		  public SingleLink<iterator>
 	{
-	/** Give access to private fields of iterator to Buffer. */
-	friend class Buffer;
 	public:
-		explicit iterator(Buffer &buffer);
-		iterator(Buffer &buffer, Block *block, char *offset, bool is_head);
-		iterator(const iterator &other);
-		~iterator() { rlist_del_entry(this, in_iters); }
+		USING_LIST_LINK_METHODS(SingleLink<iterator>);
 
-		iterator& operator = (const iterator& other);
+		explicit iterator(Buffer *buffer);
+		iterator(Buffer *buffer, Block *block, char *offset, bool is_head);
+		iterator(const iterator &other) = delete;
+		iterator(iterator &other);
+		iterator(iterator &&other) noexcept = default;
+
+		iterator& operator = (const iterator& other) = delete;
+		iterator& operator = (iterator& other);
+		iterator& operator = (iterator&& other) noexcept = default;
 		iterator& operator ++ ();
 		iterator& operator += (size_t step);
 		iterator operator + (size_t step);
@@ -142,19 +140,8 @@ public:
 		size_t operator - (const iterator &a) const;
 		Block * getBlock() {return m_block;}
 		char * getPos() {return m_position;}
-		void get(char *buf, size_t size) { m_buffer.get(*this, buf, size); }
-
-		/** Remove from linked list of iterators. */
-		void unlink() { rlist_del_entry(this, in_iters); }
+		void get(char *buf, size_t size) { m_buffer->get(*this, buf, size); }
 	private:
-		/**
-		 * Return pointer to avoid copy/assignment when it is not
-		 * required.
-		 */
-		iterator* next() { return rlist_next_entry(this, in_iters); }
-		iterator* prev() { return rlist_prev_entry(this, in_iters); }
-		bool isLast() { return in_iters.next == &m_buffer.m_iterators; }
-		bool isFirst() { return in_iters.prev == &m_buffer.m_iterators; }
 		/** Adjust iterator's position in list of iterators after
 		 * moveForward. */
 		void adjustPositionForward();
@@ -162,17 +149,12 @@ public:
 		void moveBackward(size_t step);
 
 		/** Link to the buffer iterator belongs to. */
-		Buffer& m_buffer;
-		/**
-		 * Link in Buffer::m_iterators. Is mutable since in copy
-		 * constructor/assignment operator lhs is const, but sill
-		 * the link must be modified.
-		 */
-		mutable struct rlist in_iters;
+		Buffer *m_buffer;
 		Block *m_block;
 		/** Position inside block. */
 		char *m_position;
 
+		friend class Buffer;
 	};
 	/** =============== Buffer definition =============== */
 	/** Copy of any kind is disabled. */
@@ -257,7 +239,7 @@ public:
 	bool empty() const { return m_begin == m_end; }
 
 	/** Return 0 if everythng is correct. */
-	int debugSelfCheck();
+	int debugSelfCheck() const;
 
 	static int blockSize() { return N; }
 #ifndef NDEBUG
@@ -266,12 +248,9 @@ public:
 	friend std::string dump(Buffer<size, alloc> &buffer);
 #endif
 private:
-	Block *firstBlock();
-	Block *lastBlock();
-
-	struct rlist m_blocks;
+	class List<Block> m_blocks;
 	/** List of all data iterators created via @a begin method. */
-	struct rlist m_iterators;
+	class List<iterator> m_iterators;
 	/** Id generator for the next create block. */
 	size_t m_blockId;
 	/**
@@ -288,22 +267,18 @@ private:
 
 template <size_t N, class allocator>
 typename Buffer<N, allocator>::Block *
-Buffer<N, allocator>::newBlock(struct rlist *addToList)
+Buffer<N, allocator>::newBlock(List<Block>& addToList)
 {
 	char *ptr = m_all.allocate();
 	assert(ptr != nullptr);
 	assert((uintptr_t(ptr) + m_all.REAL_SIZE) % N == 0);
-	Block *b = ::new(ptr) Block;
-	rlist_add_tail(addToList, &b->in_blocks);
-	b->id = m_blockId++;
-	return b;
+	return ::new(ptr) Block(addToList, m_blockId++);
 }
 
 template <size_t N, class allocator>
 void
 Buffer<N, allocator>::delBlock(Block *b)
 {
-	rlist_del(&b->in_blocks);
 	b->~Block();
 	m_all.deallocate(reinterpret_cast<char *>(b));
 }
@@ -312,7 +287,7 @@ template <size_t N, class allocator>
 typename Buffer<N, allocator>::Block *
 Buffer<N, allocator>::delBlockAndPrev(Block *b)
 {
-	Block *tmp = b->prev();
+	Block *tmp = &b->prev();
 	delBlock(b);
 	--m_blockId;
 	return tmp;
@@ -322,73 +297,52 @@ template <size_t N, class allocator>
 typename Buffer<N, allocator>::Block *
 Buffer<N, allocator>::delBlockAndNext(Block *b)
 {
-	Block *tmp = b->next();
+	Block *tmp = &b->next();
 	delBlock(b);
 	return tmp;
 }
 
 template <size_t N, class allocator>
-typename Buffer<N, allocator>::Block *
-Buffer<N, allocator>::firstBlock()
-{
-	return rlist_first_entry(&m_blocks, Block, in_blocks);
-}
-
-template <size_t N, class allocator>
-typename Buffer<N, allocator>::Block *
-Buffer<N, allocator>::lastBlock()
-{
-	return rlist_last_entry(&m_blocks, Block, in_blocks);
-}
-
-template <size_t N, class allocator>
 Buffer<N, allocator>::Blocks::~Blocks()
 {
-	while (!rlist_empty(this)) {
-		Block *b = rlist_first_entry(this, Block,
-					     in_blocks);
-		m_parent.delBlock(b);
+	while (!this->isEmpty()) {
+		m_parent.delBlock(&this->first());
 		--m_parent.m_blockId;
 	}
 }
 
 template <size_t N, class allocator>
-Buffer<N, allocator>::iterator::iterator(Buffer& buffer)
+Buffer<N, allocator>::iterator::iterator(Buffer *buffer)
 	: m_buffer(buffer), m_block(nullptr), m_position(nullptr)
 {
-	rlist_create(&in_iters);
 }
 
 template <size_t N, class allocator>
-Buffer<N, allocator>::iterator::iterator(Buffer& buffer, Block *block,
+Buffer<N, allocator>::iterator::iterator(Buffer *buffer, Block *block,
 					 char *offset, bool is_head)
-	: m_buffer(buffer), m_block(block), m_position(offset)
+	: SingleLink<iterator>(buffer->m_iterators, !is_head),
+	  m_buffer(buffer), m_block(block), m_position(offset)
 {
-	if (is_head)
-		rlist_add(&m_buffer.m_iterators, &in_iters);
-	else
-		rlist_add_tail(&m_buffer.m_iterators, &in_iters);
 }
 
 template <size_t N, class allocator>
-Buffer<N, allocator>::iterator::iterator(const iterator& other)
-	: m_buffer(other.m_buffer), m_block(other.m_block),
+Buffer<N, allocator>::iterator::iterator(iterator& other)
+	: SingleLink<iterator>(other, false),
+	  m_buffer(other.m_buffer), m_block(other.m_block),
 	  m_position(other.m_position)
 {
-	rlist_add_tail(&other.in_iters, &in_iters);
 }
 
 template <size_t N, class allocator>
 typename Buffer<N, allocator>::iterator&
-Buffer<N, allocator>::iterator::operator = (const iterator& other)
+Buffer<N, allocator>::iterator::operator= (iterator& other)
 {
 	if (this == &other)
 		return *this;
-	assert(&m_buffer == &other.m_buffer);
+	assert(m_buffer == other.m_buffer);
 	m_block = other.m_block;
 	m_position = other.m_position;
-	rlist_del(&in_iters);
-	rlist_add_tail(&other.in_iters, &in_iters);
+	other.insert(*this);
 	return *this;
 }
 
@@ -424,7 +378,7 @@ template <size_t N, class allocator>
 bool
 Buffer<N, allocator>::iterator::operator==(const iterator& a) const
 {
-	assert(&m_buffer == &a.m_buffer);
+	assert(m_buffer == a.m_buffer);
 	return m_position == a.m_position;
 }
 
@@ -432,7 +386,7 @@ template <size_t N, class allocator>
 bool
 Buffer<N, allocator>::iterator::operator!=(const iterator& a) const
 {
-	assert(&m_buffer == &a.m_buffer);
+	assert(m_buffer == a.m_buffer);
 	return m_position != a.m_position;
 }
 
@@ -440,7 +394,7 @@ template <size_t N, class allocator>
 bool
 Buffer<N, allocator>::iterator::operator<(const iterator& a) const
 {
-	assert(&m_buffer == &a.m_buffer);
+	assert(m_buffer == a.m_buffer);
 	return std::tie(m_block->id, m_position) <
 	       std::tie(a.m_block->id, a.m_position);
 }
@@ -460,14 +414,12 @@ template <size_t N, class allocator>
 void
 Buffer<N, allocator>::iterator::adjustPositionForward()
 {
-	if (isLast() || !(*next() < *this))
+	if (isLast() || !(next() < *this))
 		return;
-	iterator *itr = next();
-	while (!itr->isLast() && *itr->next() < *this)
-		itr = itr->next();
-	// TODO: avoid excess instructions in rlist_del.
-	rlist_del(&in_iters);
-	rlist_add(&itr->in_iters, &in_iters);
+	iterator *itr = &next();
+	while (!itr->isLast() && itr->next() < *this)
+		itr = &itr->next();
+	itr->insert(*this);
 }
 
 template <size_t N, class allocator>
@@ -479,7 +431,7 @@ Buffer<N, allocator>::iterator::moveForward(size_t step)
 	while (step >= (size_t)(m_block->end() - m_position))
 	{
 		step -= m_block->end() - m_position;
-		m_block = m_block->next();
+		m_block = &m_block->next();
 		m_position = m_block->begin();
 	}
 	m_position += step;
@@ -493,7 +445,7 @@ Buffer<N, allocator>::iterator::moveBackward(size_t step)
 	assert(m_block->end() > m_position);
 	while (step > (size_t)(m_position - m_block->begin())) {
 		step -= m_position - m_block->begin();
-		m_block = m_block->prev();
+		m_block = &m_block->prev();
 		m_position = m_block->end();
 	}
 	m_position -= step;
@@ -503,17 +455,13 @@ template <size_t N, class allocator>
 Buffer<N, allocator>::Buffer(const allocator &all) : m_blockId(0), m_all(all)
 {
 	static_assert((N & (N - 1)) == 0, "N must be power of 2");
-	static_assert(allocator::REAL_SIZE > sizeof(BlockBase),
-		      "Allocation size must be more that 16 bytes");
-	static_assert(allocator::REAL_SIZE % alignof(BlockBase) == 0,
+	static_assert(allocator::REAL_SIZE % alignof(Block) == 0,
 		      "Allocation size must be multiple of 16 bytes");
 	static_assert(sizeof(Block) == allocator::REAL_SIZE,
 		      "size of buffer block is expected to match with "
 			      "allocation size");
 
-	rlist_create(&m_blocks);
-	rlist_create(&m_iterators);
-	Block *b = newBlock(&m_blocks);
+	Block *b = newBlock(m_blocks);
 	m_begin = m_end = b->data;
 }
 
@@ -521,8 +469,8 @@ template <size_t N, class allocator>
 Buffer<N, allocator>::~Buffer()
 {
 	/* Delete blocks and release occupied memory. */
-	while (!rlist_empty(&m_blocks)) {
-		delBlock(firstBlock());
+	while (!m_blocks.isEmpty()) {
+		delBlock(&m_blocks.first());
 	}
 }
 
@@ -530,14 +478,14 @@ template <size_t N, class allocator>
 typename Buffer<N, allocator>::iterator
 Buffer<N, allocator>::begin()
 {
-	return iterator(*this, firstBlock(), m_begin, true);
+	return iterator(this, &m_blocks.first(), m_begin, true);
 }
 
 template <size_t N, class allocator>
 typename Buffer<N, allocator>::iterator
 Buffer<N, allocator>::end()
 {
-	return iterator(*this, lastBlock(), m_end, false);
+	return iterator(this, &m_blocks.last(), m_end, false);
 }
 
 template <size_t N, class allocator>
@@ -548,8 +496,7 @@ Buffer<N, allocator>::addBack(wrap::Data data)
 	size_t size = data.size;
 	assert(size != 0);
 
-	Block *block = lastBlock();
-	size_t left_in_block = block->end() - m_end;
+	size_t left_in_block = m_blocks.last().end() - m_end;
 	if (left_in_block > size) {
 		memcpy(m_end, buf, size);
 		m_end += size;
@@ -559,14 +506,14 @@ Buffer<N, allocator>::addBack(wrap::Data data)
 	Blocks new_blocks(*this);
 	do {
 		memcpy(new_end, buf, left_in_block);
-		Block *b = newBlock(&new_blocks);
+		Block *b = newBlock(new_blocks);
 		new_end = b->begin();
 		size -= left_in_block;
 		buf += left_in_block;
 		left_in_block = Block::DATA_SIZE;
 	} while (size >= left_in_block);
 	memcpy(new_end, buf, size);
-	rlist_splice_tail(&m_blocks, &new_blocks);
+	m_blocks.insert(new_blocks, true);
 	m_end = new_end + size;
 }
 
@@ -577,8 +524,7 @@ Buffer<N, allocator>::addBack(wrap::Advance advance)
 	size_t size = advance.size;
 	assert(size != 0);
 
-	Block *block = lastBlock();
-	size_t left_in_block = block->end() - m_end;
+	size_t left_in_block = m_blocks.last().end() - m_end;
 	if (left_in_block > size) {
 		m_end += size;
 		return;
@@ -586,12 +532,12 @@ Buffer<N, allocator>::addBack(wrap::Advance advance)
 	char *new_end = m_end;
 	Blocks new_blocks(*this);
 	do {
-		Block *b = newBlock(&new_blocks);
+		Block *b = newBlock(new_blocks);
 		new_end = b->begin();
 		size -= left_in_block;
 		left_in_block = Block::DATA_SIZE;
 	} while (size >= left_in_block);
-	rlist_splice_tail(&m_blocks, &new_blocks);
+	m_blocks.insert(new_blocks, true);
 	m_end = new_end + size;
 }
 
@@ -611,8 +557,7 @@ void
 Buffer<N, allocator>::addBack(CStr<C...>)
 {
 	if constexpr (CStr<C...>::size != 0) {
-		Block *block = lastBlock();
-		size_t left_in_block = block->end() - m_end;
+		size_t left_in_block = m_blocks.last().end() - m_end;
 		if (left_in_block > CStr<C...>::rnd_size) {
 			memcpy(m_end, CStr<C...>::data, CStr<C...>::rnd_size);
 			m_end += CStr<C...>::size;
@@ -627,25 +572,23 @@ void
 Buffer<N, allocator>::dropBack(size_t size)
 {
 	assert(size != 0);
-	assert(!rlist_empty(&m_blocks));
+	assert(!m_blocks.isEmpty());
 
-	Block *block = lastBlock();
+	Block *block = &m_blocks.last();
 	size_t left_in_block = m_end - block->begin();
 
 	/* Do not delete the block if it is empty after drop. */
 	while (size > left_in_block) {
-		assert(!rlist_empty(&m_blocks));
+		assert(!m_blocks.isEmpty());
 		block = delBlockAndPrev(block);
-#ifndef NDEBUG
+
 		/*
 		 * Make sure there's no iterators pointing to the block
 		 * to be dropped.
 		 */
-		if (! rlist_empty(&m_iterators)) {
-			assert(rlist_last_entry(&m_iterators, iterator,
-					        in_iters)->m_block != block);
-		}
-#endif
+		assert(m_iterators.isEmpty() ||
+		       m_iterators.last().m_block != block);
+
 		m_end = block->end();
 		size -= left_in_block;
 		left_in_block = Block::DATA_SIZE;
@@ -657,10 +600,9 @@ Buffer<N, allocator>::dropBack(size_t size)
 	 * Two sanity checks: there's no iterators pointing to the dropped
 	 * part of block; end of buffer does not cross start of buffer.
 	 */
-	iterator *iter = rlist_last_entry(&m_iterators, iterator, in_iters);
-	if (iter->m_block == block)
-		assert(iter->m_position <= m_end);
-	if (firstBlock() == block)
+	if (!m_iterators.isEmpty() && m_iterators.last().m_block == block)
+		assert(m_iterators.last().m_position <= m_end);
+	if (&m_blocks.first() == block)
 		assert(m_end >= m_begin);
 #endif
 }
@@ -670,9 +612,9 @@ void
 Buffer<N, allocator>::dropFront(size_t size)
 {
 	assert(size != 0);
-	assert(! rlist_empty(&m_blocks));
+	assert(!m_blocks.isEmpty());
 
-	Block *block = firstBlock();
+	Block *block = &m_blocks.first();
 	size_t left_in_block = block->end() - m_begin;
 
 	while (size >= left_in_block) {
@@ -681,9 +623,8 @@ Buffer<N, allocator>::dropFront(size_t size)
 		 * Make sure block to be dropped does not have pointing to it
 		 * iterators.
 		 */
-		if (! rlist_empty(&m_iterators)) {
-			assert(rlist_first_entry(&m_iterators, iterator,
-						 in_iters)->m_block != block);
+		if (! m_iterators.empty()) {
+			assert(m_iterators.first().m_block != block);
 		}
 #endif
 		block = delBlockAndNext(block);
@@ -694,10 +635,9 @@ Buffer<N, allocator>::dropFront(size_t size)
 	m_begin += size;
 #ifndef NDEBUG
 	assert(m_begin < block->end());
-	iterator *iter = rlist_last_entry(&m_iterators, iterator, in_iters);
-	if (iter->m_block == block)
-		assert(iter->m_position >= m_begin);
-	if (lastBlock() == block)
+	if (!m_iterators.isEmpty() && m_iterators.last().m_block == block)
+		assert(m_iterators.last().m_position >= m_begin);
+	if (&m_blocks.last() == block)
 		assert(m_begin <= m_end);
 #endif
 }
@@ -708,10 +648,10 @@ Buffer<N, allocator>::insert(const iterator &itr, size_t size)
 {
 	//TODO: rewrite without iterators.
 	/* Remember last block before extending the buffer. */
-	Block *src_block = lastBlock();
+	Block *src_block = &m_blocks.last();
 	char *src_block_end = m_end;
 	addBack(wrap::Advance{size});
-	Block *dst_block = lastBlock();
+	Block *dst_block = &m_blocks.last();
 	char *src = nullptr;
 	char *dst = nullptr;
 	/*
@@ -744,7 +684,7 @@ Buffer<N, allocator>::insert(const iterator &itr, size_t size)
 			left_in_dst_block -= copy_chunk_sz;
 			if (src_block == itr.m_block)
 				break;
-			src_block = src_block->prev();
+			src_block = &src_block->prev();
 			src = src_block->end() - left_in_dst_block;
 			left_in_src_block = src_block->end() - src_block_begin;
 			dst = dst_block->begin();
@@ -752,7 +692,7 @@ Buffer<N, allocator>::insert(const iterator &itr, size_t size)
 		} else {
 			/* left_in_src_block >= left_in_dst_block */
 			left_in_src_block -= copy_chunk_sz;
-			dst_block = dst_block->prev();
+			dst_block = &dst_block->prev();
 			dst = dst_block->end() - left_in_src_block;
 			left_in_dst_block = Block::DATA_SIZE;
 			src = src_block->begin();
@@ -763,8 +703,8 @@ Buffer<N, allocator>::insert(const iterator &itr, size_t size)
 	assert(src_block == itr.m_block);
 	assert(itr.m_position >= src);
 	/* Select all iterators from end until the same position. */
-	for (iterator *tmp = rlist_last_entry(&m_iterators, iterator, in_iters);
-	     *tmp != itr; tmp = tmp->prev())
+	for (iterator *tmp = &m_iterators.last();
+	     *tmp != itr; tmp = &tmp->prev())
 		tmp->moveForward(size);
 }
 
@@ -782,7 +722,7 @@ Buffer<N, allocator>::release(const iterator &itr, size_t size)
 	assert(src_block->end() > src);
 	while (step >= (size_t)(src_block->end() - src)) {
 		step -= src_block->end() - src;
-		src_block = src_block->next();
+		src_block = &src_block->next();
 		src = src_block->begin();
 	}
 	src += step;
@@ -800,10 +740,9 @@ Buffer<N, allocator>::release(const iterator &itr, size_t size)
 			 * this data anyway will be truncated by ::dropBack()
 			 * call in the end of function.
 			 */
-			if (src_block == rlist_last_entry(&m_blocks,
-							  Block, in_blocks))
+			if (src_block == &m_blocks.last())
 				break;
-			src_block = src_block->next();
+			src_block = &src_block->next();
 			src = src_block->begin();
 			left_in_src_block = Block::DATA_SIZE;
 			dst += copy_chunk_sz;
@@ -811,7 +750,7 @@ Buffer<N, allocator>::release(const iterator &itr, size_t size)
 		} else {
 			/* left_in_src_block >= left_in_dst_block */
 			left_in_src_block -= copy_chunk_sz;
-			dst_block = dst_block->next();
+			dst_block = &dst_block->next();
 			dst = dst_block->begin();
 			left_in_dst_block = Block::DATA_SIZE;
 			src += copy_chunk_sz;
@@ -821,8 +760,8 @@ Buffer<N, allocator>::release(const iterator &itr, size_t size)
 
 	/* Now adjust iterators' positions. */
 	/* Select all iterators from end until the same position. */
-	for (iterator *tmp = rlist_last_entry(&m_iterators, iterator, in_iters);
-	     *tmp != itr; tmp = tmp->prev())
+	for (iterator *tmp = &m_iterators.last();
+	     *tmp != itr; tmp = &tmp->prev())
 		tmp->moveBackward(size);
 
 	/* Finally drop unused chunk. */
@@ -867,7 +806,7 @@ Buffer<N, allocator>::getIOV(const iterator &start, const iterator &end,
 			break;
 		}
 		vec->iov_len = (size_t) (block->end() - pos);
-		block = rlist_next_entry(block, in_blocks);
+		block = &block->next();
 		pos = block->begin();
 	}
 	return vec_cnt;
@@ -886,7 +825,9 @@ Buffer<N, allocator>::set(const iterator &itr, const char *buf, size_t size)
 		std::memcpy(pos, buf_pos, copy_sz);
 		size -= copy_sz;
 		buf_pos += copy_sz;
-		block = rlist_next_entry(block, in_blocks);
+		if (size == 0)
+			break;
+		block = &block->next();
 		pos = (char *)&block->data;
 		left_in_block = Block::DATA_SIZE;
 	}
@@ -927,7 +868,9 @@ Buffer<N, allocator>::get(const iterator& itr, char *buf, size_t size)
 		std::memcpy(buf, pos, copy_sz);
 		size -= copy_sz;
 		buf += copy_sz;
-		block = rlist_next_entry(block, in_blocks);
+		if (size == 0)
+			break;
+		block = &block->next();
 		pos = &block->data[0];
 		left_in_block = Block::DATA_SIZE;
 	}
@@ -966,21 +909,21 @@ Buffer<N, allocator>::has(const iterator& itr, size_t size)
 {
 
 	struct Block *block = itr.m_block;
-	struct Block *last_block = lastBlock();
+	struct Block *last_block = &m_blocks.last();
 	char *pos = itr.m_position;
 	if (block != last_block) {
 		size_t have = itr.m_block->end() - pos;
 		if (size <= have)
 			return true;
 		size -= have;
-		block = rlist_next_entry(block, in_blocks);
+		block = &block->next();
 		pos = block->begin();
 	}
 	while (block != last_block) {
 		if (size <= Block::DATA_SIZE)
 			return true;
 		size -= Block::DATA_SIZE;
-		block = rlist_next_entry(block, in_blocks);
+		block = &block->next();
 		pos = block->begin();
 	}
 	size_t have = m_end - pos ;
@@ -991,40 +934,33 @@ template<size_t N, class allocator>
 void
 Buffer<N, allocator>::flush()
 {
-	size_t distance;
-	{
-		iterator first = rlist_empty(&m_iterators) ? end() :
-				 *rlist_first_entry(&m_iterators, iterator, in_iters);
-		distance = first - begin();
-
-	}
+	size_t distance = m_iterators.isEmpty() ?
+		end() - begin() : m_iterators.first() - begin();
 	if (distance > 0)
 		dropFront(distance);
 }
 
 template <size_t N, class allocator>
 int
-Buffer<N, allocator>::debugSelfCheck()
+Buffer<N, allocator>::debugSelfCheck() const
 {
 	int res = 0;
-	Block *block;
 	bool first = true;
 	size_t expectedId = m_blockId;
-	rlist_foreach_entry(block, &m_blocks, in_blocks) {
+	for (const Block& block : m_blocks) {
 		if (first)
 			first = false;
-		else if (block->id != expectedId)
+		else if (block.id != expectedId)
 			res |= 1;
-		expectedId = block->id + 1;
+		expectedId = block.id + 1;
 	}
 	if (expectedId != m_blockId)
 		res |= 2;
 
-	iterator *itr;
-	rlist_foreach_entry(itr, &m_iterators, in_iters) {
-		if (itr->m_position >= itr->m_block->end())
+	for (const iterator& itr : m_iterators) {
+		if (itr.m_position >= itr.m_block->end())
 			res |= 4;
-		if (itr->m_position < itr->m_block->begin())
+		if (itr.m_position < itr.m_block->begin())
 			res |= 8;
 	}
 	return res;
