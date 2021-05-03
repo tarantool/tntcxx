@@ -134,7 +134,8 @@ public:
 		iterator& operator ++ ();
 		iterator& operator += (size_t step);
 		iterator operator + (size_t step);
-		char operator  * () const { return *m_position; }
+		const char& operator * () const { return *m_position; }
+		char& operator * () { return *m_position; }
 		bool operator == (const iterator &a) const;
 		bool operator != (const iterator &a) const;
 		bool operator  < (const iterator &a) const;
