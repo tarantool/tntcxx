@@ -152,7 +152,9 @@ public:
 		 * required.
 		 */
 		iterator* next() { return rlist_next_entry(this, in_iters); }
+		iterator* prev() { return rlist_prev_entry(this, in_iters); }
 		bool isLast() { return in_iters.next == &m_buffer.m_iterators; }
+		bool isFirst() { return in_iters.prev == &m_buffer.m_iterators; }
 		/** Adjust iterator's position in list of iterators after
 		 * moveForward. */
 		void adjustPositionForward();
@@ -760,22 +762,10 @@ Buffer<N, allocator>::insert(const iterator &itr, size_t size)
 	/* Adjust position for copy in the first block. */
 	assert(src_block == itr.m_block);
 	assert(itr.m_position >= src);
-	/* Skip all iterators with the same position. */
-	iterator itr_copy = itr;
-	iterator *cur_itr = &itr_copy;
-	/* Choose the first iterator which has the next position. */
-	for (;!cur_itr->isLast(); cur_itr = cur_itr->next()) {
-		if (*cur_itr != *cur_itr->next()) {
-			cur_itr = cur_itr->next();
-			break;
-		}
-	}
-	/* Now adjust iterators' positions. */
-	for (;; cur_itr = cur_itr->next()) {
-		cur_itr->moveForward(size);
-		if (cur_itr->isLast())
-			break;
-	}
+	/* Select all iterators from end until the same position. */
+	for (iterator *tmp = rlist_last_entry(&m_iterators, iterator, in_iters);
+	     *tmp != itr; tmp = tmp->prev())
+		tmp->moveForward(size);
 }
 
 template <size_t N, class allocator>
@@ -828,21 +818,13 @@ Buffer<N, allocator>::release(const iterator &itr, size_t size)
 			copy_chunk_sz = left_in_src_block;
 		}
 	};
-	iterator itr_copy = itr;
-	iterator *cur_itr = &itr_copy;
-	/* Choose the first iterator which has the next position. */
-	for (;!cur_itr->isLast(); cur_itr = cur_itr->next()) {
-		if (*cur_itr != *cur_itr->next()) {
-			cur_itr = cur_itr->next();
-			break;
-		}
-	}
+
 	/* Now adjust iterators' positions. */
-	for (;; cur_itr = cur_itr->next()) {
-		cur_itr->moveBackward(size);
-		if (cur_itr->isLast())
-			break;
-	}
+	/* Select all iterators from end until the same position. */
+	for (iterator *tmp = rlist_last_entry(&m_iterators, iterator, in_iters);
+	     *tmp != itr; tmp = tmp->prev())
+		tmp->moveBackward(size);
+
 	/* Finally drop unused chunk. */
 	dropBack(size);
 }
