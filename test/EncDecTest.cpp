@@ -99,7 +99,7 @@ struct ArrValueReader : mpp::DefaultErrorHandler {
 		auto ptr = std::get<std::decay_t<T> A::*>(map);
 		arr.*ptr = v;
 	}
-	void Value(const BufferIterator_t& itr, mpp::compact::Type, mpp::StrValue v)
+	void Value(BufferIterator_t& itr, mpp::compact::Type, mpp::StrValue v)
 	{
 		BufferIterator_t tmp = itr;
 		tmp += v.offset;

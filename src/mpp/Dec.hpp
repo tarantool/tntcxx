@@ -77,7 +77,7 @@ template <class BUFFER, size_t MAX_SIZE>
 struct SimpleStrReader : SimpleReaderBase<BUFFER, MP_STR> {
 	using BufferIterator_t = typename BUFFER::iterator;
 	SimpleStrReader(char *dst, size_t &size) : m_Dst(dst), m_Size(size) {}
-	void Value(const BufferIterator_t& itr, compact::Type, const StrValue& v)
+	void Value(BufferIterator_t& itr, compact::Type, const StrValue& v)
 	{
 		m_Size = v.size;
 		size_t read_size = std::min(MAX_SIZE, m_Size);
@@ -168,7 +168,7 @@ public:
 	template <class T>
 	void SetReader(bool second, T&& t);
 	void Skip(BufferIterator_t *saveEnd = nullptr);
-	void SetPosition(const BufferIterator_t &itr);
+	void SetPosition(BufferIterator_t &itr);
 	BufferIterator_t getPosition() { return m_Cur; }
 
 	inline ReadResult_t Read();
@@ -947,7 +947,7 @@ void Dec<BUFFER>::Skip(BufferIterator_t *saveEnd)
 }
 
 template <class BUFFER>
-void Dec<BUFFER>::SetPosition(const BufferIterator_t &itr)
+void Dec<BUFFER>::SetPosition(BufferIterator_t &itr)
 {
 	m_Cur = itr;
 }

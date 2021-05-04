@@ -66,7 +66,7 @@ struct ErrorStack {
 
 template<class BUFFER>
 struct Tuple {
-	Tuple(const iterator_t<BUFFER> &itr, size_t count) :
+	Tuple(iterator_t<BUFFER> &itr, size_t count) :
 		begin(itr), field_count(count) {}
 	iterator_t<BUFFER> begin;
 	size_t field_count;
@@ -74,7 +74,7 @@ struct Tuple {
 
 template<class BUFFER>
 struct Data {
-	Data(const iterator_t<BUFFER> &itr) : end(itr) {}
+	Data(iterator_t<BUFFER> &itr) : end(itr) {}
 	/**
 	 * Data is returned in form of msgpack array (even in case of
 	 * scalar value). This is size of data array.
@@ -151,7 +151,7 @@ struct TupleReader : mpp::ReaderTemplate<BUFFER> {
 	TupleReader(mpp::Dec<BUFFER>& d, Data<BUFFER>& dt) : dec(d), data(dt) {}
 	static constexpr mpp::Type VALID_TYPES = mpp::MP_ARR | mpp::MP_UINT |
 		mpp::MP_INT | mpp::MP_BOOL | mpp::MP_DBL | mpp::MP_STR; //| mpp::MP_NIL;
-	void Value(const iterator_t<BUFFER>& arg, mpp::compact::Type, mpp::ArrValue u)
+	void Value(iterator_t<BUFFER>& arg, mpp::compact::Type, mpp::ArrValue u)
 	{
 		data.tuples.emplace_back(arg, u.size);
 		dec.Skip();
@@ -161,7 +161,7 @@ struct TupleReader : mpp::ReaderTemplate<BUFFER> {
 	 * value. In this case store pointer right to its value.
 	 */
 	template <class T>
-	void Value(const iterator_t<BUFFER>& arg, mpp::compact::Type, T v)
+	void Value(iterator_t<BUFFER>& arg, mpp::compact::Type, T v)
 	{
 		(void) v;
 		data.tuples.emplace_back(arg, 1);
@@ -360,7 +360,7 @@ struct BodyKeyReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_UINT> {
 
 	BodyKeyReader(mpp::Dec<BUFFER>& d, Body<BUFFER>& b) : dec(d), body(b) {}
 
-	void Value(const iterator_t<BUFFER>& itr, mpp::compact::Type, uint64_t key)
+	void Value(iterator_t<BUFFER>& itr, mpp::compact::Type, uint64_t key)
 	{
 		using Str_t = mpp::SimpleStrReader<BUFFER, sizeof(Error{}.msg)>;
 		using Err_t = ErrorReader<BUFFER>;

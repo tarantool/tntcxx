@@ -63,7 +63,7 @@ struct TupleValueReader : mpp::DefaultErrorHandler {
 		auto ptr = std::get<std::decay_t<T> A::*>(map);
 		tuple.*ptr = v;
 	}
-	void Value(const BufIter_t& itr, mpp::compact::Type, mpp::StrValue v)
+	void Value(BufIter_t& itr, mpp::compact::Type, mpp::StrValue v)
 	{
 		BufIter_t tmp = itr;
 		tmp += v.offset;
@@ -108,7 +108,7 @@ struct SelectArrayReader : mpp::DefaultErrorHandler {
 				   field_count(fc) {}
 	static constexpr mpp::Type VALID_TYPES =  mpp::MP_ANY;
 	template <class T>
-	void Value(const BufIter_t& arg, mpp::compact::Type, T)
+	void Value(BufIter_t& arg, mpp::compact::Type, T)
 	{
 		tuples.emplace_back(arg);
 		dec.Skip();
@@ -129,7 +129,7 @@ std::vector<UserTuple>
 decodeUserTuple(BUFFER &buf, Data<BUFFER> &data)
 {
 	std::vector<UserTuple> results;
-	for(auto const& t: data.tuples) {
+	for(auto& t: data.tuples) {
 		assert(data.end != t.begin);
 		UserTuple tuple;
 		mpp::Dec dec(buf);

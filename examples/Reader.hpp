@@ -61,14 +61,14 @@ struct UserTupleValueReader : mpp::DefaultErrorHandler {
 	explicit UserTupleValueReader(UserTuple& t) : tuple(t) {}
 	static constexpr mpp::Type VALID_TYPES = mpp::MP_UINT | mpp::MP_STR | mpp::MP_DBL;
 	template <class T>
-	void Value(const BufIter_t&, mpp::compact::Type, T v)
+	void Value(BufIter_t&, mpp::compact::Type, T v)
 	{
 		using A = UserTuple;
 		static constexpr std::tuple map(&A::field1, &A::field3);
 		auto ptr = std::get<std::decay_t<T> A::*>(map);
 		tuple.*ptr = v;
 	}
-	void Value(const BufIter_t& itr, mpp::compact::Type, mpp::StrValue v)
+	void Value(BufIter_t& itr, mpp::compact::Type, mpp::StrValue v)
 	{
 		BufIter_t tmp = itr;
 		tmp += v.offset;

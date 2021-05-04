@@ -59,7 +59,7 @@ public:
 
 	int decodeResponse(Response<BUFFER> &response);
 	int decodeResponseSize();
-	void reset(const iterator_t<BUFFER> &itr);
+	void reset(iterator_t<BUFFER> &itr);
 
 private:
 	int decodeHeader(Header &header);
@@ -121,7 +121,7 @@ ResponseDecoder<BUFFER>::decodeResponse(Response<BUFFER> &response)
 
 template<class BUFFER>
 void
-ResponseDecoder<BUFFER>::reset(const iterator_t<BUFFER> &itr)
+ResponseDecoder<BUFFER>::reset(iterator_t<BUFFER> &itr)
 {
 	m_Dec.SetPosition(itr);
 }
