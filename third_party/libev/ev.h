@@ -688,15 +688,15 @@ EV_API_DECL void ev_resume  (EV_P) EV_NOEXCEPT;
 /* these may evaluate ev multiple times, and the other arguments at most once */
 /* either use ev_init + ev_TYPE_set, or the ev_TYPE_init macro, below, to first initialise a watcher */
 #define ev_init(ev,cb_) do {			\
-  ((ev_watcher *)(void *)(ev))->active  =	\
-  ((ev_watcher *)(void *)(ev))->pending = 0;	\
+  ((ev))->active  =	\
+  ((ev))->pending = 0;	\
   ev_set_priority ((ev), 0);			\
   ev_set_cb ((ev), cb_);			\
 } while (0)
 
 #define ev_io_modify(ev,events_)             do { (ev)->events = (ev)->events & EV__IOFDSET | (events_); } while (0)
 #define ev_io_set(ev,fd_,events_)            do { (ev)->fd = (fd_); (ev)->events = (events_) | EV__IOFDSET; } while (0)
-#define ev_timer_set(ev,after_,repeat_)      do { ((ev_watcher_time *)(ev))->at = (after_); (ev)->repeat = (repeat_); } while (0)
+#define ev_timer_set(ev,after_,repeat_)      do { ((ev))->at = (after_); (ev)->repeat = (repeat_); } while (0)
 #define ev_periodic_set(ev,ofs_,ival_,rcb_)  do { (ev)->offset = (ofs_); (ev)->interval = (ival_); (ev)->reschedule_cb = (rcb_); } while (0)
 #define ev_signal_set(ev,signum_)            do { (ev)->signum = (signum_); } while (0)
 #define ev_child_set(ev,pid_,trace_)         do { (ev)->pid = (pid_); (ev)->flags = !!(trace_); } while (0)
@@ -723,25 +723,25 @@ EV_API_DECL void ev_resume  (EV_P) EV_NOEXCEPT;
 #define ev_cleanup_init(ev,cb)               do { ev_init ((ev), (cb)); ev_cleanup_set ((ev)); } while (0)
 #define ev_async_init(ev,cb)                 do { ev_init ((ev), (cb)); ev_async_set ((ev)); } while (0)
 
-#define ev_is_pending(ev)                    (0 + ((ev_watcher *)(void *)(ev))->pending) /* ro, true when watcher is waiting for callback invocation */
-#define ev_is_active(ev)                     (0 + ((ev_watcher *)(void *)(ev))->active) /* ro, true when the watcher has been started */
+#define ev_is_pending(ev)                    (0 + ((ev))->pending) /* ro, true when watcher is waiting for callback invocation */
+#define ev_is_active(ev)                     (0 + ((ev))->active) /* ro, true when the watcher has been started */
 
 #define ev_cb_(ev)                           (ev)->cb /* rw */
-#define ev_cb(ev)                            (memmove (&ev_cb_ (ev), &((ev_watcher *)(ev))->cb, sizeof (ev_cb_ (ev))), (ev)->cb)
+#define ev_cb(ev)                            (memmove (&ev_cb_ (ev), &((ev))->cb, sizeof (ev_cb_ (ev))), (ev)->cb)
 
 #if EV_MINPRI == EV_MAXPRI
 # define ev_priority(ev)                     ((ev), EV_MINPRI)
 # define ev_set_priority(ev,pri)             ((ev), (pri))
 #else
-# define ev_priority(ev)                     (+(((ev_watcher *)(void *)(ev))->priority))
-# define ev_set_priority(ev,pri)             (   (ev_watcher *)(void *)(ev))->priority = (pri)
+# define ev_priority(ev)                     (+(((ev))->priority))
+# define ev_set_priority(ev,pri)             (   (ev))->priority = (pri)
 #endif
 
 #define ev_periodic_at(ev)                   (+((ev_watcher_time *)(ev))->at)
 
 #ifndef ev_set_cb
 /* memmove is used here to avoid strict aliasing violations, and hopefully is optimized out by any reasonable compiler */
-# define ev_set_cb(ev,cb_)                   (ev_cb_ (ev) = (cb_), memmove (&((ev_watcher *)(ev))->cb, &ev_cb_ (ev), sizeof (ev_cb_ (ev))))
+# define ev_set_cb(ev,cb_)                   (ev_cb_ (ev) = (cb_), memmove (&((ev))->cb, &ev_cb_ (ev), sizeof (ev_cb_ (ev))))
 #endif
 
 /* stopping (enabling, adding) a watcher does nothing if it is already running */
