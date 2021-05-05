@@ -63,7 +63,7 @@ printResponse(Connection<BUFFER, NetProvider> &conn, Response<BUFFER> &response,
 		return;
 	}
 	assert(response.body.data != std::nullopt);
-	Data<BUFFER> data = *response.body.data;
+	Data<BUFFER>& data = *response.body.data;
 	if (data.tuples.empty()) {
 		std::cout << "Empty result" << std::endl;
 		return;

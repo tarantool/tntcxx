@@ -153,9 +153,8 @@ struct TupleReader : mpp::ReaderTemplate<BUFFER> {
 		mpp::MP_INT | mpp::MP_BOOL | mpp::MP_DBL | mpp::MP_STR; //| mpp::MP_NIL;
 	void Value(const iterator_t<BUFFER>& arg, mpp::compact::Type, mpp::ArrValue u)
 	{
-		Tuple<BUFFER> t(arg, u.size);
+		data.tuples.emplace_back(arg, u.size);
 		dec.Skip();
-		data.tuples.push_back(t);
 	}
 	/**
 	 * Data does not necessarily contain array, it also can be scalar
@@ -165,9 +164,8 @@ struct TupleReader : mpp::ReaderTemplate<BUFFER> {
 	void Value(const iterator_t<BUFFER>& arg, mpp::compact::Type, T v)
 	{
 		(void) v;
-		Tuple<BUFFER> t(arg, 1);
+		data.tuples.emplace_back(arg, 1);
 		dec.Skip();
-		data.tuples.push_back(t);
 	}
 	void WrongType(mpp::Type expected, mpp::Type got)
 	{

@@ -110,8 +110,7 @@ struct SelectArrayReader : mpp::DefaultErrorHandler {
 	template <class T>
 	void Value(const BufIter_t& arg, mpp::compact::Type, T)
 	{
-		BufIter_t itr = arg;
-		tuples.push_back(itr);
+		tuples.emplace_back(arg);
 		dec.Skip();
 	}
 	void Value(const BufIter_t&, mpp::compact::Type, mpp::ArrValue arr)
@@ -148,7 +147,7 @@ template <class BUFFER>
 std::vector<UserTuple>
 decodeMultiReturn(BUFFER &buf, Data<BUFFER> &data)
 {
-	auto t = data.tuples[0];
+	auto& t = data.tuples[0];
 	assert(data.end != t.begin);
 	UserTuple tuple;
 	mpp::Dec dec(buf);
@@ -167,7 +166,7 @@ std::vector<UserTuple>
 decodeSelectReturn(BUFFER &buf, Data<BUFFER> &data)
 {
 	std::vector<UserTuple> results;
-	auto t = data.tuples[0];
+	auto& t = data.tuples[0];
 	mpp::Dec dec(buf);
 	dec.SetPosition(t.begin);
 	std::vector<typename BUFFER::iterator> itrs;

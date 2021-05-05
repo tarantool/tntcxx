@@ -180,7 +180,7 @@ getServerRps(Connector<BUFFER, NetProvider> &client,
 		std::cerr << "Failed to retrieve rps from server: error is returned" << std::endl;
 		abort();
 	}
-	Data<BUFFER> data = *response.body.data;
+	Data<BUFFER>& data = *response.body.data;
 	std::vector<UserTuple> tuples = decodeMultiReturn(conn.getInBuf(), data);
 	return tuples[0].field1;
 }

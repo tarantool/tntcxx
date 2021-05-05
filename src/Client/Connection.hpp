@@ -302,7 +302,7 @@ Connection<BUFFER, NetProvider>::getResponse(rid_t future)
 	auto entry = m_Futures.find(future);
 	if (entry == m_Futures.end())
 		return std::nullopt;
-	Response<BUFFER> response = entry->second;
+	Response<BUFFER> response = std::move(entry->second);
 	m_Futures.erase(future);
 	return std::make_optional(std::move(response));
 }
@@ -529,10 +529,11 @@ decodeResponse(Connection<BUFFER, NetProvider> &conn)
 		conn.m_EndDecoded += response.size;
 		return DECODE_ERR;
 	}
-	conn.m_Futures.insert({response.header.sync, response});
 	LOG_DEBUG("Header: sync=%d, code=%d, schema=%d", response.header.sync,
 		  response.header.code, response.header.schema_id);
-	conn.m_EndDecoded += response.size;
+	std::size_t response_size = response.size;
+	conn.m_Futures.insert({response.header.sync, std::move(response)});
+	conn.m_EndDecoded += response_size;
 	if ((gc_step++ % Connection<BUFFER, NetProvider>::GC_STEP_CNT) == 0)
 		conn.m_InBuf.flush();
 	if (! hasDataToDecode(conn)) {
