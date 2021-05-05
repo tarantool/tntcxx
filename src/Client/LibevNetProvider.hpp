@@ -142,8 +142,7 @@ recv_cb(struct ev_loop *loop, struct ev_io *watcher, int /* revents */)
 	assert(&waitWatcher->in == watcher);
 	Connection<BUFFER, NetProvider_t> *conn =
 		reinterpret_cast<Connection<BUFFER, NetProvider_t> *>(waitWatcher->connection);
-	int fd = waitWatcher->in.fd;
-	assert(fd == conn->socket);
+	assert(waitWatcher->in.fd == conn->socket);
 
 	timerDisable(loop, waitWatcher->timer);
 	int rc = connectionReceive(*conn);

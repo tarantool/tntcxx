@@ -138,6 +138,7 @@ decodeUserTuple(BUFFER &buf, Data<BUFFER> &data)
 		dec.SetReader(false, ArrayReader<BUFFER>{dec, tuple});
 		mpp::ReadResult_t res = dec.Read();
 		assert(res == mpp::READ_SUCCESS);
+		(void)res;
 		results.push_back(tuple);
 	}
 	return results;
@@ -156,6 +157,7 @@ decodeMultiReturn(BUFFER &buf, Data<BUFFER> &data)
 	for (size_t i = 0; i < data.dimension; ++i) {
 		mpp::ReadResult_t res = dec.Read();
 		assert(res == mpp::READ_SUCCESS);
+		(void) res;
 	}
 	return std::vector<UserTuple>({tuple});
 }
@@ -173,6 +175,7 @@ decodeSelectReturn(BUFFER &buf, Data<BUFFER> &data)
 	dec.SetReader(false, SelectArrayReader{dec, itrs, tuple_sz});
 	mpp::ReadResult_t res = dec.Read();
 	assert(res == mpp::READ_SUCCESS);
+	(void)res;
 	for (auto itr : itrs) {
 		UserTuple tuple;
 		dec.SetPosition(itr);
@@ -180,6 +183,7 @@ decodeSelectReturn(BUFFER &buf, Data<BUFFER> &data)
 		for (size_t i = 0; i < tuple_sz; ++i) {
 			mpp::ReadResult_t res = dec.Read();
 			assert(res == mpp::READ_SUCCESS);
+			(void)res;
 		}
 		results.push_back(tuple);
 	}

@@ -79,7 +79,7 @@ struct Data {
 	 * Data is returned in form of msgpack array (even in case of
 	 * scalar value). This is size of data array.
 	 */
-	size_t dimension;
+	size_t dimension = 0;
 	std::vector<Tuple<BUFFER>> tuples;
 	iterator_t<BUFFER> end;
 };
