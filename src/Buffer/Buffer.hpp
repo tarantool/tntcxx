@@ -129,7 +129,7 @@ public:
 	public:
 		USING_LIST_LINK_METHODS(SingleLink<iterator>);
 
-		explicit iterator(Buffer *buffer);
+		iterator();
 		iterator(Buffer *buffer, Block *block, char *offset, bool is_head);
 		iterator(const iterator &other) = delete;
 		iterator(iterator &other);
@@ -149,7 +149,6 @@ public:
 		size_t operator - (const iterator &a) const;
 		Block * getBlock() {return m_block;}
 		char * getPos() {return m_position;}
-		void get(char *buf, size_t size) { m_buffer->get(*this, buf, size); }
 	private:
 		/** Adjust iterator's position in list of iterators after
 		 * moveForward. */
@@ -157,8 +156,6 @@ public:
 		void moveForward(size_t step);
 		void moveBackward(size_t step);
 
-		/** Link to the buffer iterator belongs to. */
-		Buffer *m_buffer;
 		Block *m_block;
 		/** Position inside block. */
 		char *m_position;
@@ -371,8 +368,8 @@ Buffer<N, allocator>::Blocks::~Blocks()
 }
 
 template <size_t N, class allocator>
-Buffer<N, allocator>::iterator::iterator(Buffer *buffer)
-	: m_buffer(buffer), m_block(nullptr), m_position(nullptr)
+Buffer<N, allocator>::iterator::iterator()
+	: m_block(nullptr), m_position(nullptr)
 {
 }
 
@@ -380,15 +377,14 @@ template <size_t N, class allocator>
 Buffer<N, allocator>::iterator::iterator(Buffer *buffer, Block *block,
 					 char *offset, bool is_head)
 	: SingleLink<iterator>(buffer->m_iterators, !is_head),
-	  m_buffer(buffer), m_block(block), m_position(offset)
+	  m_block(block), m_position(offset)
 {
 }
 
 template <size_t N, class allocator>
 Buffer<N, allocator>::iterator::iterator(iterator& other)
 	: SingleLink<iterator>(other, false),
-	  m_buffer(other.m_buffer), m_block(other.m_block),
-	  m_position(other.m_position)
+	  m_block(other.m_block), m_position(other.m_position)
 {
 }
 
@@ -398,7 +394,6 @@ Buffer<N, allocator>::iterator::operator= (iterator& other)
 {
 	if (this == &other)
 		return *this;
-	assert(m_buffer == other.m_buffer);
 	m_block = other.m_block;
 	m_position = other.m_position;
 	other.insert(*this);
@@ -437,7 +432,6 @@ template <size_t N, class allocator>
 bool
 Buffer<N, allocator>::iterator::operator==(const iterator& a) const
 {
-	assert(m_buffer == a.m_buffer);
 	return m_position == a.m_position;
 }
 
@@ -445,7 +439,6 @@ template <size_t N, class allocator>
 bool
 Buffer<N, allocator>::iterator::operator!=(const iterator& a) const
 {
-	assert(m_buffer == a.m_buffer);
 	return m_position != a.m_position;
 }
 
@@ -453,7 +446,6 @@ template <size_t N, class allocator>
 bool
 Buffer<N, allocator>::iterator::operator<(const iterator& a) const
 {
-	assert(m_buffer == a.m_buffer);
 	return std::tie(m_block->id, m_position) <
 	       std::tie(a.m_block->id, a.m_position);
 }
