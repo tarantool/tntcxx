@@ -101,6 +101,15 @@ private:
 	void delBlock(Block *b);
 	Block *delBlockAndPrev(Block *b);
 	Block *delBlockAndNext(Block *b);
+	/** Check whether two pointers point to the same block. */
+	bool isSameBlock(const char *ptr1, const char *ptr2);
+	/** Count number of bytes are in block starting from byte @a ptr. */
+	size_t leftInBlock(const char *ptr);
+	/**
+	 * Check whether the pointer points to the end of block, i.e.
+	 * to the next byte after the last valid byte in block.
+	 * */
+	bool isEndOfBlock(const char *ptr);
 
 	/**
 	 * Allocate a number of blocks to fit required size. This structure is
@@ -303,6 +312,56 @@ Buffer<N, allocator>::delBlockAndNext(Block *b)
 }
 
 template <size_t N, class allocator>
+bool
+Buffer<N, allocator>::isSameBlock(const char *ptr1, const char *ptr2)
+{
+	uintptr_t addr1 = (uintptr_t)ptr1;
+	uintptr_t addr2 = (uintptr_t)ptr2;
+	/*
+	 * Blocks are aligned as N (N is a power of two). That makes pointers
+	 * to block to consist of two pasts - high bits part that describes
+	 * block address and low bits part that describes offset in the block.
+	 * To be precise, having a pointer into block `ptr`, `ptr & (N - 1)`
+	 * would be offset in a block, which address is `ptr & ~(N - 1)`.
+	 * In order to check whether two pointers point to the same block we
+	 * must compare high bit parts of addresses:
+	 * return add1 / N == addr2 / N;
+	 * But it make three operations. We can make in with two, using a trick:
+	 * XOR fills with zero bytes equal parts of addresses.
+	 */
+	return (addr1 ^ addr2) < N;
+}
+
+template <size_t N, class allocator>
+size_t
+Buffer<N, allocator>::leftInBlock(const char *ptr)
+{
+	uintptr_t addr = (uintptr_t)ptr;
+	/*
+	 * Blocks are aligned as N (N is a power of two). That makes pointers
+	 * to block to consist of two pasts - high bits part that describes
+	 * block address and low bits part that describes offset in the block.
+	 * In order to check how many bytes are in block we have to offset in
+	 * block and compare it with block boundary.
+	 */
+	return N - addr % N;
+}
+
+template <size_t N, class allocator>
+bool
+Buffer<N, allocator>::isEndOfBlock(const char *ptr)
+{
+	uintptr_t addr = (uintptr_t)ptr;
+	/*
+	 * Blocks are aligned as N (N is a power of two). That makes pointers
+	 * to block to consist of two pasts - high bits part that describes
+	 * block address and low bits part that describes offset in the block.
+	 * That means that end-of-block address is round in terms of N.
+	 */
+	return addr % N == 0;
+ }
+
+template <size_t N, class allocator>
 Buffer<N, allocator>::Blocks::~Blocks()
 {
 	while (!this->isEmpty()) {
@@ -492,53 +551,59 @@ template <size_t N, class allocator>
 void
 Buffer<N, allocator>::addBack(wrap::Data data)
 {
-	const char *buf = data.data;
-	size_t size = data.size;
-	assert(size != 0);
+	assert(data.size != 0);
 
-	size_t left_in_block = m_blocks.last().end() - m_end;
-	if (left_in_block > size) {
-		memcpy(m_end, buf, size);
-		m_end += size;
+	char *new_end = m_end + data.size;
+	if (isSameBlock(m_end, new_end)) {
+		// new_addr is still in block. just copy and advance.
+		memcpy(m_end, data.data, data.size);
+		m_end = new_end;
 		return;
 	}
-	char *new_end = m_end;
+
+	// Flipped out-of-block bit, go to the next block.
+	size_t left_in_block = leftInBlock(m_end);
+	memcpy(m_end, data.data, left_in_block);
+	data.size -= left_in_block;
+	data.data += left_in_block;
+
 	Blocks new_blocks(*this);
-	do {
-		memcpy(new_end, buf, left_in_block);
-		Block *b = newBlock(new_blocks);
-		new_end = b->begin();
-		size -= left_in_block;
-		buf += left_in_block;
-		left_in_block = Block::DATA_SIZE;
-	} while (size >= left_in_block);
-	memcpy(new_end, buf, size);
+	Block *b = newBlock(new_blocks);
+	while (data.size >= Block::DATA_SIZE) {
+		memcpy(b->begin(), data.data, Block::DATA_SIZE);
+		data.size -= Block::DATA_SIZE;
+		data.data += Block::DATA_SIZE;
+		b = newBlock(new_blocks);
+	}
 	m_blocks.insert(new_blocks, true);
-	m_end = new_end + size;
+	memcpy(b->begin(), data.data, data.size);
+	m_end = b->begin() + data.size;
 }
 
 template <size_t N, class allocator>
 void
 Buffer<N, allocator>::addBack(wrap::Advance advance)
 {
-	size_t size = advance.size;
-	assert(size != 0);
+	assert(advance.size != 0);
 
-	size_t left_in_block = m_blocks.last().end() - m_end;
-	if (left_in_block > size) {
-		m_end += size;
+	char *new_end = m_end + advance.size;
+	if (isSameBlock(m_end, new_end)) {
+		// new_addr is still in block. just advance.
+		m_end = new_end;
 		return;
 	}
-	char *new_end = m_end;
+
+	// Flipped out-of-block bit, go to the next block.
+	advance.size -= leftInBlock(m_end);
+
 	Blocks new_blocks(*this);
-	do {
-		Block *b = newBlock(new_blocks);
-		new_end = b->begin();
-		size -= left_in_block;
-		left_in_block = Block::DATA_SIZE;
-	} while (size >= left_in_block);
+	Block *b = newBlock(new_blocks);
+	while (advance.size >= Block::DATA_SIZE) {
+		advance.size -= Block::DATA_SIZE;
+		b = newBlock(new_blocks);
+	}
 	m_blocks.insert(new_blocks, true);
-	m_end = new_end + size;
+	m_end = b->begin() + advance.size;
 }
 
 template <size_t N, class allocator>
@@ -546,9 +611,34 @@ template <class T>
 void
 Buffer<N, allocator>::addBack(const T& t)
 {
-	char data[sizeof(T)];
-	memcpy(data, &t, sizeof(T));
-	addBack(wrap::Data{data, sizeof(T)});
+	static_assert(sizeof(T) <= Block::DATA_SIZE,
+		"Please use wrap::Data data for big objects");
+	if constexpr (sizeof(T) == 1) {
+		memcpy(m_end, &t, sizeof(T));
+		++m_end;
+		if (isEndOfBlock(m_end)) {
+			// Went out of block, have to go to the next.
+			--m_end; // Set back for the case of exception.
+			m_end = newBlock(m_blocks)->begin();
+		}
+	} else {
+		char *new_end = m_end + sizeof(T);
+		if (!isSameBlock(m_end, new_end)) {
+			// Flipped out-of-block bit, go to the next block.
+			Block *b = newBlock(m_blocks);
+			size_t part1 = leftInBlock(m_end);
+			size_t part2 = sizeof(T) - part1;
+			char data[sizeof(T)];
+			memcpy(data, &t, sizeof(T));
+			memcpy(m_end, data, part1);
+			m_end = b->begin();
+			memcpy(m_end, data + part1, part2);
+			m_end += part2;
+		} else {
+			memcpy(m_end, &t, sizeof(T));
+			m_end = new_end;
+		}
+	}
 }
 
 template <size_t N, class allocator>
@@ -556,9 +646,17 @@ template <char... C>
 void
 Buffer<N, allocator>::addBack(CStr<C...>)
 {
-	if constexpr (CStr<C...>::size != 0) {
-		size_t left_in_block = m_blocks.last().end() - m_end;
-		if (left_in_block > CStr<C...>::rnd_size) {
+	if constexpr (CStr<C...>::size == 0) {
+	} else if constexpr (CStr<C...>::size == 1) {
+		*m_end = CStr<C...>::data[0];
+		++m_end;
+		if (isEndOfBlock(m_end)) {
+			// Went out of block, have to go to the next.
+			--m_end; // Set back for the case of exception.
+			m_end = newBlock(m_blocks)->begin();
+		}
+	} else {
+		if (leftInBlock(m_end) > CStr<C...>::rnd_size) {
 			memcpy(m_end, CStr<C...>::data, CStr<C...>::rnd_size);
 			m_end += CStr<C...>::size;
 		} else {
