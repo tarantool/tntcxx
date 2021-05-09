@@ -31,13 +31,11 @@
  */
 
 #include <sys/uio.h> /* struct iovec */
-#include <stdio.h>
 
 #include <algorithm>
 #include <cassert>
 #include <cstring>
 #include <type_traits>
-#include <tuple> /* for std::tie */
 
 #include "../Utils/Mempool.hpp"
 #include "../Utils/List.hpp"
@@ -85,6 +83,7 @@ private:
 		 */
 		static constexpr size_t DATA_SIZE = allocator::REAL_SIZE -
 			sizeof(SingleLink<Block>) - sizeof(id);
+		static constexpr size_t DATA_OFFSET = N - DATA_SIZE;
 		char data[DATA_SIZE];
 
 		/**
@@ -95,6 +94,13 @@ private:
 
 		char  *begin() { return data; }
 		char  *end()   { return data + DATA_SIZE; }
+		// Find a block by pointer to its data (any byte of it).
+		// The pointer must point to one of characters in data member.
+		static Block *byPtr(const char *p)
+		{
+			return (Block *) (((uintptr_t) p & ~(N - 1)) |
+					  (N - allocator::REAL_SIZE));
+		}
 	};
 
 	Block *newBlock(List<Block>& addToList);
@@ -130,7 +136,7 @@ public:
 		USING_LIST_LINK_METHODS(SingleLink<iterator>);
 
 		iterator();
-		iterator(Buffer *buffer, Block *block, char *offset, bool is_head);
+		iterator(Buffer *buffer, char *offset, bool is_head);
 		iterator(const iterator &other) = delete;
 		iterator(iterator &other);
 		iterator(iterator &&other) noexcept = default;
@@ -147,16 +153,15 @@ public:
 		bool operator != (const iterator &a) const;
 		bool operator  < (const iterator &a) const;
 		size_t operator - (const iterator &a) const;
-		Block * getBlock() {return m_block;}
-		char * getPos() {return m_position;}
+		bool has_contiguous(size_t size) const;
 	private:
 		/** Adjust iterator's position in list of iterators after
 		 * moveForward. */
 		void adjustPositionForward();
 		void moveForward(size_t step);
 		void moveBackward(size_t step);
+		Block *getBlock() const { return Block::byPtr(m_position); }
 
-		Block *m_block;
 		/** Position inside block. */
 		char *m_position;
 
@@ -271,6 +276,9 @@ private:
 	allocator m_all;
 };
 
+// Macro that explains to compiler that the expression os always true.
+#define TNT_INV(expr) if (!(expr)) (assert(false), __builtin_unreachable())
+
 template <size_t N, class allocator>
 typename Buffer<N, allocator>::Block *
 Buffer<N, allocator>::newBlock(List<Block>& addToList)
@@ -369,22 +377,22 @@ Buffer<N, allocator>::Blocks::~Blocks()
 
 template <size_t N, class allocator>
 Buffer<N, allocator>::iterator::iterator()
-	: m_block(nullptr), m_position(nullptr)
+	: m_position(nullptr)
 {
 }
 
 template <size_t N, class allocator>
-Buffer<N, allocator>::iterator::iterator(Buffer *buffer, Block *block,
+Buffer<N, allocator>::iterator::iterator(Buffer *buffer,
 					 char *offset, bool is_head)
 	: SingleLink<iterator>(buffer->m_iterators, !is_head),
-	  m_block(block), m_position(offset)
+	  m_position(offset)
 {
 }
 
 template <size_t N, class allocator>
 Buffer<N, allocator>::iterator::iterator(iterator& other)
 	: SingleLink<iterator>(other, false),
-	  m_block(other.m_block), m_position(other.m_position)
+	  m_position(other.m_position)
 {
 }
 
@@ -394,7 +402,6 @@ Buffer<N, allocator>::iterator::operator= (iterator& other)
 {
 	if (this == &other)
 		return *this;
-	m_block = other.m_block;
 	m_position = other.m_position;
 	other.insert(*this);
 	return *this;
@@ -446,20 +453,30 @@ template <size_t N, class allocator>
 bool
 Buffer<N, allocator>::iterator::operator<(const iterator& a) const
 {
-	return std::tie(m_block->id, m_position) <
-	       std::tie(a.m_block->id, a.m_position);
+	uintptr_t this_addr = (uintptr_t)m_position;
+	uintptr_t that_addr = (uintptr_t)a.m_position;
+	if ((this_addr ^ that_addr) < N)
+		return m_position < a.m_position;
+	assert(getBlock()->id != a.getBlock()->id);
+	return getBlock()->id < a.getBlock()->id;
 }
 
 template <size_t N, class allocator>
 size_t
 Buffer<N, allocator>::iterator::operator-(const iterator& a) const
 {
-	size_t res = (m_block->id - a.m_block->id) * Block::DATA_SIZE;
-	res -= a.m_position - a.m_block->begin();
-	res += m_position - m_block->begin();
+	size_t res = (getBlock()->id - a.getBlock()->id) * Block::DATA_SIZE;
+	res += (uintptr_t) m_position % N;
+	res -= (uintptr_t) a.m_position % N;
 	return res;
 }
 
+template <size_t N, class allocator>
+bool
+Buffer<N, allocator>::iterator::has_contiguous(const size_t size) const
+{
+	return size <= N - (uintptr_t) m_position % N;
+}
 
 template <size_t N, class allocator>
 void
@@ -477,13 +494,12 @@ template <size_t N, class allocator>
 void
 Buffer<N, allocator>::iterator::moveForward(size_t step)
 {
-	assert(m_block->begin() <= m_position);
-	assert(m_block->end() > m_position);
-	while (step >= (size_t)(m_block->end() - m_position))
+	TNT_INV((uintptr_t) m_position % N >= Block::DATA_OFFSET);
+	while (step >= N - ((uintptr_t )m_position % N))
 	{
-		step -= m_block->end() - m_position;
-		m_block = &m_block->next();
-		m_position = m_block->begin();
+		step -= N - ((uintptr_t )m_position % N);
+		m_position = getBlock()->next().data;
+		TNT_INV((uintptr_t) m_position % N >= Block::DATA_OFFSET);
 	}
 	m_position += step;
 }
@@ -492,12 +508,11 @@ template <size_t N, class allocator>
 void
 Buffer<N, allocator>::iterator::moveBackward(size_t step)
 {
-	assert(m_block->begin() <= m_position);
-	assert(m_block->end() > m_position);
-	while (step > (size_t)(m_position - m_block->begin())) {
-		step -= m_position - m_block->begin();
-		m_block = &m_block->prev();
-		m_position = m_block->end();
+	TNT_INV((uintptr_t) m_position % N >= Block::DATA_OFFSET);
+	while (step > (uintptr_t) m_position % N - Block::DATA_OFFSET) {
+		step -= (uintptr_t) m_position % N - Block::DATA_OFFSET + 1;
+		m_position = getBlock()->prev().data + (Block::DATA_SIZE - 1);
+		TNT_INV((uintptr_t) m_position % N >= Block::DATA_OFFSET);
 	}
 	m_position -= step;
 }
@@ -511,6 +526,8 @@ Buffer<N, allocator>::Buffer(const allocator &all) : m_blockId(0), m_all(all)
 	static_assert(sizeof(Block) == allocator::REAL_SIZE,
 		      "size of buffer block is expected to match with "
 			      "allocation size");
+	static_assert(Block::DATA_OFFSET + Block::DATA_SIZE == N,
+		      "DATA_OFFSET must be offset of data");
 
 	Block *b = newBlock(m_blocks);
 	m_begin = m_end = b->data;
@@ -529,14 +546,14 @@ template <size_t N, class allocator>
 typename Buffer<N, allocator>::iterator
 Buffer<N, allocator>::begin()
 {
-	return iterator(this, &m_blocks.first(), m_begin, true);
+	return iterator(this, m_begin, true);
 }
 
 template <size_t N, class allocator>
 typename Buffer<N, allocator>::iterator
 Buffer<N, allocator>::end()
 {
-	return iterator(this, &m_blocks.last(), m_end, false);
+	return iterator(this, m_end, false);
 }
 
 template <size_t N, class allocator>
@@ -677,7 +694,7 @@ Buffer<N, allocator>::dropBack(size_t size)
 		 * to be dropped.
 		 */
 		assert(m_iterators.isEmpty() ||
-		       m_iterators.last().m_block != block);
+		       m_iterators.last().getBlock() != block);
 
 		m_end = block->end();
 		size -= left_in_block;
@@ -690,7 +707,7 @@ Buffer<N, allocator>::dropBack(size_t size)
 	 * Two sanity checks: there's no iterators pointing to the dropped
 	 * part of block; end of buffer does not cross start of buffer.
 	 */
-	if (!m_iterators.isEmpty() && m_iterators.last().m_block == block)
+	if (!m_iterators.isEmpty() && m_iterators.last().getBlock() == block)
 		assert(m_iterators.last().m_position <= m_end);
 	if (&m_blocks.first() == block)
 		assert(m_end >= m_begin);
@@ -714,7 +731,7 @@ Buffer<N, allocator>::dropFront(size_t size)
 		 * iterators.
 		 */
 		if (! m_iterators.empty()) {
-			assert(m_iterators.first().m_block != block);
+			assert(m_iterators.first().getBlock() != block);
 		}
 #endif
 		block = delBlockAndNext(block);
@@ -725,7 +742,7 @@ Buffer<N, allocator>::dropFront(size_t size)
 	m_begin += size;
 #ifndef NDEBUG
 	assert(m_begin < block->end());
-	if (!m_iterators.isEmpty() && m_iterators.last().m_block == block)
+	if (!m_iterators.isEmpty() && m_iterators.last().getBlock() == block)
 		assert(m_iterators.last().m_position >= m_begin);
 	if (&m_blocks.last() == block)
 		assert(m_begin <= m_end);
@@ -749,7 +766,7 @@ Buffer<N, allocator>::insert(const iterator &itr, size_t size)
 	 * iterator's position.
 	 * TODO: remove this awful define (but it least it works).
 	 */
-#define src_block_begin ((src_block == itr.m_block) ? itr.m_position : src_block->begin())
+#define src_block_begin ((src_block == itr.getBlock()) ? itr.m_position : src_block->begin())
 	/* Firstly move data in blocks. */
 	size_t left_in_dst_block = m_end - dst_block->begin();
 	size_t left_in_src_block = src_block_end - src_block_begin;
@@ -768,11 +785,11 @@ Buffer<N, allocator>::insert(const iterator &itr, size_t size)
 		 * which get in different blocks. So let's use two-step
 		 * memcpy of data in source block.
 		 */
-		assert(dst_block->id > itr.m_block->id || dst >= itr.m_position);
+		assert(dst_block->id > itr.getBlock()->id || dst >= itr.m_position);
 		std::memmove(dst, src, copy_chunk_sz);
 		if (left_in_dst_block > left_in_src_block) {
 			left_in_dst_block -= copy_chunk_sz;
-			if (src_block == itr.m_block)
+			if (src_block == itr.getBlock())
 				break;
 			src_block = &src_block->prev();
 			src = src_block->end() - left_in_dst_block;
@@ -790,7 +807,7 @@ Buffer<N, allocator>::insert(const iterator &itr, size_t size)
 		}
 	}
 	/* Adjust position for copy in the first block. */
-	assert(src_block == itr.m_block);
+	assert(src_block == itr.getBlock());
 	assert(itr.m_position >= src);
 	/* Select all iterators from end until the same position. */
 	for (iterator *tmp = &m_iterators.last();
@@ -803,8 +820,8 @@ void
 Buffer<N, allocator>::release(const iterator &itr, size_t size)
 {
 	//TODO: rewrite without iterators.
-	Block *src_block = itr.m_block;
-	Block *dst_block = itr.m_block;
+	Block *src_block = itr.getBlock();
+	Block *dst_block = itr.getBlock();
 	char *src = itr.m_position;
 	char *dst = itr.m_position;
 	/* Locate the block to start copying with. */
@@ -883,8 +900,8 @@ Buffer<N, allocator>::getIOV(const iterator &start, const iterator &end,
 {
 	assert(vecs != NULL);
 	assert(start < end || start == end);
-	Block *block = start.m_block;
-	Block *last_block = end.m_block;
+	Block *block = start.getBlock();
+	Block *last_block = end.getBlock();
 	char *pos = start.m_position;
 	size_t vec_cnt = 0;
 	for (; vec_cnt < max_size;) {
@@ -906,21 +923,17 @@ template <size_t N, class allocator>
 void
 Buffer<N, allocator>::set(const iterator &itr, const char *buf, size_t size)
 {
-	Block *block = itr.m_block;
+	assert(size > 0);
 	char *pos = itr.m_position;
-	size_t left_in_block = block->end() - pos;
-	const char *buf_pos = buf;
-	while (size > 0) {
-		size_t copy_sz = std::min(size, left_in_block);
-		std::memcpy(pos, buf_pos, copy_sz);
-		size -= copy_sz;
-		buf_pos += copy_sz;
-		if (size == 0)
-			break;
-		block = &block->next();
-		pos = (char *)&block->data;
+	size_t left_in_block = N - (uintptr_t) pos % N;
+	while (size > left_in_block) {
+		std::memcpy(pos, buf, left_in_block);
+		size -= left_in_block;
+		buf += left_in_block;
+		pos = Block::byPtr(pos)->next().data;
 		left_in_block = Block::DATA_SIZE;
 	}
+	memcpy(pos, buf, size);
 }
 
 template <size_t N, class allocator>
@@ -934,36 +947,32 @@ Buffer<N, allocator>::set(const iterator &itr, T&& t)
 	 */
 	static_assert(std::is_standard_layout_v<std::remove_reference_t<T>>,
 		      "T is expected to have standard layout");
-	size_t t_size = sizeof(t);
 	const char *tc = &reinterpret_cast<const char &>(t);
-	if (t_size <= (size_t)(itr.m_block->end() - itr.m_position))
-		memcpy(itr.m_position, tc, sizeof(t));
+	if (itr.has_contiguous(sizeof(T)))
+		memcpy(itr.m_position, tc, sizeof(T));
 	else
-		set(itr, tc, t_size);
+		set(itr, tc, sizeof(T));
 }
 
 template <size_t N, class allocator>
 void
 Buffer<N, allocator>::get(const iterator& itr, char *buf, size_t size)
 {
+	assert(size > 0);
 	/*
 	 * The same implementation as in ::set() method buf vice versa:
 	 * buffer and data sources are swapped.
 	 */
-	struct Block *block = itr.m_block;
 	char *pos = itr.m_position;
-	size_t left_in_block = block->end() - itr.m_position;
-	while (size > 0) {
-		size_t copy_sz = std::min(size, left_in_block);
-		std::memcpy(buf, pos, copy_sz);
-		size -= copy_sz;
-		buf += copy_sz;
-		if (size == 0)
-			break;
-		block = &block->next();
-		pos = &block->data[0];
+	size_t left_in_block = N - (uintptr_t) pos % N;
+	while (size > left_in_block) {
+		memcpy(buf, pos, left_in_block);
+		size -= left_in_block;
+		buf += left_in_block;
+		pos = Block::byPtr(pos)->next().data;
 		left_in_block = Block::DATA_SIZE;
 	}
+	memcpy(buf, pos, size);
 }
 
 template <size_t N, class allocator>
@@ -973,12 +982,11 @@ Buffer<N, allocator>::get(const iterator& itr, T& t)
 {
 	static_assert(std::is_standard_layout_v<std::remove_reference_t<T>>,
 		      "T is expected to have standard layout");
-	size_t t_size = sizeof(t);
-	if (t_size <= (size_t)(itr.m_block->end() - itr.m_position)) {
-		memcpy(reinterpret_cast<T*>(&t), itr.m_position, sizeof(T));
-	} else {
-		get(itr, reinterpret_cast<char *>(&t), t_size);
-	}
+	char *tc = &reinterpret_cast<char &>(t);
+	if (itr.has_contiguous(sizeof(T)))
+		memcpy(tc, itr.m_position, sizeof(T));
+	else
+		get(itr, tc, sizeof(T));
 }
 
 template <size_t N, class allocator>
@@ -998,11 +1006,11 @@ bool
 Buffer<N, allocator>::has(const iterator& itr, size_t size)
 {
 
-	struct Block *block = itr.m_block;
+	struct Block *block = itr.getBlock();
 	struct Block *last_block = &m_blocks.last();
 	char *pos = itr.m_position;
 	if (block != last_block) {
-		size_t have = itr.m_block->end() - pos;
+		size_t have = itr.getBlock()->end() - pos;
 		if (size <= have)
 			return true;
 		size -= have;
@@ -1048,10 +1056,8 @@ Buffer<N, allocator>::debugSelfCheck() const
 		res |= 2;
 
 	for (const iterator& itr : m_iterators) {
-		if (itr.m_position >= itr.m_block->end())
+		if ((uintptr_t) itr.m_position % N < Block::DATA_OFFSET)
 			res |= 4;
-		if (itr.m_position < itr.m_block->begin())
-			res |= 8;
 	}
 	return res;
 }

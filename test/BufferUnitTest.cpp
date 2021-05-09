@@ -384,7 +384,13 @@ buffer_release()
 	fillBuffer(buf, SAMPLES_CNT * 2);
 	buf.addBack(end_marker);
 	fail_if(buf.debugSelfCheck());
+	std::string tmp;
+	dumpBuffer(buf, tmp);
+	std::cout << tmp << std::endl;
 	buf.release(mid_itr, SAMPLES_CNT * 3);
+	tmp.clear();
+	dumpBuffer(buf, tmp);
+	std::cout << tmp << std::endl;
 	fail_if(buf.debugSelfCheck());
 	buf.get(end_itr, res);
 	fail_unless(res == end_marker);
