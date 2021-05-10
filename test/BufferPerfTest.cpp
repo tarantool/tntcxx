@@ -30,7 +30,9 @@ char staticBuffer[N * MAX_SIZE];
 struct StaticBuffer {
 	char *p = staticBuffer;
 
+	template <bool>
 	char *begin() const { return staticBuffer; }
+	template <bool>
 	char *end() const { return p; }
 	template <class T>
 	void addBack(T&& t)
@@ -194,6 +196,13 @@ void read_one(tnt::Buffer<N, ALL> &b, typename tnt::Buffer<N, ALL>::iterator &it
 	itr += sizeof(t);
 }
 
+template <size_t N, class ALL, class T>
+void read_one(tnt::Buffer<N, ALL> &b, typename tnt::Buffer<N, ALL>::light_iterator &itr, T&t)
+{
+	b.get(itr, t);
+	itr += sizeof(t);
+}
+
 void read_one(StaticBuffer &, char *&itr, VariadicData_t &t)
 {
 	t.size = *itr;
@@ -204,6 +213,15 @@ void read_one(StaticBuffer &, char *&itr, VariadicData_t &t)
 
 template <size_t N, class ALL>
 void read_one(tnt::Buffer<N, ALL> &b, typename tnt::Buffer<N, ALL>::iterator &itr, VariadicData_t &t)
+{
+	b.get(itr, t.size);
+	++itr;
+	b.get(itr, t.data, t.size);
+	itr += t.size;
+}
+
+template <size_t N, class ALL>
+void read_one(tnt::Buffer<N, ALL> &b, typename tnt::Buffer<N, ALL>::light_iterator &itr, VariadicData_t &t)
 {
 	b.get(itr, t.size);
 	++itr;
@@ -252,14 +270,15 @@ report(const char *mode, const PerfTimer &timer, size_t data_size)
 	OUT(Mrps, MBps);
 }
 
-template <class CONT, class T, size_t N>
+template <class CONT, bool LIGHT, class T, size_t N>
 __attribute__((noinline)) void
 bench(T (&in)[N], T (&out)[N])
 {
 	// Prepare
 	CONT cont;
 	std::cout << "---------------------------------------" << std::endl;
-	std::cout << "Bench of " << contName(cont) << " with " << dataName(in[0]) << std::endl;
+	std::cout << "Bench of " << contName(cont) << (LIGHT ? " (light)" : "")
+		  << " with " << dataName(in[0]) << std::endl;
 	memset(out, 0, sizeof(out));
 	PerfTimer timer;
 
@@ -272,14 +291,14 @@ bench(T (&in)[N], T (&out)[N])
 
 	// Read
 	timer.start();
-	auto itr = cont.begin();
+	auto itr = cont.template begin<LIGHT>();
 	for (auto& x : out)
 		read(cont, itr, x);
 	timer.stop();
 	report("Read", timer, dataSizeTotal(in));
 
 	// Check
-	if (itr != cont.end())
+	if (itr != cont.template end<LIGHT>())
 		std::cout << "FAILURE: iterator not at end!" << std::endl;
 
 	if (dataCheckSumTotal(in) != dataCheckSumTotal(out))
@@ -289,14 +308,17 @@ bench(T (&in)[N], T (&out)[N])
 static void
 doTests()
 {
-	bench<StaticBuffer>(simpleDataIn, simpleDataOut);
-	bench<tnt::Buffer<>>(simpleDataIn, simpleDataOut);
+	bench<StaticBuffer, false>(simpleDataIn, simpleDataOut);
+	bench<tnt::Buffer<>, false>(simpleDataIn, simpleDataOut);
+	bench<tnt::Buffer<>, true>(simpleDataIn, simpleDataOut);
 
-	bench<StaticBuffer>(complexDataIn, complexDataOut);
-	bench<tnt::Buffer<>>(complexDataIn, complexDataOut);
+	bench<StaticBuffer, false>(complexDataIn, complexDataOut);
+	bench<tnt::Buffer<>, false>(complexDataIn, complexDataOut);
+	bench<tnt::Buffer<>, true>(complexDataIn, complexDataOut);
 
-	bench<StaticBuffer>(variadicDataIn, variadicDataOut);
-	bench<tnt::Buffer<>>(variadicDataIn, variadicDataOut);
+	bench<StaticBuffer, false>(variadicDataIn, variadicDataOut);
+	bench<tnt::Buffer<>, false>(variadicDataIn, variadicDataOut);
+	bench<tnt::Buffer<>, true>(variadicDataIn, variadicDataOut);
 
 //	bench<std::vector<char>>(simpleDataIn, simpleDataOut);
 //	bench<tnt::Buffer<1024>>(simpleDataIn, simpleDataOut);

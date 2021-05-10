@@ -255,6 +255,19 @@ buffer_iterator()
 	buf.dropBack(1);
 	fail_unless(buf.empty());
 	fail_if(buf.debugSelfCheck());
+
+	itr = buf.begin();
+	const auto& citr = itr;
+	typename tnt::Buffer<N>::iterator itr2(itr);
+
+	auto litr1 = itr.enlight();
+	const auto litr2 = citr.enlight();
+	auto litr3 = litr1.enlight();
+	auto litr4 = litr2.enlight();
+	(void)litr1; (void)litr2; (void)litr3; (void)litr4;
+
+	static_assert(sizeof(itr) == 32, "Just for information");
+	static_assert(sizeof(itr.enlight()) == 8, "Just for information");
 }
 
 template <size_t N>

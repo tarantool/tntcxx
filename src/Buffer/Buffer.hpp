@@ -128,19 +128,29 @@ private:
 	};
 public:
 	/** =============== Iterator definition =============== */
+	// Dummy class to be a base of light_iterator.
+	struct light_base {
+		template <class ...T>
+		light_base(const T&...) {}
+		static const bool insert, remove, unlink, isDetached, isFirst, isLast, next, prev, selfCheck;
+	};
 	template <bool LIGHT>
 	class iterator_common
 		: public std::iterator<std::input_iterator_tag, char>,
-		  public SingleLink<iterator_common<LIGHT>>
+		  public std::conditional_t<LIGHT, light_base, SingleLink<iterator_common<LIGHT>>>
 	{
 	public:
-		USING_LIST_LINK_METHODS(SingleLink<iterator_common>);
+		using Base_t = std::conditional_t<LIGHT, light_base, SingleLink<iterator_common<LIGHT>>>;
+		USING_LIST_LINK_METHODS(Base_t);
 
 		iterator_common();
 		iterator_common(Buffer *buffer, char *offset, bool is_head);
+		iterator_common(char *offset);
 		iterator_common(const iterator_common &other) = delete;
 		iterator_common(iterator_common &other);
 		iterator_common(iterator_common &&other) noexcept = default;
+
+		iterator_common<true> enlight() const noexcept;
 
 		iterator_common& operator = (const iterator_common& other) = delete;
 		iterator_common& operator = (iterator_common& other);
@@ -406,17 +416,32 @@ template <bool LIGHT>
 Buffer<N, allocator>::iterator_common<LIGHT>::iterator_common(Buffer *buffer,
 							      char *offset,
 							      bool is_head)
-	: SingleLink<iterator_common>(buffer->m_iterators, !is_head),
+	: Base_t(buffer->m_iterators, !is_head),
 	  m_position(offset)
 {
 }
 
 template <size_t N, class allocator>
 template <bool LIGHT>
+Buffer<N, allocator>::iterator_common<LIGHT>::iterator_common(char *offset)
+	: m_position(offset)
+{
+}
+
+template <size_t N, class allocator>
+template <bool LIGHT>
 Buffer<N, allocator>::iterator_common<LIGHT>::iterator_common(iterator_common& other)
-	: SingleLink<iterator_common>(other, false),
+	: Base_t(other, false),
 	  m_position(other.m_position)
 {
+}
+
+template <size_t N, class allocator>
+template <bool LIGHT>
+typename Buffer<N, allocator>::template iterator_common<true>
+Buffer<N, allocator>::iterator_common<LIGHT>::enlight() const noexcept
+{
+	return iterator_common<true>(m_position);
 }
 
 template <size_t N, class allocator>
@@ -519,12 +544,14 @@ template <bool LIGHT>
 void
 Buffer<N, allocator>::iterator_common<LIGHT>::adjustPositionForward()
 {
-	if (isLast() || !(next() < *this))
-		return;
-	iterator_common *itr = &next();
-	while (!itr->isLast() && itr->next() < *this)
-		itr = &itr->next();
-	itr->insert(*this);
+	if constexpr (!LIGHT) {
+		if (isLast() || !(next() < *this))
+			return;
+		iterator_common *itr = &next();
+		while (!itr->isLast() && itr->next() < *this)
+			itr = &itr->next();
+		itr->insert(*this);
+	}
 }
 
 template <size_t N, class allocator>

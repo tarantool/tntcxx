@@ -34,7 +34,9 @@ char staticBuffer[N * MAX_SIZE];
 struct StaticBuffer {
 	char *p = staticBuffer;
 
+	template <bool>
 	char *begin() const { return staticBuffer; }
+	template <bool>
 	char *end() const { return p; }
 	template <class T>
 	void addBack(T&& t)
@@ -149,7 +151,6 @@ dataCheckSumTotal(T *b, T *e)
 	return res;
 }
 
-
 template <class T>
 const char *
 dataName(const T&)
@@ -199,6 +200,13 @@ void read_one(tnt::Buffer<N, ALL> &b, typename tnt::Buffer<N, ALL>::iterator &it
 	itr += sizeof(t);
 }
 
+template <size_t N, class ALL, class T>
+void read_one(tnt::Buffer<N, ALL> &b, typename tnt::Buffer<N, ALL>::light_iterator &itr, T&t)
+{
+	b.get(itr, t);
+	itr += sizeof(t);
+}
+
 void read_one(StaticBuffer &, char *&itr, VariadicData_t &t)
 {
 	t.size = *itr;
@@ -209,6 +217,15 @@ void read_one(StaticBuffer &, char *&itr, VariadicData_t &t)
 
 template <size_t N, class ALL>
 void read_one(tnt::Buffer<N, ALL> &b, typename tnt::Buffer<N, ALL>::iterator &itr, VariadicData_t &t)
+{
+	b.get(itr, t.size);
+	++itr;
+	b.get(itr, t.data, t.size);
+	itr += t.size;
+}
+
+template <size_t N, class ALL>
+void read_one(tnt::Buffer<N, ALL> &b, typename tnt::Buffer<N, ALL>::light_iterator &itr, VariadicData_t &t)
 {
 	b.get(itr, t.size);
 	++itr;
@@ -254,7 +271,7 @@ void reconstruct(T& t, U&& u)
 	new(&t) T(std::forward<U>(u));
 }
 
-template <class CONT, class DATA>
+template <class CONT, class DATA, bool IS_LIGHT>
 static void BM_write_test(benchmark::State& state)
 {
 	constexpr size_t N = 64 * 1024;
@@ -278,7 +295,7 @@ static void BM_write_test(benchmark::State& state)
 		total_count += count;
 		total_size += dataSizeTotal(wr_data, wr_data + count);
 
-		auto itr = cont->begin();
+		auto itr = cont->template begin<IS_LIGHT>();
 		for (size_t i = 0; i < count; i++)
 			read(*cont, itr, rd_data[i]);
 
@@ -314,13 +331,13 @@ static void BM_write_test(benchmark::State& state)
 	state.SetBytesProcessed(total_size);
 }
 
-template <class CONT, class DATA>
+template <class CONT, class DATA, bool IS_LIGHT>
 static void BM_read_test(benchmark::State& state)
 {
 	constexpr size_t N = 64 * 1024;
 	constexpr size_t K = 16;
 	std::unique_ptr<CONT> cont(new CONT);
-	auto itr = cont->begin();
+	auto itr = cont->template begin<IS_LIGHT>();
 	DATA wr_data[N];
 	DATA rd_data[N];
 	DATA *p, *e = rd_data + N;
@@ -338,7 +355,7 @@ static void BM_read_test(benchmark::State& state)
 		//itr = cont->begin();
 		// .. because operator=() expects iterator from the same buffer.
 		// Use some magic instead.
-		reconstruct(itr, cont->begin());
+		reconstruct(itr, cont->template begin<IS_LIGHT>());
 	};
 
 	auto check = [&]() {
@@ -378,17 +395,23 @@ static void BM_read_test(benchmark::State& state)
 	state.SetBytesProcessed(total_size);
 }
 
-BENCHMARK_TEMPLATE(BM_write_test, StaticBuffer, SimpleData_t);
-BENCHMARK_TEMPLATE(BM_read_test, StaticBuffer, SimpleData_t);
-BENCHMARK_TEMPLATE(BM_write_test, tnt::Buffer<>, SimpleData_t);
-BENCHMARK_TEMPLATE(BM_read_test, tnt::Buffer<>, SimpleData_t);
-BENCHMARK_TEMPLATE(BM_write_test, StaticBuffer, ComplexData_t);
-BENCHMARK_TEMPLATE(BM_read_test, StaticBuffer, ComplexData_t);
-BENCHMARK_TEMPLATE(BM_write_test, tnt::Buffer<>, ComplexData_t);
-BENCHMARK_TEMPLATE(BM_read_test, tnt::Buffer<>, ComplexData_t);
-BENCHMARK_TEMPLATE(BM_write_test, StaticBuffer, VariadicData_t);
-BENCHMARK_TEMPLATE(BM_read_test, StaticBuffer, VariadicData_t);
-BENCHMARK_TEMPLATE(BM_write_test, tnt::Buffer<>, VariadicData_t);
-BENCHMARK_TEMPLATE(BM_read_test, tnt::Buffer<>, VariadicData_t);
+constexpr bool Common = false;
+constexpr bool Light = true;
+
+BENCHMARK_TEMPLATE(BM_write_test, StaticBuffer, SimpleData_t, Common);
+BENCHMARK_TEMPLATE(BM_read_test, StaticBuffer, SimpleData_t, Common);
+BENCHMARK_TEMPLATE(BM_write_test, tnt::Buffer<>, SimpleData_t, Common);
+BENCHMARK_TEMPLATE(BM_read_test, tnt::Buffer<>, SimpleData_t, Common);
+BENCHMARK_TEMPLATE(BM_read_test, tnt::Buffer<>, SimpleData_t, Light);
+BENCHMARK_TEMPLATE(BM_write_test, StaticBuffer, ComplexData_t, Common);
+BENCHMARK_TEMPLATE(BM_read_test, StaticBuffer, ComplexData_t, Common);
+BENCHMARK_TEMPLATE(BM_write_test, tnt::Buffer<>, ComplexData_t, Common);
+BENCHMARK_TEMPLATE(BM_read_test, tnt::Buffer<>, ComplexData_t, Common);
+BENCHMARK_TEMPLATE(BM_read_test, tnt::Buffer<>, ComplexData_t, Light);
+BENCHMARK_TEMPLATE(BM_write_test, StaticBuffer, VariadicData_t, Common);
+BENCHMARK_TEMPLATE(BM_read_test, StaticBuffer, VariadicData_t, Common);
+BENCHMARK_TEMPLATE(BM_write_test, tnt::Buffer<>, VariadicData_t, Common);
+BENCHMARK_TEMPLATE(BM_read_test, tnt::Buffer<>, VariadicData_t, Common);
+BENCHMARK_TEMPLATE(BM_read_test, tnt::Buffer<>, VariadicData_t, Light);
 
 BENCHMARK_MAIN();
