@@ -251,10 +251,22 @@ public:
 	T get(const iterator_common<LIGHT>& itr);
 
 	/**
+	 * Copy content of data iterator pointing to to the buffer @a buf of
+	 * size @a size. Advance the iterator to the end of value.
+	 */
+	template <bool LIGHT>
+	void read(iterator_common<LIGHT>& itr, char *buf, size_t size);
+	template <class T, bool LIGHT>
+	void read(iterator_common<LIGHT>& itr, T& t);
+	template <class T, bool LIGHT>
+	T read(iterator_common<LIGHT>& itr);
+
+	/**
 	 * Determine whether the buffer has @a size bytes after @ itr.
 	 */
 	template <bool LIGHT>
 	bool has(const iterator_common<LIGHT>& itr, size_t size);
+
 	/**
 	 * Drop data till the first existing iterator. In case there's
 	 * no iterators erase whole buffer.
@@ -1065,30 +1077,69 @@ Buffer<N, allocator>::get(const iterator_common<LIGHT>& itr)
 
 template <size_t N, class allocator>
 template <bool LIGHT>
+void
+Buffer<N, allocator>::read(iterator_common<LIGHT>& itr, char *buf, size_t size)
+{
+	assert(size > 0);
+	/*
+	 * The same implementation as in ::set() method buf vice versa:
+	 * buffer and data sources are swapped.
+	 */
+	size_t left_in_block = N - (uintptr_t) itr.m_position % N;
+	while (TNT_UNLIKELY(size >= left_in_block)) {
+		memcpy(buf, itr.m_position, left_in_block);
+		size -= left_in_block;
+		buf += left_in_block;
+		itr.m_position = Block::byPtr(itr.m_position)->next().data;
+		left_in_block = Block::DATA_SIZE;
+	}
+	memcpy(buf, itr.m_position, size);
+	itr.m_position += size;
+	itr.adjustPositionForward();
+}
+
+template <size_t N, class allocator>
+template <class T, bool LIGHT>
+void
+Buffer<N, allocator>::read(iterator_common<LIGHT>& itr, T& t)
+{
+	static_assert(std::is_standard_layout_v<std::remove_reference_t<T>>,
+		      "T is expected to have standard layout");
+	char *tc = &reinterpret_cast<char &>(t);
+	if (TNT_LIKELY(itr.has_contiguous(sizeof(T) + 1))) {
+		memcpy(tc, itr.m_position, sizeof(T));
+		itr.m_position += sizeof(T);
+		itr.adjustPositionForward();
+	} else {
+		read(itr, tc, sizeof(T));
+	}
+}
+
+template <size_t N, class allocator>
+template <class T, bool LIGHT>
+T
+Buffer<N, allocator>::read(iterator_common<LIGHT>& itr)
+{
+	static_assert(std::is_standard_layout_v<std::remove_reference_t<T>>,
+		      "T is expected to have standard layout");
+	T t;
+	read(itr, t);
+	return t;
+}
+
+template <size_t N, class allocator>
+template <bool LIGHT>
 bool
 Buffer<N, allocator>::has(const iterator_common<LIGHT>& itr, size_t size)
 {
-
-	struct Block *block = itr.getBlock();
-	struct Block *last_block = &m_blocks.last();
-	char *pos = itr.m_position;
-	if (block != last_block) {
-		size_t have = itr.getBlock()->end() - pos;
-		if (size <= have)
-			return true;
-		size -= have;
-		block = &block->next();
-		pos = block->begin();
-	}
-	while (block != last_block) {
-		if (size <= Block::DATA_SIZE)
-			return true;
-		size -= Block::DATA_SIZE;
-		block = &block->next();
-		pos = block->begin();
-	}
-	size_t have = m_end - pos ;
-	return size <= have;
+	const char *pos = itr.m_position;
+	uintptr_t itr_addr = (uintptr_t) pos;
+	const char *block_end = (const char *)((itr_addr | (N - 1)) + 1);
+	const char *bound = isSameBlock(pos, m_end) ? m_end : block_end;
+	if (TNT_LIKELY(pos + size <= bound))
+		return true;
+	else
+		return size <= end<true>() - itr;
 }
 
 template<size_t N, class allocator>

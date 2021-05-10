@@ -192,15 +192,13 @@ void read_one(StaticBuffer &, char *&itr, T &t)
 template <size_t N, class ALL, class T>
 void read_one(tnt::Buffer<N, ALL> &b, typename tnt::Buffer<N, ALL>::iterator &itr, T&t)
 {
-	b.get(itr, t);
-	itr += sizeof(t);
+	b.read(itr, t);
 }
 
 template <size_t N, class ALL, class T>
 void read_one(tnt::Buffer<N, ALL> &b, typename tnt::Buffer<N, ALL>::light_iterator &itr, T&t)
 {
-	b.get(itr, t);
-	itr += sizeof(t);
+	b.read(itr, t);
 }
 
 void read_one(StaticBuffer &, char *&itr, VariadicData_t &t)
@@ -214,19 +212,15 @@ void read_one(StaticBuffer &, char *&itr, VariadicData_t &t)
 template <size_t N, class ALL>
 void read_one(tnt::Buffer<N, ALL> &b, typename tnt::Buffer<N, ALL>::iterator &itr, VariadicData_t &t)
 {
-	b.get(itr, t.size);
-	++itr;
-	b.get(itr, t.data, t.size);
-	itr += t.size;
+	b.read(itr, t.size);
+	b.read(itr, t.data, t.size);
 }
 
 template <size_t N, class ALL>
 void read_one(tnt::Buffer<N, ALL> &b, typename tnt::Buffer<N, ALL>::light_iterator &itr, VariadicData_t &t)
 {
-	b.get(itr, t.size);
-	++itr;
-	b.get(itr, t.data, t.size);
-	itr += t.size;
+	b.read(itr, t.size);
+	b.read(itr, t.data, t.size);
 }
 
 template <class CONT, class ITR, size_t... I, class... T>

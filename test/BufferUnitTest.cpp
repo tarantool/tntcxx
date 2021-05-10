@@ -216,6 +216,107 @@ buffer_basic()
 	}
 }
 
+/**
+ * AddBack() + read combinations.
+ */
+template<size_t N>
+void
+buffer_add_read()
+{
+	TEST_INIT(1, N);
+	tnt::Buffer<N> buf;
+	constexpr size_t NUM_OBJ = 1024;
+
+	srand(0);
+	for (size_t i = 0; i < NUM_OBJ; i++) {
+		int r = rand();
+		switch (r % 5) {
+		case 0:
+			buf.addBack(static_cast<uint8_t>(r)); break;
+		case 1:
+			buf.addBack(static_cast<uint16_t>(r)); break;
+		case 2:
+			buf.addBack(static_cast<uint32_t>(r)); break;
+		case 3:
+			buf.addBack(static_cast<uint64_t>(r)); break;
+		default: {
+			size_t sz = r % 13 + 1;
+			char data[16];
+			for (size_t j = 0; j < sz; j++)
+				data[j] = rand();
+			buf.addBack(wrap::Data{data, sz});
+		}
+		}
+	}
+
+	auto itr1 = buf.begin();
+	srand(0);
+	for (size_t i = 0; i < NUM_OBJ; i++) {
+		int r = rand();
+		switch (r % 5) {
+		case 0:
+			fail_unless(buf.template read<uint8_t>(itr1) ==
+				    static_cast<uint8_t>(r));
+			break;
+		case 1:
+			fail_unless(buf.template read<uint16_t>(itr1) ==
+				    static_cast<uint16_t>(r));
+			break;
+		case 2:
+			fail_unless(buf.template read<uint32_t>(itr1) ==
+				    static_cast<uint32_t>(r));
+			break;
+		case 3:
+			fail_unless(buf.template read<uint64_t>(itr1) ==
+				    static_cast<uint64_t>(r));
+			break;
+		default: {
+			size_t sz = r % 13 + 1;
+			char data1[16];
+			for (size_t j = 0; j < sz; j++)
+				data1[j] = rand();
+			char data2[16];
+			buf.read(itr1, data2, sz);
+			fail_unless(memcmp(data1, data2, sz) == 0);
+		}
+		}
+	}
+	fail_unless(itr1 == buf.template end<false>());
+
+	auto itr2 = buf.template begin<true>();
+	srand(0);
+	for (size_t i = 0; i < NUM_OBJ; i++) {
+		int r = rand();
+		switch (r % 5) {
+		case 0:
+			fail_unless(buf.template read<uint8_t>(itr2) ==
+				    static_cast<uint8_t>(r));
+			break;
+		case 1:
+			fail_unless(buf.template read<uint16_t>(itr2) ==
+				    static_cast<uint16_t>(r));
+			break;
+		case 2:
+			fail_unless(buf.template read<uint32_t>(itr2) ==
+				    static_cast<uint32_t>(r));
+			break;
+		case 3:
+			fail_unless(buf.template read<uint64_t>(itr2) ==
+				    static_cast<uint64_t>(r));
+			break;
+		default: {
+			size_t sz = r % 13 + 1;
+			char data1[16];
+			for (size_t j = 0; j < sz; j++)
+				data1[j] = rand();
+			char data2[16];
+			buf.read(itr2, data2, sz);
+			fail_unless(memcmp(data1, data2, sz) == 0);
+		}
+		}
+	}
+	fail_unless(itr2 == buf.template end<true>());
+}
 template<size_t N>
 void
 buffer_iterator()
@@ -482,6 +583,8 @@ int main()
 {
 	buffer_basic<SMALL_BLOCK_SZ>();
 	buffer_basic<LARGE_BLOCK_SZ>();
+	buffer_add_read<SMALL_BLOCK_SZ>();
+	buffer_add_read<LARGE_BLOCK_SZ>();
 	buffer_iterator<SMALL_BLOCK_SZ>();
 	buffer_iterator<LARGE_BLOCK_SZ>();
 	buffer_insert<SMALL_BLOCK_SZ>();
