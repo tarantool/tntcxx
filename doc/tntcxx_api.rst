@@ -24,8 +24,8 @@ Below is the description of the connector public API.
 Connector class
 ---------------
 
-..  cpp:class:: template <class BUFFER, class NetProvider = DefaultNetProvider<BUFFER>> \
-                class Connector;
+..  cpp:class:: template<class BUFFER, class NetProvider = DefaultNetProvider<BUFFER>> \
+                Connector
 
     The ``Connector`` class is a template class that defines a connector client
     which can handle many connections to Tarantool instances asynchronously.
@@ -253,8 +253,8 @@ Public methods
 Connection class
 ----------------
 
-..  cpp:class:: template <class BUFFER, class NetProvider> \
-                class Connection;
+..  cpp:class:: template<class BUFFER, class NetProvider> \
+                Connection
 
     The ``Connection`` class is a template class that defines a connection objects
     which is required to interact with a Tarantool instance. Each connection object
@@ -309,7 +309,7 @@ Public methods
 ..  cpp:function:: template <class T> \
                     rid_t call(const std::string &func, const T &args)
 
-    Executes a call of a remote stored-procedure similar to :ref:`conn:call() <net_box_call>`.
+    Executes a call of a remote stored-procedure similar to :ref:`conn:call() <net_box-call>`.
     The method returns the request ID that is used to get the response by
     :ref:`getResponse() <tntcxx_api_connection_getresponse>`.
 
