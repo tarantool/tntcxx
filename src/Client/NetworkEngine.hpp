@@ -109,18 +109,18 @@ NetworkEngine::connectINET(const std::string_view& addr_str, unsigned port,
 	int err = getaddrinfo(std::string(addr_str).c_str(), service.c_str(),
 			      &hints, &res);
 	if (err != 0) {
-		LOG_ERROR("getaddrinfo() failed: %s", gai_strerror(err));
+		LOG_ERROR("getaddrinfo() failed: ", gai_strerror(err));
 		return -1;
 	}
 	Socket soc(socket(res->ai_family, res->ai_socktype, res->ai_protocol));
 	if (soc.fd < 0) {
-		LOG_ERROR("Failed to create socket: %s", strerror(errno));
+		LOG_ERROR("Failed to create socket: ", strerror(errno));
 		freeaddrinfo(res);
 		return -1;
 	}
 	/* Set socket to non-blocking mode*/
 	if (fcntl(soc.fd, F_SETFL, O_NONBLOCK) != 0) {
-		LOG_ERROR("fcntl failed: %s", strerror(errno));
+		LOG_ERROR("fcntl failed: ", strerror(errno));
 		freeaddrinfo(res);
 		return -1;
 	}
@@ -138,38 +138,38 @@ NetworkEngine::connectINET(const std::string_view& addr_str, unsigned port,
 	tv.tv_usec = 0;
 	int rc = select(soc.fd + 1, NULL, &fdset, NULL, &tv);
 	if (rc == -1) {
-		LOG_ERROR("select() failed: %s", strerror(errno));
+		LOG_ERROR("select() failed: ", strerror(errno));
 		return -1;
 	}
 	if (rc == 0) {
-		LOG_ERROR("connect() is timed out! Waited for %d seconds",
-			  timeout);
+		LOG_ERROR("connect() is timed out! Waited for ",
+			  timeout, " seconds");
 		return -1;
 	}
 	assert(rc == 1);
 	int so_error;
 	socklen_t len = sizeof(so_error);
 	if (getsockopt(soc.fd, SOL_SOCKET, SO_ERROR, &so_error, &len) != 0) {
-		LOG_ERROR("getsockopt() failed: %s",  strerror(errno));
+		LOG_ERROR("getsockopt() failed: ", strerror(errno));
 		return -1;
 	}
 	if (so_error != 0) {
-		LOG_ERROR("connect() failed: %s",  strerror(so_error));
+		LOG_ERROR("connect() failed: ", strerror(so_error));
 		return -1;
 	}
 	if (fcntl(soc.fd, F_SETFL, O_NONBLOCK) != 0) {
-		LOG_ERROR("fcntl() failed: %s", strerror(errno));
+		LOG_ERROR("fcntl() failed: ", strerror(errno));
 		return -1;
 	}
 	/* Set to blocking mode again...*/
 	int flags = fcntl(soc.fd, F_GETFL, NULL);
 	if (flags < 0) {
-		LOG_ERROR("fcntl() failed: %s", strerror(errno));
+		LOG_ERROR("fcntl() failed: ", strerror(errno));
 		return -1;
 	}
 	flags &= (~O_NONBLOCK);
 	if (fcntl(soc.fd, F_SETFL, flags) != 0) {
-		LOG_ERROR("fcntl() failed: %s", strerror(errno));
+		LOG_ERROR("fcntl() failed: ", strerror(errno));
 		return -1;
 	}
 	int sock = soc.fd;

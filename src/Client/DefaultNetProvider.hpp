@@ -90,7 +90,7 @@ DefaultNetProvider<BUFFER, NETWORK>::DefaultNetProvider()
 {
 	m_EpollFd = epoll_create(EPOLL_QUEUE_LEN);
 	if (m_EpollFd == -1) {
-		LOG_ERROR("Failed to initialize epoll: %s", strerror(errno));
+		LOG_ERROR("Failed to initialize epoll: ", strerror(errno));
 		abort();
 	}
 	rlist_create(&m_ready_to_write);
@@ -146,8 +146,7 @@ DefaultNetProvider<BUFFER, NETWORK>::connect(Conn_t &conn,
 			      std::string(addr));
 		return -1;
 	}
-	LOG_DEBUG("Connected to %s, socket is %d", std::string(addr).c_str(),
-		  socket);
+	LOG_DEBUG("Connected to ", addr, ", socket is ", socket);
 	/* Receive and decode greetings. */
 	size_t iov_cnt = 0;
 	struct iovec *iov =
@@ -160,7 +159,7 @@ DefaultNetProvider<BUFFER, NETWORK>::connect(Conn_t &conn,
 		::close(socket);
 		return -1;
 	}
-	LOG_DEBUG("Greetings are received, read bytes %d", read_bytes);
+	LOG_DEBUG("Greetings are received, read bytes ", read_bytes);
 	if (decodeGreeting(conn) != 0) {
 		conn.setError(std::string("Failed to decode greetings"));
 		::close(socket);
@@ -196,8 +195,8 @@ DefaultNetProvider<BUFFER, NETWORK>::close(Conn_t &connection)
 			struct sockaddr_un *sa_un = (struct sockaddr_un *) &sa;
 			snprintf(addr, 120, "%s", sa_un->sun_path);
 		}
-		LOG_DEBUG("Closed connection to socket %d corresponding to "
-			  "address %s", connection.socket, addr);
+		LOG_DEBUG("Closed connection to socket ", connection.socket,
+			  " corresponding to address ", addr);
 	}
 #endif
 	NETWORK::close(connection.socket);
@@ -272,12 +271,12 @@ DefaultNetProvider<BUFFER, NETWORK>::recv(Conn_t &conn)
 	assert(! conn.status.is_failed);
 	size_t total = NETWORK::readyToRecv(conn.socket);
 	if (total < 0) {
-		LOG_ERROR("Failed to check socket: ioctl returned errno %s",
+		LOG_ERROR("Failed to check socket: ioctl returned errno ",
 			  strerror(errno));
 		return -1;
 	}
 	if (total == 0) {
-		LOG_DEBUG("Socket %d has no data to read", conn.socket);
+		LOG_DEBUG("Socket ", conn.socket, " has no data to read");
 		return -1;
 	}
 	size_t iov_cnt = 0;
@@ -285,7 +284,7 @@ DefaultNetProvider<BUFFER, NETWORK>::recv(Conn_t &conn)
 		inBufferToIOV(conn, total, &iov_cnt);
 	int read_bytes = NETWORK::recvall(conn.socket, iov, iov_cnt, true);
 	hasNotRecvBytes(conn, total - read_bytes);
-	LOG_DEBUG("read %d bytes from %d socket", read_bytes, conn.socket);
+	LOG_DEBUG("read ", read_bytes, " bytes from ", conn.socket, " socket");
 	if (read_bytes < 0) {
 		if (errno == EWOULDBLOCK || errno == EAGAIN)
 			return -1;
@@ -312,13 +311,13 @@ DefaultNetProvider<BUFFER, NETWORK>::send(Conn_t &conn)
 		int rc = NETWORK::sendall(conn.socket, iov, iov_cnt,
 						 &sent_bytes);
 		hasSentBytes(conn, sent_bytes);
-		LOG_DEBUG("send %d bytes to the %d socket", sent_bytes, conn.socket);
+		LOG_DEBUG("send ", sent_bytes, " bytes to the ", conn.socket, " socket");
 		if (rc != 0) {
 			if (errno == EWOULDBLOCK || errno == EAGAIN) {
 				int setting = EPOLLIN | EPOLLOUT;
 				if (setPollSetting(conn.socket, setting) != 0) {
 					LOG_ERROR("Failed to change epoll mode: "
-						  "epoll_ctl() returned with errno: %s",
+						  "epoll_ctl() returned with errno: ",
 						  strerror(errno));
 					abort();
 				}
@@ -339,7 +338,7 @@ DefaultNetProvider<BUFFER, NETWORK>::send(Conn_t &conn)
 	if (conn.status.is_send_blocked) {
 		if (setPollSetting(conn.socket, EPOLLIN) != 0) {
 			LOG_ERROR("Failed to change epoll mode: epoll_ctl() "
-				  "returned with errno: %s", strerror(errno));
+				  "returned with errno: ", strerror(errno));
 			abort();
 		}
 		conn.status.is_send_blocked = false;
@@ -353,7 +352,7 @@ DefaultNetProvider<BUFFER, NETWORK>::wait(int timeout)
 	assert(timeout >= 0);
 	if (timeout == 0)
 		timeout = DEFAULT_TIMEOUT;
-	LOG_DEBUG("Network engine wait for %d milliseconds", timeout);
+	LOG_DEBUG("Network engine wait for ", timeout, " milliseconds");
 	/* Send pending requests. */
 	if (!rlist_empty(&m_ready_to_write)) {
 		Connection<BUFFER, DefaultNetProvider> *conn, *tmp;
@@ -365,22 +364,22 @@ DefaultNetProvider<BUFFER, NETWORK>::wait(int timeout)
 	static struct ConnectionEvent events[EVENT_POLL_COUNT_MAX];
 	size_t event_cnt = 0;
 	if (poll((ConnectionEvent *)&events, &event_cnt, timeout) != 0) {
-		LOG_ERROR("Poll failed: %s", strerror(errno));
+		LOG_ERROR("Poll failed: ", strerror(errno));
 		return -1;
 	}
 	for (size_t i = 0; i < event_cnt; ++i) {
 		Connection<BUFFER, DefaultNetProvider> *conn =
 			m_Connections[events[i].sock];
 		if ((events[i].event & EPOLLIN) != 0) {
-			LOG_DEBUG("Registered poll event %d: %d socket is ready to read",
-				  i, conn->socket);
+			LOG_DEBUG("Registered poll event ", i, ": ",
+				  conn->socket, " socket is ready to read");
 			if (recv(*conn) == 0)
 				conn->readyToDecode();
 		}
 		if ((events[i].event & EPOLLOUT) != 0) {
 			/* We are watching only for blocked sockets. */
-			LOG_DEBUG("Registered poll event %d: %d socket is ready to write",
-				  i, conn->socket);
+			LOG_DEBUG("Registered poll event ", i, ": ",
+				  conn->socket, " socket is ready to write");
 			assert(conn->status.is_send_blocked);
 			send(*conn);
 		}

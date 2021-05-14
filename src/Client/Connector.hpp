@@ -89,18 +89,16 @@ Connector<BUFFER, NetProvider>::connect(Connection<BUFFER, NetProvider> &conn,
 					unsigned port, size_t timeout)
 {
 	if (conn.socket >= 0 && m_NetProvider.check(conn)) {
-		LOG_ERROR("Current connection to %d is alive! Please close it "
-			  "before connecting to the new address", conn.socket);
+		LOG_ERROR("Current connection to ", conn.socket, " is alive! "
+			"Please close it before connecting to the new address");
 		return -1;
 	}
 	if (m_NetProvider.connect(conn, addr, port, timeout) != 0) {
-		LOG_ERROR("Failed to connect to %s:%d",
-			  std::string(addr).c_str(), port);
-		LOG_ERROR("Reason: %s", conn.getError().c_str());
+		LOG_ERROR("Failed to connect to ", addr, ':', port);
+		LOG_ERROR("Reason: ", conn.getError());
 		return -1;
 	}
-	LOG_DEBUG("Connected to %s:%d has been established",
-		  std::string(addr).c_str(), port);
+	LOG_DEBUG("Connected to ", addr, ':', port, " has been established");
 	return 0;
 }
 
@@ -116,7 +114,7 @@ int
 Connector<BUFFER, NetProvider>::wait(Connection<BUFFER, NetProvider> &conn,
 				     rid_t future, int timeout)
 {
-	LOG_DEBUG("Waiting for the future %d with timeout %d", future, timeout);
+	LOG_DEBUG("Waiting for the future ", future, " with timeout ", timeout);
 	Timer timer{timeout};
 	timer.start();
 	while (hasDataToDecode(conn)) {
@@ -132,8 +130,8 @@ Connector<BUFFER, NetProvider>::wait(Connection<BUFFER, NetProvider> &conn,
 			break;
 	}
 	if (! m_NetProvider.check(conn)) {
-		LOG_ERROR("Connection has been lost: %s. Please re-connect "
-			  "to the host", conn.getError().c_str());
+		LOG_ERROR("Connection has been lost: ", conn.getError(),
+			  ". Please re-connect to the host");
 		return -1;
 	}
 	while (! conn.futureIsReady(future) && !timer.isExpired()) {
@@ -141,8 +139,8 @@ Connector<BUFFER, NetProvider>::wait(Connection<BUFFER, NetProvider> &conn,
 			return -1;
 		}
 		if (conn.status.is_failed != 0) {
-			LOG_ERROR("Connection got error during wait: %s",
-				  conn.getError().c_str());
+			LOG_ERROR("Connection got error during wait: ",
+				  conn.getError());
 			return -1;
 		}
 		if (conn.status.is_ready_to_decode) {
@@ -156,11 +154,11 @@ Connector<BUFFER, NetProvider>::wait(Connection<BUFFER, NetProvider> &conn,
 		}
 	}
 	if (! conn.futureIsReady(future)) {
-		LOG_ERROR("Connection has been timed out: future %d is not ready",
-			  future);
+		LOG_ERROR("Connection has been timed out: future ", future,
+			  " is not ready");
 		return -1;
 	}
-	LOG_DEBUG("Feature %d is ready and decoded", future);
+	LOG_DEBUG("Feature ", future, " is ready and decoded");
 	return 0;
 }
 
@@ -178,11 +176,10 @@ Connector<BUFFER, NetProvider>::waitAll(Connection<BUFFER, NetProvider> &conn,
 			return;
 		}
 		if (conn.status.is_failed) {
-			LOG_ERROR("wait() on connection %p %s has failed:",
-				  &conn, conn.getError());
+			LOG_ERROR("wait() on connection ", &conn, ' ', conn.getError(), " has failed:");
 		}
 		if (timer.isExpired()) {
-			LOG_WARNING("waitAll() is timed out! Only %d futures are handled", i);
+			LOG_WARNING("waitAll() is timed out! Only ", i, " futures are handled");
 			return;
 		}
 	}

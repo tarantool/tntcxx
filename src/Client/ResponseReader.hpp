@@ -123,7 +123,7 @@ struct HeaderKeyReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_UINT> {
 				dec.SetReader(true, Int_t{header.schema_id});
 				break;
 			default:
-				LOG_ERROR("Invalid header key %d!", key);
+				LOG_ERROR("Invalid header key ", key);
 				dec.AbortAndSkipRead();
 		}
 	}
@@ -263,7 +263,7 @@ struct ErrorKeyReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_UINT> {
 				break;
 			}
 			default:
-				LOG_ERROR("Invalid error key: %d!", key);
+				LOG_ERROR("Invalid error key: ", key);
 				dec.AbortAndSkipRead();
 		}
 	}
@@ -385,7 +385,7 @@ struct BodyKeyReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_UINT> {
 				break;
 			}
 			default:
-				LOG_ERROR("Invalid body key: %d!", key);
+				LOG_ERROR("Invalid body key: ", key);
 				dec.AbortAndSkipRead();
 		}
 	}

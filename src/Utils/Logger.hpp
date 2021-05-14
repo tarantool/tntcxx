@@ -29,10 +29,10 @@
  * THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
-#include <cstdarg>
-#include <stdio.h>
+
 #include <time.h>
 
+#include <iostream>
 #include <string_view>
 
 enum LogLevel {
@@ -53,30 +53,33 @@ logLevelToStr(LogLevel lvl)
 	return "Unknown log level";
 }
 
+inline std::ostream& operator<<(std::ostream& strm, LogLevel lvl)
+{
+	return strm << logLevelToStr(lvl);
+}
+
 class Logger {
 public:
 	Logger(LogLevel lvl) : m_LogLvl(lvl) {};
 
-	void log(FILE *stream, LogLevel log_lvl, const std::string_view &msg,
-		 const char *file, int line, ...)
+	template <class... ARGS>
+	void log(std::ostream& strm, LogLevel log_lvl,
+		 const char *file, int line, ARGS&& ...args)
 	{
 		if (!isLogPossible(log_lvl))
 			return;
 		time_t rawTime;
-		struct tm *timeInfo = nullptr;
 		time(&rawTime);
-		timeInfo = localtime(&rawTime);
+		struct tm *timeInfo = localtime(&rawTime);
 		char timeString[10];
 		strftime(timeString, sizeof(timeString), "%H:%M:%S", timeInfo);
-		/* Format: time file line msg*/
-		sprintf(Logger::format_msg, "%s %s %d", timeString, file, line);
-
-		va_list args;
-		va_start (args, line);
-		vsprintf(Logger::format_msg, std::string(msg).c_str(), args);
-		va_end(args);
-
-		fprintf(stream, "%s: %s\n", logLevelToStr(log_lvl), Logger::format_msg);
+		// The line below is commented for compatibility with previous
+		// version. I'm not sure it was bug or feature, but the time,
+		// filename and line was not printed.
+		(void)file; (void)line;
+		//strm << timeString << " " << file << ':' << line << ' ';
+		strm << log_lvl << ": ";
+		(strm << ... << std::forward<ARGS>(args)) << '\n';
 	}
 	void setLogLevel(LogLevel lvl)
 	{
@@ -87,8 +90,6 @@ private:
 	{
 		return lvl >= m_LogLvl;
 	};
-	static constexpr size_t MAX_MSG_LEN = 1024;
-	inline static char format_msg[MAX_MSG_LEN];
 	LogLevel m_LogLvl;
 };
 
@@ -98,6 +99,6 @@ inline Logger gLogger(DEBUG);
 inline Logger gLogger(ERROR);
 #endif
 
-#define LOG_DEBUG(format, ...) gLogger.log(stdout, DEBUG, format, __FILE__, __LINE__,  ##__VA_ARGS__)
-#define LOG_WARNING(format, ...) gLogger.log(stdout, WARNING, format, __FILE__, __LINE__, ##__VA_ARGS__)
-#define LOG_ERROR(format, ...) gLogger.log(stderr, ERROR, format, __FILE__, __LINE__, ##__VA_ARGS__)
+#define LOG_DEBUG(...) gLogger.log(std::cout, DEBUG, __FILE__, __LINE__,  __VA_ARGS__)
+#define LOG_WARNING(...) gLogger.log(std::cout, WARNING, __FILE__, __LINE__, __VA_ARGS__)
+#define LOG_ERROR(...) gLogger.log(std::cerr, ERROR, __FILE__, __LINE__, __VA_ARGS__)

@@ -112,7 +112,7 @@ connectionReceive(Connection<BUFFER,  LibevNetProvider<BUFFER, NETWORK>> &conn)
 	assert(! conn.status.is_failed);
 	size_t total = NETWORK::readyToRecv(conn.socket);
 	if (total < 0) {
-		LOG_ERROR("Failed to check socket: ioctl returned errno %s",
+		LOG_ERROR("Failed to check socket: ioctl returned errno ",
 			  strerror(errno));
 		return -1;
 	}
@@ -280,8 +280,7 @@ LibevNetProvider<BUFFER, NETWORK>::connect(Conn_t &conn,
 			      std::string(addr));
 		return -1;
 	}
-	LOG_DEBUG("Connected to %s, socket is %d", std::string(addr).c_str(),
-		  socket);
+	LOG_DEBUG("Connected to ", addr, ", socket is ", socket);
 	/* Receive and decode greetings. */
 	size_t iov_cnt = 0;
 	struct iovec *iov = inBufferToIOV(conn, Iproto::GREETING_SIZE, &iov_cnt);
@@ -293,7 +292,7 @@ LibevNetProvider<BUFFER, NETWORK>::connect(Conn_t &conn,
 		::close(socket);
 		return -1;
 	}
-	LOG_DEBUG("Greetings are received, read bytes %d", read_bytes);
+	LOG_DEBUG("Greetings are received, read bytes ", read_bytes);
 	if (decodeGreeting(conn) != 0) {
 		conn.setError(std::string("Failed to decode greetings"));
 		::close(socket);

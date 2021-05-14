@@ -287,11 +287,11 @@ Connection<BUFFER, NetProvider>::~Connection()
 	}
 	if (! rlist_empty(&m_in_write)) {
 		rlist_del(&m_in_write);
-		LOG_WARNING("Connection %p had unsent data in output buffer!");
+		LOG_WARNING("Connection ", this, " had unsent data in output buffer!");
 	}
 	if (! rlist_empty(&m_in_read)) {
 		rlist_del(&m_in_read);
-		LOG_WARNING("Connection %p had unread data in input buffer!");
+		LOG_WARNING("Connection ", this, " had unread data in input buffer!");
 	}
 }
 
@@ -482,7 +482,7 @@ hasSentBytes(Connection<BUFFER, NetProvider> &conn, size_t bytes)
 	if (! hasDataToSend(conn)) {
 		conn.status.is_ready_to_send = false;
 		rlist_del(&conn.m_in_write);
-		LOG_DEBUG("Removed %p from the write list", &conn.m_in_write);
+		LOG_DEBUG("Removed ", &conn.m_in_write, " from the write list");
 	}
 }
 
@@ -529,8 +529,8 @@ decodeResponse(Connection<BUFFER, NetProvider> &conn)
 		conn.m_EndDecoded += response.size;
 		return DECODE_ERR;
 	}
-	LOG_DEBUG("Header: sync=%d, code=%d, schema=%d", response.header.sync,
-		  response.header.code, response.header.schema_id);
+	LOG_DEBUG("Header: sync=", response.header.sync, ", code=",
+		  response.header.code, ", schema=", response.header.schema_id);
 	std::size_t response_size = response.size;
 	conn.m_Futures.insert({response.header.sync, std::move(response)});
 	conn.m_EndDecoded += response_size;
@@ -539,7 +539,7 @@ decodeResponse(Connection<BUFFER, NetProvider> &conn)
 	if (! hasDataToDecode(conn)) {
 		conn.status.is_ready_to_decode = false;
 		rlist_del(&conn.m_in_read);
-		LOG_DEBUG("Removed %p from the read list", &conn.m_in_write);
+		LOG_DEBUG("Removed ", &conn.m_in_write, " from the read list");
 	}
 	return DECODE_SUCC;
 }
@@ -557,7 +557,7 @@ decodeGreeting(Connection<BUFFER, NetProvider> &conn)
 	if (parseGreeting(std::string_view{greeting_buf, Iproto::GREETING_SIZE},
 			  conn.m_Greeting) != 0)
 		return -1;
-	LOG_DEBUG("Version: %d", conn.m_Greeting.version_id);
+	LOG_DEBUG("Version: ", conn.m_Greeting.version_id);
 
 #ifndef NDEBUG
 	//print salt in hex format.
@@ -569,7 +569,7 @@ decodeGreeting(Connection<BUFFER, NetProvider> &conn)
 		hex_salt[i * 2 + 1] = hex[u % 16];
 	}
 	hex_salt[conn.m_Greeting.salt_size * 2] = 0;
-	LOG_DEBUG("Salt: %s", hex_salt);
+	LOG_DEBUG("Salt: ", hex_salt);
 #endif
 	return 0;
 }
