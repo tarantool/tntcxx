@@ -222,7 +222,7 @@ struct ExtValue { int8_t type; uint8_t offset; uint32_t size; };
 
 // The order of types myst be exactly the same as in Compact::Type!
 using Value_t = std::variant<
-	nullptr_t, bool, uint64_t, int64_t, float, double,
+	std::nullptr_t, bool, uint64_t, int64_t, float, double,
 	StrValue, BinValue, ArrValue, MapValue, ExtValue
 >;
 

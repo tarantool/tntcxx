@@ -66,7 +66,7 @@ gen_src_strings()
 	for (size_t i = 0; i < 2; i++)
 		for (size_t j = 0; j < 64; j++)
 			decmap[static_cast<uint8_t>(alphabets[i][j])] = j;
-	decmap['='] = 64;
+	decmap[size_t('=')] = 64;
 
 	std::cout << "\tconst char *alphabets[2] = {\n";
 	for (size_t i = 0; i < 2; i++)

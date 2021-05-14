@@ -80,7 +80,7 @@ struct TestArrStruct {
 	double dbl;
 	float flt;
 	char str[12];
-	nullptr_t nil;
+	std::nullptr_t nil;
 	bool b;
 };
 
