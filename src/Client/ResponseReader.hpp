@@ -202,7 +202,7 @@ struct ErrorFieldsKeyReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_STR> {
 	{
 		//TODO: assert(strcmp(v, "custom_type", sizeof("custom_type");
 		(void) v;
-		using TypeNameReader_t = mpp::SimpleStrReader<BUFFER, sizeof(Error::type_name)>;
+		using TypeNameReader_t = mpp::SimpleStrReader<BUFFER, sizeof(Error{}.type_name)>;
 		dec.SetReader(true, TypeNameReader_t{error.type_name, error.type_name_len});
 	}
 	mpp::Dec<BUFFER>& dec;
@@ -229,10 +229,10 @@ struct ErrorKeyReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_UINT> {
 
 	void Value(const iterator_t<BUFFER>&, mpp::compact::Type, uint64_t key)
 	{
-		using TypeNameReader_t = mpp::SimpleStrReader<BUFFER, sizeof(Error::type_name)>;
+		using TypeNameReader_t = mpp::SimpleStrReader<BUFFER, sizeof(Error{}.type_name)>;
 		using Int_t = mpp::SimpleReader<BUFFER, mpp::MP_UINT, int>;
-		using FileReader_t = mpp::SimpleStrReader<BUFFER, sizeof(Error::file)>;
-		using MsgReader_t = mpp::SimpleStrReader<BUFFER, sizeof(Error::msg)>;
+		using FileReader_t = mpp::SimpleStrReader<BUFFER, sizeof(Error{}.file)>;
+		using MsgReader_t = mpp::SimpleStrReader<BUFFER, sizeof(Error{}.msg)>;
 		using FieldsReader_t = ErrorFieldsReader<BUFFER>;
 		//TODO: handle "access denied" and custom errors
 		switch (key) {
@@ -364,7 +364,7 @@ struct BodyKeyReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_UINT> {
 
 	void Value(const iterator_t<BUFFER>& itr, mpp::compact::Type, uint64_t key)
 	{
-		using Str_t = mpp::SimpleStrReader<BUFFER, sizeof(Error::msg)>;
+		using Str_t = mpp::SimpleStrReader<BUFFER, sizeof(Error{}.msg)>;
 		using Err_t = ErrorReader<BUFFER>;
 		using Data_t = DataReader<BUFFER>;
 		switch (key) {

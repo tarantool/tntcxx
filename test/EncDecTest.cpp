@@ -150,11 +150,11 @@ struct MapKeyReader : mpp::SimpleReaderBase<Buffer_t, mpp::MP_UINT> {
 	{
 		using map_t = TestMapStruct;
 		using Boo_t = mpp::SimpleReader<Buffer_t, mpp::MP_BOOL, bool>;
-		using Str_t = mpp::SimpleStrReader<Buffer_t, sizeof(map_t::str)>;
+		using Str_t = mpp::SimpleStrReader<Buffer_t, sizeof(map_t{}.str)>;
 		using Arr_t = mpp::SimpleArrReader
 			<mpp::Dec<Buffer_t>,
 			Buffer_t,
-			sizeof(map_t::arr) / sizeof(map_t::arr[0]),
+			sizeof(map_t{}.arr) / sizeof(map_t{}.arr[0]),
 			mpp::MP_UINT,
 			int
 			>;
