@@ -7,6 +7,7 @@ IF(NOT CMAKE_BUILD_TYPE)
 ENDIF()
 
 MESSAGE(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
+FIND_PACKAGE (benchmark QUIET)
 
 SET(CMAKE_CXX_STANDARD 17)
 SET(CMAKE_C_STANDARD 11)
@@ -28,6 +29,11 @@ ADD_EXECUTABLE(Client.test src/Client/Connector.hpp test/ClientTest.cpp)
 ADD_EXECUTABLE(ClientPerfTest.test src/Client/Connector.hpp test/ClientPerfTest.cpp)
 TARGET_LINK_LIBRARIES(ClientPerfTest.test ev)
 TARGET_LINK_LIBRARIES(Client.test ev)
+
+IF (benchmark_FOUND)
+    ADD_EXECUTABLE(BufferGPerf.test src/Buffer/Buffer.hpp test/BufferGPerfTest.cpp)
+    TARGET_LINK_LIBRARIES (BufferGPerf.test benchmark::benchmark)
+ENDIF()
 
 ENABLE_TESTING()
 ADD_TEST(NAME MempoolUnitTest.test COMMAND MempoolUnitTest.test)
