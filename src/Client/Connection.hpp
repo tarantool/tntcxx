@@ -304,7 +304,7 @@ Connection<BUFFER, NetProvider>::getResponse(rid_t future)
 		return std::nullopt;
 	Response<BUFFER> response = entry->second;
 	m_Futures.erase(future);
-	return response;
+	return std::make_optional(std::move(response));
 }
 
 template<class BUFFER, class NetProvider>
