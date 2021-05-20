@@ -38,16 +38,17 @@ namespace mpp {
 namespace compact {
 enum Family : uint8_t {
 	MP_NIL  /* = 0x00 */,
-	MP_BOOL /* = 0x01 */,
-	MP_UINT /* = 0x02 */,
-	MP_INT  /* = 0x03 */,
-	MP_FLT  /* = 0x04 */,
-	MP_DBL  /* = 0x05 */,
-	MP_STR  /* = 0x06 */,
-	MP_BIN  /* = 0x07 */,
-	MP_ARR  /* = 0x08 */,
-	MP_MAP  /* = 0x09 */,
-	MP_EXT  /* = 0x0A */,
+	MP_IGNR  /* = 0x01 */,
+	MP_BOOL /* = 0x02 */,
+	MP_UINT /* = 0x03 */,
+	MP_INT  /* = 0x04 */,
+	MP_FLT  /* = 0x05 */,
+	MP_DBL  /* = 0x06 */,
+	MP_STR  /* = 0x07 */,
+	MP_BIN  /* = 0x08 */,
+	MP_ARR  /* = 0x09 */,
+	MP_MAP  /* = 0x0A */,
+	MP_EXT  /* = 0x0B */,
 	MP_END
 };
 } // namespace compact {
@@ -55,6 +56,7 @@ enum Family : uint8_t {
 using FamilyUnder_t = uint32_t;
 enum Family : FamilyUnder_t {
 	MP_NIL  = 1u << compact::MP_NIL,
+	MP_IGNR = 1u << compact::MP_IGNR,
 	MP_BOOL = 1u << compact::MP_BOOL,
 	MP_UINT = 1u << compact::MP_UINT,
 	MP_INT  = 1u << compact::MP_INT,
@@ -94,6 +96,7 @@ enum ReadResult_t : FamilyUnder_t {
 
 inline const char *FamilyName[] = {
 	"MP_NIL",
+	"MP_IGNR",
 	"MP_BOOL",
 	"MP_UINT",
 	"MP_INT",
@@ -108,6 +111,24 @@ inline const char *FamilyName[] = {
 	"MP_NONE"
 };
 static_assert(std::size(FamilyName) == compact::MP_END + 2, "Smth is forgotten");
+
+inline const char *FamilyHumanName[] = {
+	"nil",
+	"ignored",
+	"bool",
+	"uint",
+	"int",
+	"float",
+	"double",
+	"str",
+	"bin",
+	"arr",
+	"map",
+	"ext",
+	"bad",
+	"none"
+};
+static_assert(std::size(FamilyHumanName) == compact::MP_END + 2, "Smth is forgotten");
 
 inline const char *ReadErrorName[] = {
 	"READ_ERROR_NEED_MORE",
