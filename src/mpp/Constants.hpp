@@ -148,7 +148,7 @@ operator&(ReadResult_t a, ReadResult_t b)
 					 static_cast<TypeUnder_t>(b));
 }
 
-inline ReadResult_t
+inline constexpr ReadResult_t
 operator~(ReadResult_t a)
 {
 	return static_cast<ReadResult_t>(~static_cast<TypeUnder_t>(a));
