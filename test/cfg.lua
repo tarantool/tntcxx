@@ -1,9 +1,11 @@
 box.cfg{listen = 3301, net_msg_max=10000, readahead=163200, log_level = 7, log='tarantool.txt'}
-box.schema.user.grant('guest', 'super')
+box.schema.user.grant('guest', 'super', nil, nil, {if_not_exists=true})
 
-box.execute("DROP TABLE IF EXISTS t;")
-box.execute("CREATE TABLE t(id INT PRIMARY KEY, a TEXT, b DOUBLE);")
-box.execute("insert into t values (1, 'asd', 1.123);")
+if box.space.t then box.space.t:drop() end
+s = box.schema.space.create('T')
+s:format{{name='id',type='integer'},{name='a',type='string'},{name='b',type='number'}}
+s:create_index('primary')
+s:replace{1, 'asd', 1.123}
 
 function remote_replace(arg1, arg2, arg3)
     return box.space.T:replace({arg1, arg2, arg3})
