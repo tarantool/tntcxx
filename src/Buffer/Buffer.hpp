@@ -103,10 +103,9 @@ private:
 		}
 	};
 
-	Block *newBlock(List<Block>& addToList);
+	Block *newBlock(size_t block_id);
+	Block *newBlock() { return newBlock(m_blocks.last().id + 1); }
 	void delBlock(Block *b);
-	Block *delBlockAndPrev(Block *b);
-	Block *delBlockAndNext(Block *b);
 	/** Check whether two pointers point to the same block. */
 	bool isSameBlock(const char *ptr1, const char *ptr2);
 	/** Count number of bytes are in block starting from byte @a ptr. */
@@ -117,15 +116,6 @@ private:
 	 * */
 	bool isEndOfBlock(const char *ptr);
 
-	/**
-	 * Allocate a number of blocks to fit required size. This structure is
-	 * used to RAII idiom to keep several blocks allocation consistent.
-	 */
-	struct Blocks : public List<Block> {
-		Blocks(Buffer &buf) : m_parent(buf) { }
-		~Blocks();
-		Buffer &m_parent;
-	};
 public:
 	/** =============== Iterator definition =============== */
 	// Dummy class to be a base of light_iterator.
@@ -216,6 +206,30 @@ public:
 	void dropFront(size_t size);
 
 	/**
+	 * Get and set current end of the buffer.
+	 */
+	char* getEnd() noexcept;
+	void setEnd(char *) noexcept;
+
+	/**
+	 * Guard that get stores current end and restores it on destruction
+	 * unless disarmed.
+	 */
+	struct EndGuard {
+		EndGuard(Buffer &buf) noexcept : m_buffer(buf), m_end(buf.getEnd()) {}
+		~EndGuard() noexcept;
+		EndGuard(const EndGuard&) = delete;
+		EndGuard& operator=(const EndGuard&) = delete;
+		void arm(bool armed = true) noexcept { m_disarmed = !armed; }
+		void disarm(bool disarmed = true) noexcept { m_disarmed = disarmed; }
+	private:
+		bool m_disarmed = false;
+		Buffer &m_buffer;
+		char *m_end;
+	};
+	EndGuard endGuard() { return EndGuard{*this}; }
+
+	/**
 	 * Insert free space of size @a size at the position @a itr pointing to.
 	 * Move other iterators and reallocate space on demand. @a size must
 	 * be less than block size.
@@ -303,8 +317,6 @@ private:
 	class List<Block> m_blocks;
 	/** List of all data iterators created via @a begin method. */
 	class List<iterator> m_iterators;
-	/** Id generator for the next create block. */
-	size_t m_blockId;
 	/**
 	 * Offset of the data in the first block. Data may start not from
 	 * the beginning of the block due to ::dropFront invocation.
@@ -325,12 +337,12 @@ private:
 
 template <size_t N, class allocator>
 typename Buffer<N, allocator>::Block *
-Buffer<N, allocator>::newBlock(List<Block>& addToList)
+Buffer<N, allocator>::newBlock(size_t block_id)
 {
 	char *ptr = m_all.allocate();
 	assert(ptr != nullptr);
 	assert((uintptr_t(ptr) + m_all.REAL_SIZE) % N == 0);
-	return ::new(ptr) Block(addToList, m_blockId++);
+	return ::new(ptr) Block(m_blocks, block_id);
 }
 
 template <size_t N, class allocator>
@@ -339,25 +351,6 @@ Buffer<N, allocator>::delBlock(Block *b)
 {
 	b->~Block();
 	m_all.deallocate(reinterpret_cast<char *>(b));
-}
-
-template <size_t N, class allocator>
-typename Buffer<N, allocator>::Block *
-Buffer<N, allocator>::delBlockAndPrev(Block *b)
-{
-	Block *tmp = &b->prev();
-	delBlock(b);
-	--m_blockId;
-	return tmp;
-}
-
-template <size_t N, class allocator>
-typename Buffer<N, allocator>::Block *
-Buffer<N, allocator>::delBlockAndNext(Block *b)
-{
-	Block *tmp = &b->next();
-	delBlock(b);
-	return tmp;
 }
 
 template <size_t N, class allocator>
@@ -409,15 +402,6 @@ Buffer<N, allocator>::isEndOfBlock(const char *ptr)
 	 */
 	return addr % N == 0;
  }
-
-template <size_t N, class allocator>
-Buffer<N, allocator>::Blocks::~Blocks()
-{
-	while (!this->isEmpty()) {
-		m_parent.delBlock(&this->first());
-		--m_parent.m_blockId;
-	}
-}
 
 template <size_t N, class allocator>
 template <bool LIGHT>
@@ -599,7 +583,7 @@ Buffer<N, allocator>::iterator_common<LIGHT>::moveBackward(size_t step)
 }
 
 template <size_t N, class allocator>
-Buffer<N, allocator>::Buffer(const allocator &all) : m_blockId(0), m_all(all)
+Buffer<N, allocator>::Buffer(const allocator &all) : m_all(all)
 {
 	static_assert((N & (N - 1)) == 0, "N must be power of 2");
 	static_assert(allocator::REAL_SIZE % alignof(Block) == 0,
@@ -610,7 +594,7 @@ Buffer<N, allocator>::Buffer(const allocator &all) : m_blockId(0), m_all(all)
 	static_assert(Block::DATA_OFFSET + Block::DATA_SIZE == N,
 		      "DATA_OFFSET must be offset of data");
 
-	Block *b = newBlock(m_blocks);
+	Block *b = newBlock(0);
 	m_begin = m_end = b->data;
 }
 
@@ -618,9 +602,8 @@ template <size_t N, class allocator>
 Buffer<N, allocator>::~Buffer()
 {
 	/* Delete blocks and release occupied memory. */
-	while (!m_blocks.isEmpty()) {
+	while (!m_blocks.isEmpty())
 		delBlock(&m_blocks.first());
-	}
 }
 
 template <size_t N, class allocator>
@@ -637,23 +620,25 @@ Buffer<N, allocator>::addBack(wrap::Data data)
 		return;
 	}
 
+	EndGuard guard(*this);
+
 	// Flipped out-of-block bit, go to the next block.
 	size_t left_in_block = leftInBlock(m_end);
 	memcpy(m_end, data.data, left_in_block);
 	data.size -= left_in_block;
 	data.data += left_in_block;
 
-	Blocks new_blocks(*this);
-	Block *b = newBlock(new_blocks);
+	m_end = newBlock()->begin();
 	while (TNT_UNLIKELY(data.size >= Block::DATA_SIZE)) {
-		memcpy(b->begin(), data.data, Block::DATA_SIZE);
+		memcpy(m_end, data.data, Block::DATA_SIZE);
 		data.size -= Block::DATA_SIZE;
 		data.data += Block::DATA_SIZE;
-		b = newBlock(new_blocks);
+		m_end = newBlock()->begin();
 	}
-	m_blocks.insert(new_blocks, true);
-	memcpy(b->begin(), data.data, data.size);
-	m_end = b->begin() + data.size;
+	memcpy(m_end, data.data, data.size);
+	m_end = m_end + data.size;
+
+	guard.disarm();
 }
 
 template <size_t N, class allocator>
@@ -669,17 +654,19 @@ Buffer<N, allocator>::addBack(wrap::Advance advance)
 		return;
 	}
 
+	EndGuard guard(*this);
+
 	// Flipped out-of-block bit, go to the next block.
 	advance.size -= leftInBlock(m_end);
 
-	Blocks new_blocks(*this);
-	Block *b = newBlock(new_blocks);
+	m_end = newBlock()->begin();
 	while (TNT_UNLIKELY(advance.size >= Block::DATA_SIZE)) {
 		advance.size -= Block::DATA_SIZE;
-		b = newBlock(new_blocks);
+		m_end = newBlock()->begin();
 	}
-	m_blocks.insert(new_blocks, true);
-	m_end = b->begin() + advance.size;
+	m_end = m_end + advance.size;
+
+	guard.disarm();
 }
 
 template <size_t N, class allocator>
@@ -695,13 +682,13 @@ Buffer<N, allocator>::addBack(const T& t)
 		if (TNT_UNLIKELY(isEndOfBlock(m_end))) {
 			// Went out of block, have to go to the next.
 			--m_end; // Set back for the case of exception.
-			m_end = newBlock(m_blocks)->begin();
+			m_end = newBlock()->begin();
 		}
 	} else {
 		char *new_end = m_end + sizeof(T);
 		if (TNT_UNLIKELY(!isSameBlock(m_end, new_end))) {
 			// Flipped out-of-block bit, go to the next block.
-			Block *b = newBlock(m_blocks);
+			Block *b = newBlock();
 			size_t part1 = leftInBlock(m_end);
 			size_t part2 = sizeof(T) - part1;
 			char data[sizeof(T)];
@@ -729,7 +716,7 @@ Buffer<N, allocator>::addBack(CStr<C...>)
 		if (TNT_UNLIKELY(isEndOfBlock(m_end))) {
 			// Went out of block, have to go to the next.
 			--m_end; // Set back for the case of exception.
-			m_end = newBlock(m_blocks)->begin();
+			m_end = newBlock()->begin();
 		}
 	} else {
 		if (TNT_LIKELY(leftInBlock(m_end) > CStr<C...>::rnd_size)) {
@@ -754,7 +741,8 @@ Buffer<N, allocator>::dropBack(size_t size)
 	/* Do not delete the block if it is empty after drop. */
 	while (TNT_UNLIKELY(size > left_in_block)) {
 		assert(!m_blocks.isEmpty());
-		block = delBlockAndPrev(block);
+		delBlock(block);
+		block = &m_blocks.last();
 
 		/*
 		 * Make sure there's no iterators pointing to the block
@@ -801,7 +789,8 @@ Buffer<N, allocator>::dropFront(size_t size)
 			assert(m_iterators.first().getBlock() != block);
 		}
 #endif
-		block = delBlockAndNext(block);
+		delBlock(block);
+		block = &m_blocks.first();
 		m_begin = block->begin();
 		size -= left_in_block;
 		left_in_block = Block::DATA_SIZE;
@@ -815,6 +804,35 @@ Buffer<N, allocator>::dropFront(size_t size)
 		assert(m_begin <= m_end);
 #endif
 }
+
+template <size_t N, class allocator>
+char *
+Buffer<N, allocator>::getEnd() noexcept
+{
+	return m_end;
+}
+
+template <size_t N, class allocator>
+void
+Buffer<N, allocator>::setEnd(char *ptr) noexcept
+{
+	while (TNT_UNLIKELY(!isSameBlock(m_end, ptr))) {
+		while (!m_iterators.empty() &&
+		       isSameBlock(m_end, m_iterators.last().m_position))
+			m_iterators.last().remove();
+		delBlock(&m_blocks.last());
+		m_end = m_blocks.last().begin();
+	}
+	m_end = ptr;
+}
+
+template <size_t N, class allocator>
+Buffer<N, allocator>::EndGuard::~EndGuard() noexcept
+{
+	if (TNT_UNLIKELY(!m_disarmed))
+		m_buffer.setEnd(m_end);
+}
+
 
 template <size_t N, class allocator>
 void
@@ -1158,16 +1176,14 @@ Buffer<N, allocator>::debugSelfCheck() const
 {
 	int res = 0;
 	bool first = true;
-	size_t expectedId = m_blockId;
+	size_t prevId;
 	for (const Block& block : m_blocks) {
 		if (first)
 			first = false;
-		else if (block.id != expectedId)
+		else if (block.id != prevId + 1)
 			res |= 1;
-		expectedId = block.id + 1;
+		prevId = block.id;
 	}
-	if (expectedId != m_blockId)
-		res |= 2;
 
 	for (const iterator& itr : m_iterators) {
 		if ((uintptr_t) itr.m_position % N < Block::DATA_OFFSET)
