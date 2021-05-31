@@ -29,6 +29,7 @@ ADD_EXECUTABLE(ListUnit.test src/Utils/List.hpp test/ListUnitTest.cpp)
 ADD_EXECUTABLE(EncDecUnit.test src/mpp/mpp.hpp test/EncDecTest.cpp)
 ADD_EXECUTABLE(Client.test src/Client/Connector.hpp test/ClientTest.cpp)
 ADD_EXECUTABLE(ClientPerfTest.test src/Client/Connector.hpp test/ClientPerfTest.cpp)
+ADD_EXECUTABLE(SimpleExample examples/Simple.cpp)
 TARGET_LINK_LIBRARIES(ClientPerfTest.test ev)
 TARGET_LINK_LIBRARIES(Client.test ev)
 

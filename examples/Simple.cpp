@@ -54,7 +54,7 @@ int WAIT_TIMEOUT = 1000; //milliseconds
 
 //doclabel02-1
 using Buf_t = tnt::Buffer<16 * 1024>;
-using Net_t = DefaultNetProvider<Buf_t >;
+using Net_t = DefaultNetProvider<Buf_t, NetworkEngine>;
 //doclabel02-2
 
 //doclabel16-1
@@ -63,15 +63,14 @@ std::vector<UserTuple>
 decodeUserTuple(BUFFER &buf, Data<BUFFER> &data)
 {
 	std::vector<UserTuple> results;
-	for(auto const& t: data.tuples) {
-		assert(t.begin != std::nullopt);
-		assert(t.end != std::nullopt);
+	for(auto& t: data.tuples) {
 		UserTuple tuple;
 		mpp::Dec dec(buf);
-		dec.SetPosition(*t.begin);
+		dec.SetPosition(t.begin);
 		dec.SetReader(false, UserTupleReader<BUFFER>{dec, tuple});
 		mpp::ReadResult_t res = dec.Read();
 		assert(res == mpp::READ_SUCCESS);
+		(void) res;
 		results.push_back(tuple);
 	}
 	return results;
@@ -91,7 +90,7 @@ printResponse(Connection<BUFFER, Net_t> &conn, Response<BUFFER> &response)
 			  " code=" << err.errcode << std::endl;
 	}
 	if (response.body.data != std::nullopt) {
-		Data<BUFFER> data = *response.body.data;
+		Data<BUFFER>& data = *response.body.data;
 		if (data.tuples.empty()) {
 			std::cout << "Empty result" << std::endl;
 			return;
@@ -233,8 +232,10 @@ main()
 	Connection<Buf_t, Net_t> *first = client.waitAny(WAIT_TIMEOUT);
 	if (first == &conn) {
 		assert(conn.futureIsReady(f1));
+		(void) f1;
 	} else {
 		assert(another.futureIsReady(f2));
+		(void) f2;
 	}
 	//doclabel11-4
 	/* Finally, user is responsible for closing connections. */

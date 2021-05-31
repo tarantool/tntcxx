@@ -99,6 +99,7 @@ struct UserTupleReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_ARR> {
 	void Value(const iterator_t<BUFFER>&, mpp::compact::Type, mpp::ArrValue u)
 	{
 		assert(u.size == 3);
+		(void) u;
 		dec.SetReader(false, UserTupleValueReader{tuple});
 	}
 	mpp::Dec<BUFFER>& dec;

@@ -8,5 +8,4 @@ SET(CMAKE_CXX_STANDARD 17)
 SET(CMAKE_C_STANDARD 17)
 ADD_COMPILE_OPTIONS(-Wall -Wextra -Werror)
 
-INCLUDE_DIRECTORIES(./../src)
-ADD_EXECUTABLE(Simple ../src/Client/Connector.hpp Simple.cpp)
+ADD_EXECUTABLE(Simple Simple.cpp)
