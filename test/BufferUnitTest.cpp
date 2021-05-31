@@ -144,6 +144,44 @@ buffer_basic()
 	buf.dropFront(sizeof(struct_sample));
 	fail_unless(buf.empty());
 	fail_if(buf.debugSelfCheck());
+
+	// Check dropFront in boundary case
+	for (size_t i = 1; i < N; i++) {
+		tnt::Buffer<N> buf2;
+		char c = '!';
+		for (size_t j = 0; j < i; j++) // Add i bytes.
+			buf2.addBack(c);
+		buf2.dropFront(i);
+		fail_unless(buf2.empty());
+	}
+
+	for (size_t i = 1; i < N; i++) {
+		tnt::Buffer<N> buf2;
+		char c = '!';
+		for (size_t j = 0; j <= i; j++) // Add i+1 bytes (notice '<=').
+			buf2.addBack(c);
+		buf2.dropFront(i);
+		fail_unless(*buf2.begin() == c);
+	}
+
+	// Check dropBack in boundary case
+	for (size_t i = 1; i < N; i++) {
+		tnt::Buffer<N> buf2;
+		char c = '!';
+		for (size_t j = 0; j < i; j++) // Add i bytes.
+			buf2.addBack(c);
+		buf2.dropBack(i);
+		fail_unless(buf2.empty());
+	}
+
+	for (size_t i = 1; i < N; i++) {
+		tnt::Buffer<N> buf2;
+		char c = '!';
+		for (size_t j = 0; j <= i; j++) // Add i+1 bytes (notice '<=').
+			buf2.addBack(c);
+		buf2.dropBack(i);
+		fail_unless(*buf2.begin() == c);
+	}
 }
 
 template<size_t N>

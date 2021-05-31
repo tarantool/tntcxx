@@ -683,7 +683,7 @@ Buffer<N, allocator>::dropFront(size_t size)
 	Block *block = firstBlock();
 	size_t left_in_block = block->end() - m_begin;
 
-	while (size > left_in_block) {
+	while (size >= left_in_block) {
 #ifndef NDEBUG
 		/*
 		 * Make sure block to be dropped does not have pointing to it
@@ -701,7 +701,7 @@ Buffer<N, allocator>::dropFront(size_t size)
 	}
 	m_begin += size;
 #ifndef NDEBUG
-	assert(m_begin <= block->end());
+	assert(m_begin < block->end());
 	iterator *iter = rlist_last_entry(&m_iterators, iterator, in_iters);
 	if (iter->m_block == block)
 		assert(iter->m_position >= m_begin);
@@ -799,7 +799,7 @@ Buffer<N, allocator>::release(const iterator &itr, size_t size)
 	char *dst = itr.m_position;
 	/* Locate the block to start copying with. */
 	size_t step = size;
-	assert(src_block->end() >= src);
+	assert(src_block->end() > src);
 	while (step >= (size_t)(src_block->end() - src)) {
 		step -= src_block->end() - src;
 		src_block = src_block->next();
