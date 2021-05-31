@@ -58,7 +58,7 @@ launchTarantool()
 				"just before prctl call");
 		exit(EXIT_FAILURE);
 	}
-	if (execlp("tarantool", "tarantool", "test/cfg.lua", NULL) == -1) {
+	if (execlp("tarantool", "tarantool", "test_cfg.lua", NULL) == -1) {
 		fprintf(stderr, "Can't launch Tarantool: execlp failed! %s\n",
 			strerror(errno));
 	}
