@@ -1,6 +1,5 @@
-#pragma once
 /*
- * Copyright 2010-2021, Tarantool AUTHORS, please see AUTHORS file.
+ * Copyright 2010-2021 Tarantool AUTHORS: please see AUTHORS file.
  *
  * Redistribution and use in source and binary forms, with or
  * without modification, are permitted provided that the following
@@ -15,11 +14,11 @@
  *    disclaimer in the documentation and/or other materials
  *    provided with the distribution.
  *
- * THIS SOFTWARE IS PROVIDED BY <COPYRIGHT HOLDER> ``AS IS'' AND
+ * THIS SOFTWARE IS PROVIDED BY AUTHORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
  * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
  * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL
- * <COPYRIGHT HOLDER> OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+ * AUTHORS OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
  * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
  * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
  * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
@@ -30,13 +29,9 @@
  * SUCH DAMAGE.
  */
 
-#include <cassert>
+#include "../src/Utils/Common.hpp"
+#include "Utils/Helpers.hpp"
 
-namespace tnt {
-
-/**
- * Standard unreachable.
- */
-[[noreturn]] inline void unreachable() { assert(false); __builtin_unreachable(); }
-
-} // namespace mpp {
+int main()
+{
+}

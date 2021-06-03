@@ -33,6 +33,73 @@
 
 #include "Utils/Helpers.hpp"
 
+// Test mpp::under_uint_t and mpp::under_int_t
+void
+test_under_ints()
+{
+	TEST_INIT(0);
+
+	static_assert(std::is_unsigned_v<mpp::under_uint_t<int8_t>>);
+	static_assert(std::is_unsigned_v<mpp::under_uint_t<int16_t>>);
+	static_assert(std::is_unsigned_v<mpp::under_uint_t<int32_t>>);
+	static_assert(std::is_unsigned_v<mpp::under_uint_t<int64_t>>);
+
+	static_assert(std::is_signed_v<mpp::under_int_t<uint8_t>>);
+	static_assert(std::is_signed_v<mpp::under_int_t<uint16_t>>);
+	static_assert(std::is_signed_v<mpp::under_int_t<uint32_t>>);
+	static_assert(std::is_signed_v<mpp::under_int_t<uint64_t>>);
+
+	static_assert(sizeof(mpp::under_uint_t<int8_t>) == 1);
+	static_assert(sizeof(mpp::under_uint_t<int16_t>) == 2);
+	static_assert(sizeof(mpp::under_uint_t<int32_t>) == 4);
+	static_assert(sizeof(mpp::under_uint_t<int64_t>) == 8);
+
+	static_assert(sizeof(mpp::under_int_t<uint8_t>) == 1);
+	static_assert(sizeof(mpp::under_int_t<uint16_t>) == 2);
+	static_assert(sizeof(mpp::under_int_t<uint32_t>) == 4);
+	static_assert(sizeof(mpp::under_int_t<uint64_t>) == 8);
+}
+
+// Test bswap
+void
+test_bswap()
+{
+	auto bswap_naive = [](auto x) -> decltype(x)
+	{
+		static_assert(std::is_integral_v<decltype(x)>);
+		static_assert(std::is_unsigned_v<decltype(x)>);
+		auto res = x;
+		if constexpr (sizeof(x) == 1) {
+			return res;
+		} else {
+			for (size_t i = 0; i < sizeof(x); i++) {
+				res <<= 8;
+				res |= x & 0xFF;
+				x >>= 8;
+			}
+		}
+		return res;
+	};
+
+	uint64_t full = 0x1234567890123456ull;
+	{
+		auto x = (uint8_t) full;
+		fail_unless(bswap_naive(x) == mpp::bswap(x));
+	}
+	{
+		auto x = (uint16_t) full;
+		fail_unless(bswap_naive(x) == mpp::bswap(x));
+	}
+	{
+		auto x = (uint32_t) full;
+		fail_unless(bswap_naive(x) == mpp::bswap(x));
+	}
+	{
+		auto x = (uint64_t) full;
+		fail_unless(bswap_naive(x) == mpp::bswap(x));
+	}
+}
+
 template <bool expect_c_string, class T>
 void
 test_static_assert_strings(const T&)
@@ -42,7 +109,7 @@ test_static_assert_strings(const T&)
 }
 
 void
-test_static_assert()
+test_string_traits()
 {
 	TEST_INIT(0);
 	std::string str;
@@ -332,7 +399,9 @@ test_basic()
 
 int main()
 {
-	test_static_assert();
+	test_under_ints();
+	test_bswap();
+	test_string_traits();
 	test_type_visual();
 	test_basic();
 }

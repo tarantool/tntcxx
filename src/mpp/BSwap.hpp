@@ -35,6 +35,9 @@
 
 namespace mpp {
 
+/**
+ * Getter of unsigned integer type with the size as given type.
+ */
 template <class T, class _ = void>
 struct under_uint {  };
 
@@ -50,6 +53,9 @@ struct under_uint<T, std::enable_if_t<sizeof(T) == 8, void>> { using type = uint
 template <class T>
 using under_uint_t = typename under_uint<T>::type;
 
+/**
+ * Getter of signed integer type with the size as given type.
+ */
 template <class T, class _ = void>
 struct under_int {  };
 
@@ -65,6 +71,9 @@ struct under_int<T, std::enable_if_t<sizeof(T) == 8, void>> { using type = int64
 template <class T>
 using under_int_t = typename under_int<T>::type;
 
+/**
+ * bswap overloads.
+ */
 inline uint8_t  bswap(uint8_t x)  { return x; }
 inline uint16_t bswap(uint16_t x) { return __builtin_bswap16(x); }
 inline uint32_t bswap(uint32_t x) { return __builtin_bswap32(x); }
