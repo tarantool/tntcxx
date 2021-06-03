@@ -32,44 +32,25 @@
 
 #include <cstdint>
 #include <type_traits>
+#include "../Utils/Common.hpp"
 
 namespace mpp {
 
 /**
  * Getter of unsigned integer type with the size as given type.
  */
-template <class T, class _ = void>
-struct under_uint {  };
-
 template <class T>
-struct under_uint<T, std::enable_if_t<sizeof(T) == 1, void>> { using type = uint8_t; };
-template <class T>
-struct under_uint<T, std::enable_if_t<sizeof(T) == 2, void>> { using type = uint16_t; };
-template <class T>
-struct under_uint<T, std::enable_if_t<sizeof(T) == 4, void>> { using type = uint32_t; };
-template <class T>
-struct under_uint<T, std::enable_if_t<sizeof(T) == 8, void>> { using type = uint64_t; };
-
-template <class T>
-using under_uint_t = typename under_uint<T>::type;
+using under_uint_t = std::tuple_element_t<
+	tnt::tuple_find_size_v<sizeof(T), tnt::uint_types>,
+	tnt::uint_types>;
 
 /**
  * Getter of signed integer type with the size as given type.
  */
-template <class T, class _ = void>
-struct under_int {  };
-
 template <class T>
-struct under_int<T, std::enable_if_t<sizeof(T) == 1, void>> { using type = int8_t; };
-template <class T>
-struct under_int<T, std::enable_if_t<sizeof(T) == 2, void>> { using type = int16_t; };
-template <class T>
-struct under_int<T, std::enable_if_t<sizeof(T) == 4, void>> { using type = int32_t; };
-template <class T>
-struct under_int<T, std::enable_if_t<sizeof(T) == 8, void>> { using type = int64_t; };
-
-template <class T>
-using under_int_t = typename under_int<T>::type;
+using under_int_t = std::tuple_element_t<
+	tnt::tuple_find_size_v<sizeof(T), tnt::int_types>,
+	tnt::int_types>;
 
 /**
  * bswap overloads.
