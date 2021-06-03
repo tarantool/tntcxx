@@ -61,6 +61,24 @@ struct CStr {
 };
 
 /**
+ * Convenient alias, similar to integral_constant.
+ */
+template <char... C>
+using string_constant = CStr<C...>;
+
+/**
+ * Traits to detect CStr (or string_constant).
+ */
+namespace details {
+template <class T> struct is_string_constant_h : std::false_type {};
+template <char... C> struct is_string_constant_h<CStr<C...>> : std::true_type {};
+} // namespace details {
+
+template <class T>
+constexpr bool is_string_constant_v =
+	details::is_string_constant_h<std::remove_cv_t<T>>::value;
+
+/**
  * Macro for CStr definition.
  * If you don't like it, disable it by defining TNT_DISABLE_STR_MACRO.
  * Now does not accept string more that 64 symbols (static assert).

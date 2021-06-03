@@ -112,6 +112,32 @@ test_liter_str()
 }
 #endif
 
+void
+test_traits()
+{
+	enum E { V = 1 };
+	using Str1_t = tnt::CStr<'a', 'b'>;
+	using Str2_t = tnt::string_constant<'a', 'b'>;
+
+	static_assert(std::is_same_v<Str1_t, Str2_t>);
+	static_assert(tnt::is_string_constant_v<Str1_t>);
+	static_assert(tnt::is_string_constant_v<const Str2_t>);
+	static_assert(tnt::is_string_constant_v<decltype(Str2_t{})>);
+	static_assert(!tnt::is_string_constant_v<decltype("aa")>);
+	static_assert(!tnt::is_string_constant_v<E>);
+	static_assert(!tnt::is_string_constant_v<int>);
+	static_assert(!tnt::is_string_constant_v<bool>);
+	static_assert(!tnt::is_string_constant_v<const char *>);
+
+#ifndef TNT_DISABLE_STR_MACRO
+	static_assert(tnt::is_string_constant_v<decltype(TNT_CON_STR("cba"))>);
+#endif // #ifndef TNT_DISABLE_STR_MACRO
+#ifndef TNT_DISABLE_STR_LITERAL
+	using namespace tnt::literal;
+	static_assert(tnt::is_string_constant_v<decltype("abc"_cs)>);
+#endif // #ifndef TNT_DISABLE_STR_LITERAL
+}
+
 int main()
 {
 #ifndef TNT_DISABLE_STR_MACRO
@@ -120,4 +146,5 @@ int main()
 #ifndef TNT_DISABLE_STR_LITERAL
 	test_liter_str();
 #endif // #ifndef TNT_DISABLE_STR_LITERAL
+	test_traits();
 }
