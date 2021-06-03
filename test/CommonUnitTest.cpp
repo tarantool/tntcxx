@@ -32,7 +32,67 @@
 #include "../src/Utils/Common.hpp"
 #include "Utils/Helpers.hpp"
 
+void
+test_tuple_utils()
+{
+	TEST_INIT(0);
+
+	{
+		using full = std::tuple<int>;
+		using cut = tnt::tuple_cut_t<full>;
+		using expected = std::tuple<>;
+		static_assert(std::is_same_v<cut, expected>);
+		static_assert(std::is_same_v<tnt::first_t<full>, int>);
+		static_assert(std::is_same_v<tnt::last_t<full>, int>);
+	}
+	{
+		using full = std::tuple<int, float>;
+		using cut = tnt::tuple_cut_t<full>;
+		using expected = std::tuple<float>;
+		static_assert(std::is_same_v<cut, expected>);
+		static_assert(std::is_same_v<tnt::first_t<full>, int>);
+		static_assert(std::is_same_v<tnt::last_t<full>, float>);
+	}
+	{
+		using full = std::tuple<int, float, double>;
+		using cut = tnt::tuple_cut_t<full>;
+		using expected = std::tuple<float, double>;
+		static_assert(std::is_same_v<cut, expected>);
+		static_assert(std::is_same_v<tnt::first_t<full>, int>);
+		static_assert(std::is_same_v<tnt::last_t<full>, double>);
+	}
+
+	{
+		using T = std::tuple<char, uint64_t, uint32_t>;
+		static_assert(tnt::tuple_find_v<char, T> == 0);
+		static_assert(tnt::tuple_find_v<uint64_t, T> == 1);
+		static_assert(tnt::tuple_find_v<uint32_t, T> == 2);
+		static_assert(tnt::tuple_find_v<float, T> == 3);
+	}
+
+	{
+		using T = std::tuple<char, uint64_t>;
+		static_assert(tnt::tuple_find_size_v<1, T> == 0);
+		static_assert(tnt::tuple_find_size_v<8, T> == 1);
+	}
+	{
+		using T = std::tuple<char, uint64_t>;
+		static_assert(tnt::tuple_find_size_v<1, T> == 0);
+		static_assert(tnt::tuple_find_size_v<8, T> == 1);
+		static_assert(tnt::tuple_find_size_v<4, T> == 2);
+		static_assert(tnt::tuple_find_size_v<7, T> == 2);
+	}
+	{
+		using T = std::tuple<char, uint64_t, uint32_t>;
+		static_assert(tnt::tuple_find_size_v<1, T> == 0);
+		static_assert(tnt::tuple_find_size_v<8, T> == 1);
+		static_assert(tnt::tuple_find_size_v<4, T> == 2);
+		static_assert(tnt::tuple_find_size_v<7, T> == 3);
+	}
+}
+
 int main()
 {
 	static_assert(tnt::always_false_v<double> == false);
+	test_tuple_utils();
 }
