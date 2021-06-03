@@ -1,6 +1,6 @@
 #pragma once
 /*
- * Copyright 2010-2020, Tarantool AUTHORS, please see AUTHORS file.
+ * Copyright 2010-2021 Tarantool AUTHORS: please see AUTHORS file.
  *
  * Redistribution and use in source and binary forms, with or
  * without modification, are permitted provided that the following
@@ -15,11 +15,11 @@
  *    disclaimer in the documentation and/or other materials
  *    provided with the distribution.
  *
- * THIS SOFTWARE IS PROVIDED BY <COPYRIGHT HOLDER> ``AS IS'' AND
+ * THIS SOFTWARE IS PROVIDED BY AUTHORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
  * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
  * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL
- * <COPYRIGHT HOLDER> OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+ * AUTHORS OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
  * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
  * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
  * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
@@ -30,9 +30,8 @@
  * SUCH DAMAGE.
  */
 
-#include <cassert>
 #include <cstdint>
-#include <cstring>
+#include <type_traits>
 
 namespace mpp {
 
@@ -70,8 +69,5 @@ inline uint8_t  bswap(uint8_t x)  { return x; }
 inline uint16_t bswap(uint16_t x) { return __builtin_bswap16(x); }
 inline uint32_t bswap(uint32_t x) { return __builtin_bswap32(x); }
 inline uint64_t bswap(uint64_t x) { return __builtin_bswap64(x); }
-
-
-[[noreturn]] inline void unreachable() { assert(false); __builtin_unreachable(); }
 
 } // namespace mpp {

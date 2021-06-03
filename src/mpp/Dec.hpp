@@ -778,7 +778,7 @@ Dec<BUFFER>::SkipCommon()
 			value = bswap(m_Buf.template get<uint32_t>(m_Cur + 1));
 			break;
 		default:
-			unreachable();
+			tnt::unreachable();
 	}
 	size_t obj_size = info.header_size + value * info.read_value_str_like;
 	if (!m_Buf.has(m_Cur, obj_size)) {

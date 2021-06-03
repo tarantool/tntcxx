@@ -31,14 +31,16 @@
  */
 
 #include <cstdint>
+#include <cstring>
 #include <iterator>
 #include <tuple>
 #include <variant>
 
-#include "Common.hpp"
+#include "BSwap.hpp"
 #include "Constants.hpp"
 #include "Types.hpp"
 #include "Traits.hpp"
+#include "../Utils/Common.hpp"
 
 //TODO : add std::variant
 //TODO : add time_t?
