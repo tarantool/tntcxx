@@ -81,6 +81,8 @@ test_bswap()
 		return res;
 	};
 
+	enum E { V = 0x12345678u };
+
 	uint64_t full = 0x1234567890123456ull;
 	{
 		auto x = (uint8_t) full;
@@ -97,6 +99,57 @@ test_bswap()
 	{
 		auto x = (uint64_t) full;
 		fail_unless(bswap_naive(x) == mpp::bswap(x));
+	}
+
+	{
+		auto x = (int8_t) full;
+		using under_t = uint8_t;
+		static_assert(std::is_same_v<under_t, decltype(mpp::bswap(x))>);
+		fail_unless(bswap_naive((under_t) x) == mpp::bswap(x));
+	}
+	{
+		auto x = (int16_t) full;
+		using under_t = uint16_t;
+		static_assert(std::is_same_v<under_t, decltype(mpp::bswap(x))>);
+		fail_unless(bswap_naive((under_t) x) == mpp::bswap(x));
+	}
+	{
+		auto x = (int32_t) full;
+		using under_t = uint32_t;
+		static_assert(std::is_same_v<under_t, decltype(mpp::bswap(x))>);
+		fail_unless(bswap_naive((under_t) x) == mpp::bswap(x));
+	}
+	{
+		auto x = (int64_t) full;
+		using under_t = uint64_t;
+		static_assert(std::is_same_v<under_t, decltype(mpp::bswap(x))>);
+		fail_unless(bswap_naive((under_t) x) == mpp::bswap(x));
+	}
+	{
+		float x = 3.1415927;
+		using under_t = uint32_t;
+		static_assert(std::is_same_v<under_t, decltype(mpp::bswap(x))>);
+		under_t y;
+		memcpy(&y, &x, sizeof(x));
+		fail_unless(bswap_naive(y) == mpp::bswap(x));
+		fail_unless(x == mpp::bswap<float>(mpp::bswap(x)));
+	}
+	{
+		double x = 3.1415927;
+		using under_t = uint64_t;
+		static_assert(std::is_same_v<under_t, decltype(mpp::bswap(x))>);
+		under_t y;
+		memcpy(&y, &x, sizeof(x));
+		fail_unless(bswap_naive(y) == mpp::bswap(x));
+		fail_unless(x == mpp::bswap<double>(mpp::bswap(x)));
+	}
+	{
+		auto x = V;
+		using under_t = mpp::under_uint_t<E>;
+		under_t y;
+		memcpy(&y, &x, sizeof(x));
+		fail_unless(bswap_naive(y) == mpp::bswap(x));
+		fail_unless(x == mpp::bswap<E>(mpp::bswap(x)));
 	}
 }
 
