@@ -30,9 +30,20 @@
  * SUCH DAMAGE.
  */
 
+/**
+ * Several generic utilities. Short list (see full description below):
+ * always_false_v<T>
+ * unreachable()
+ */
+
 #include <cassert>
 
 namespace tnt {
+/**
+ * Delayer of static_assert evaluation.
+ */
+template <class>
+constexpr bool always_false_v = false;
 
 /**
  * Standard unreachable.

@@ -34,4 +34,5 @@
 
 int main()
 {
+	static_assert(tnt::always_false_v<double> == false);
 }
