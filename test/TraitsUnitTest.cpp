@@ -175,8 +175,167 @@ test_c_traits()
 	static_assert(!tnt::is_char_ptr_v<Test>);
 }
 
+struct MyConstant {
+	using value_type = int;
+	static constexpr value_type value = 3;
+};
+
+struct MyNotConstant1 {
+	static constexpr int value = 3;
+};
+
+struct MyNotConstant2 {
+	using value_type = int;
+};
+
+struct MyNotConstant3 {
+	using value_type = short;
+	static constexpr int value = 3;
+};
+
+struct MyNotConstant4 {
+	using value_type = int;
+	static value_type value;
+};
+
+struct MyNotConstant5 {
+	using value_type = int;
+	const value_type value = 3;
+};
+
+struct MyNotConstant6 {
+	using value_type = int;
+	value_type value() { return 3; }
+};
+
+void
+test_integral_constant_traits()
+{
+	enum E { V = 1 };
+	struct Test { int i; };
+	using const_int = std::integral_constant<int, 0>;
+	using const_enum = std::integral_constant<E, V>;
+	using const_bool = std::integral_constant<bool, false>;
+	using const_ptr = std::integral_constant<int Test::*, &Test::i>;
+
+	static_assert(tnt::is_integral_constant_v<const_int>);
+	static_assert(tnt::is_integral_constant_v<const const_int>);
+	static_assert(tnt::is_integral_constant_v<const_enum>);
+	static_assert(tnt::is_integral_constant_v<const const_enum>);
+	static_assert(tnt::is_integral_constant_v<const_bool>);
+	static_assert(tnt::is_integral_constant_v<const const_bool>);
+	static_assert(tnt::is_integral_constant_v<const_int>);
+	static_assert(tnt::is_integral_constant_v<const_ptr>);
+	static_assert(tnt::is_integral_constant_v<const const_ptr>);
+	static_assert(!tnt::is_integral_constant_v<const_int&>);
+	static_assert(!tnt::is_integral_constant_v<int>);
+	static_assert(!tnt::is_integral_constant_v<const int>);
+	static_assert(!tnt::is_integral_constant_v<float>);
+	static_assert(!tnt::is_integral_constant_v<Test>);
+
+	static_assert(tnt::is_integral_constant_v<MyConstant>);
+	static_assert(tnt::is_integral_constant_v<const MyConstant>);
+	static_assert(!tnt::is_integral_constant_v<MyNotConstant1>);
+	static_assert(!tnt::is_integral_constant_v<MyNotConstant2>);
+	static_assert(!tnt::is_integral_constant_v<MyNotConstant3>);
+	static_assert(!tnt::is_integral_constant_v<MyNotConstant4>);
+	static_assert(!tnt::is_integral_constant_v<MyNotConstant5>);
+	static_assert(!tnt::is_integral_constant_v<MyNotConstant6>);
+
+	static_assert(std::is_same_v<int, tnt::uni_integral_base_t<int>>);
+	static_assert(std::is_same_v<const int, tnt::uni_integral_base_t<const int>>);
+	static_assert(std::is_same_v<E, tnt::uni_integral_base_t<E>>);
+	static_assert(std::is_same_v<const E, tnt::uni_integral_base_t<const E>>);
+	static_assert(std::is_same_v<bool, tnt::uni_integral_base_t<bool>>);
+	static_assert(std::is_same_v<const bool, tnt::uni_integral_base_t<const bool>>);
+	static_assert(std::is_same_v<const int, tnt::uni_integral_base_t<const_int>>);
+	static_assert(std::is_same_v<const int, tnt::uni_integral_base_t<const const_int>>);
+	static_assert(std::is_same_v<const E, tnt::uni_integral_base_t<const_enum>>);
+	static_assert(std::is_same_v<const E, tnt::uni_integral_base_t<const const_enum>>);
+	static_assert(std::is_same_v<const bool, tnt::uni_integral_base_t<const_bool>>);
+	static_assert(std::is_same_v<const bool, tnt::uni_integral_base_t<const const_bool>>);
+	static_assert(std::is_same_v<Test, tnt::uni_integral_base_t<Test>>);
+	static_assert(std::is_same_v<const Test, tnt::uni_integral_base_t<const Test>>);
+	static_assert(std::is_same_v<float, tnt::uni_integral_base_t<float>>);
+	static_assert(std::is_same_v<const float, tnt::uni_integral_base_t<const float>>);
+
+	static_assert(tnt::uni_value(const_int{}) == 0);
+	static_assert(tnt::uni_value(const_enum{}) == V);
+	static_assert(tnt::uni_value(const_bool{}) == false);
+	fail_unless(tnt::uni_value(1) == 1);
+	fail_unless(tnt::uni_value(V) == V);
+	fail_unless(tnt::uni_value(true) == true);
+	fail_unless(tnt::uni_value(nullptr) == nullptr);
+	fail_unless(tnt::uni_value(1.f) == 1.f);
+	fail_unless(tnt::uni_value(2.) == 2.);
+
+	static_assert(tnt::is_uni_integral_v<int>);
+	static_assert(tnt::is_uni_integral_v<const int>);
+	static_assert(!tnt::is_uni_integral_v<int&>);
+	static_assert(tnt::is_uni_integral_v<bool>);
+	static_assert(tnt::is_uni_integral_v<const bool>);
+	static_assert(!tnt::is_uni_integral_v<bool&>);
+	static_assert(!tnt::is_uni_integral_v<E>);
+	static_assert(!tnt::is_uni_integral_v<const E>);
+	static_assert(!tnt::is_uni_integral_v<E&>);
+	static_assert(tnt::is_uni_integral_v<const_int>);
+	static_assert(tnt::is_uni_integral_v<const const_int>);
+	static_assert(!tnt::is_uni_integral_v<const_int&>);
+	static_assert(!tnt::is_uni_integral_v<const_enum>);
+	static_assert(!tnt::is_uni_integral_v<const const_enum>);
+	static_assert(!tnt::is_uni_integral_v<const_enum&>);
+	static_assert(tnt::is_uni_integral_v<const_bool>);
+	static_assert(tnt::is_uni_integral_v<const const_bool>);
+	static_assert(!tnt::is_uni_integral_v<const_bool&>);
+	static_assert(!tnt::is_uni_integral_v<Test>);
+	static_assert(!tnt::is_uni_integral_v<float>);
+
+	static_assert(tnt::is_uni_integer_v<int>);
+	static_assert(tnt::is_uni_integer_v<const int>);
+	static_assert(!tnt::is_uni_integer_v<int&>);
+	static_assert(!tnt::is_uni_integer_v<bool>);
+	static_assert(!tnt::is_uni_integer_v<const bool>);
+	static_assert(!tnt::is_uni_integer_v<bool&>);
+	static_assert(tnt::is_uni_integer_v<E>);
+	static_assert(tnt::is_uni_integer_v<const E>);
+	static_assert(!tnt::is_uni_integer_v<E&>);
+	static_assert(tnt::is_uni_integer_v<const_int>);
+	static_assert(tnt::is_uni_integer_v<const const_int>);
+	static_assert(!tnt::is_uni_integer_v<const_int&>);
+	static_assert(tnt::is_uni_integer_v<const_enum>);
+	static_assert(tnt::is_uni_integer_v<const const_enum>);
+	static_assert(!tnt::is_uni_integer_v<const_enum&>);
+	static_assert(!tnt::is_uni_integer_v<const_bool>);
+	static_assert(!tnt::is_uni_integer_v<const const_bool>);
+	static_assert(!tnt::is_uni_integer_v<const_bool&>);
+	static_assert(!tnt::is_uni_integer_v<Test>);
+	static_assert(!tnt::is_uni_integer_v<float>);
+
+	static_assert(!tnt::is_uni_bool_v<int>);
+	static_assert(!tnt::is_uni_bool_v<const int>);
+	static_assert(!tnt::is_uni_bool_v<int&>);
+	static_assert(tnt::is_uni_bool_v<bool>);
+	static_assert(tnt::is_uni_bool_v<const bool>);
+	static_assert(!tnt::is_uni_bool_v<bool&>);
+	static_assert(!tnt::is_uni_bool_v<E>);
+	static_assert(!tnt::is_uni_bool_v<const E>);
+	static_assert(!tnt::is_uni_bool_v<E&>);
+	static_assert(!tnt::is_uni_bool_v<const_int>);
+	static_assert(!tnt::is_uni_bool_v<const const_int>);
+	static_assert(!tnt::is_uni_bool_v<const_int&>);
+	static_assert(!tnt::is_uni_bool_v<const_enum>);
+	static_assert(!tnt::is_uni_bool_v<const const_enum>);
+	static_assert(!tnt::is_uni_bool_v<const_enum&>);
+	static_assert(tnt::is_uni_bool_v<const_bool>);
+	static_assert(tnt::is_uni_bool_v<const const_bool>);
+	static_assert(!tnt::is_uni_bool_v<const_bool&>);
+	static_assert(!tnt::is_uni_bool_v<Test>);
+	static_assert(!tnt::is_uni_bool_v<float>);
+}
+
 int main()
 {
 	test_integer_traits();
 	test_c_traits();
+	test_integral_constant_traits();
 }

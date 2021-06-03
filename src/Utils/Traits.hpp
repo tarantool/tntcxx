@@ -40,8 +40,15 @@
  * is_unsigned_integer_v
  * is_bounded_array_v (c array)
  * is_char_ptr_v
+ * is_integral_constant_v
+ * uni_integral_base_t
+ * uni_value
+ * is_uni_integral_v
+ * is_uni_bool_v
+ * is_uni_integer_v
  */
 
+#include <cstddef>
 #include <type_traits>
 
 namespace tnt {
@@ -106,5 +113,82 @@ constexpr bool is_bounded_array_v = details::is_bounded_array_h<T>::value;
 template <class T>
 constexpr bool is_char_ptr_v = std::is_pointer_v<T> &&
 	std::is_same_v<char, std::remove_cv_t<std::remove_pointer_t<T>>>;
+
+/**
+ * Check whether the type is std::integral_constant.
+ */
+namespace details {
+template <class T, class _ = void>
+struct is_integral_constant_h : std::false_type {};
+
+template <class T>
+constexpr size_t constexpr_test_size(T t) { return t ? 1 : 2; }
+
+template <class T>
+struct is_integral_constant_h<T, std::void_t<
+	typename T::value_type,
+	decltype(T::value),
+	std::enable_if_t<!std::is_member_pointer_v<decltype(&T::value)>, void>,
+	char[T::value == static_cast<typename T::value_type>(0) ? 1 : 2],
+	char[constexpr_test_size(T::value)]>>
+: std::is_same<std::add_const_t<typename T::value_type>, decltype(T::value)> {};
+} // namespace details {
+
+template <class T>
+constexpr bool is_integral_constant_v =
+	details::is_integral_constant_h<std::remove_cv_t<T>>::value;
+
+/**
+ * Safe value_type extractor by std::integral_constant type.
+ * It is std::integral_constant::value_type if it an integral_constant,
+ * or given type itself otherwise.
+ */
+namespace details {
+template <class T, class _ = void>
+struct uni_integral_base_h { using type = T; };
+template <class T>
+struct uni_integral_base_h<T, std::enable_if_t<is_integral_constant_v<T>, void>>
+{
+	using type = std::add_const_t<typename T::value_type>;
+};
+} // namespace details {
+template <class T>
+using uni_integral_base_t = typename details::uni_integral_base_h<T>::type;
+
+/**
+ * Universal value extractor. Return static value member for
+ * std::integral_constant, or the value itself otherwise.
+ */
+template <class T>
+constexpr uni_integral_base_t<T> uni_value([[maybe_unused]] T value)
+{
+	if constexpr (is_integral_constant_v<T>)
+		return T::value;
+	else
+		return value;
+}
+
+/**
+ * Check whether the type is universal integral, that is either integral
+ * or integral_constant with integral base.
+ */
+template <class T>
+constexpr bool is_uni_integral_v = std::is_integral_v<uni_integral_base_t<T>>;
+
+/**
+ * Check whether the type is universal bool, that is either bool
+ * or integral_constant with bool base.
+ */
+template <class T>
+constexpr bool is_uni_bool_v = std::is_same_v<bool,
+	std::remove_cv_t<uni_integral_base_t<T>>>;
+
+/**
+ * Check whether the type is universal integer, that is either integer
+ * or integral_constant with integer base. See is_integer_v for
+ * integer definition.
+ */
+template <class T>
+constexpr bool is_uni_integer_v = is_integer_v<uni_integral_base_t<T>>;
 
 } // namespace tnt {
