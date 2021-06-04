@@ -38,6 +38,7 @@
  * is_integer_v
  * is_signed_integer_v
  * is_unsigned_integer_v
+ * is_bounded_array_v (c array)
  */
 
 #include <type_traits>
@@ -83,5 +84,19 @@ constexpr bool is_signed_integer_v =
 template <class T>
 constexpr bool is_unsigned_integer_v =
 	is_integer_v<T> && std::is_unsigned_v<base_enum_t<T>>;
+
+/**
+ * Check whether the type is C bounded array (with certain size), like int [10].
+ * Identical to std::is_bounded_array_v from C++20.
+ * Note that cv qualifiers for C array are passed to its elements.
+ */
+namespace details {
+template <class T>
+struct is_bounded_array_h : std::false_type {};
+template <class T, std::size_t N>
+struct is_bounded_array_h<T[N]> : std::true_type {};
+} //namespace details {
+template <class T>
+constexpr bool is_bounded_array_v = details::is_bounded_array_h<T>::value;
 
 } // namespace tnt {
