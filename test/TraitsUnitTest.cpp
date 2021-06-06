@@ -160,6 +160,19 @@ test_c_traits()
 	static_assert(!tnt::is_bounded_array_v<E>);
 	static_assert(!tnt::is_bounded_array_v<Test>);
 	static_assert(!tnt::is_bounded_array_v<const_int>);
+
+	static_assert(tnt::is_char_ptr_v<char *>);
+	static_assert(tnt::is_char_ptr_v<const volatile char *>);
+	static_assert(tnt::is_char_ptr_v<volatile char *const>);
+	static_assert(!tnt::is_char_ptr_v<signed char *>);
+	static_assert(!tnt::is_char_ptr_v<unsigned char *>);
+	static_assert(!tnt::is_char_ptr_v<char>);
+	static_assert(!tnt::is_char_ptr_v<int *>);
+	static_assert(!tnt::is_char_ptr_v<char [10]>);
+	static_assert(!tnt::is_char_ptr_v<std::array<char, 10>>);
+	static_assert(!tnt::is_char_ptr_v<int>);
+	static_assert(!tnt::is_char_ptr_v<E>);
+	static_assert(!tnt::is_char_ptr_v<Test>);
 }
 
 int main()

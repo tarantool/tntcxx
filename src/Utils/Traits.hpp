@@ -39,6 +39,7 @@
  * is_signed_integer_v
  * is_unsigned_integer_v
  * is_bounded_array_v (c array)
+ * is_char_ptr_v
  */
 
 #include <type_traits>
@@ -98,5 +99,12 @@ struct is_bounded_array_h<T[N]> : std::true_type {};
 } //namespace details {
 template <class T>
 constexpr bool is_bounded_array_v = details::is_bounded_array_h<T>::value;
+
+/**
+ * Check whether the type is (cv) pointer to (cv) char.
+ */
+template <class T>
+constexpr bool is_char_ptr_v = std::is_pointer_v<T> &&
+	std::is_same_v<char, std::remove_cv_t<std::remove_pointer_t<T>>>;
 
 } // namespace tnt {
