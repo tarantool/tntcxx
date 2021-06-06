@@ -32,6 +32,7 @@
 #include "../src/Utils/Traits.hpp"
 
 #include <array>
+#include <utility>
 
 #include "Utils/Helpers.hpp"
 
@@ -485,10 +486,111 @@ test_unversal_access()
 	fail_unless(tnt::get<float>(tc) == 3.5f);
 }
 
+struct CustomPair {
+	int first;
+	double second;
+	template <size_t I> auto& get()
+	{
+		return std::get<I>(std::tie(first, second));
+	}
+	template <size_t I> constexpr const auto& get() const
+	{
+		return std::get<I>(std::tie(first, second));
+	}
+};
+
+namespace std {
+template <>
+struct tuple_size<CustomPair> : std::integral_constant<size_t, 2> {};
+template <size_t I>
+struct tuple_element<I, CustomPair> { using type = std::tuple_element_t<I, std::tuple<int, double>>; };
+}
+
+void
+test_tuple_pair_traits()
+{
+	enum E { V = 1 };
+	struct Test { };
+	using const_int = std::integral_constant<int, 0>;
+
+	static_assert(tnt::is_tuplish_v<std::tuple<>>);
+	static_assert(tnt::is_tuplish_v<std::tuple<int>>);
+	static_assert(tnt::is_tuplish_v<std::tuple<int, int>>);
+	static_assert(tnt::is_tuplish_v<std::tuple<int, float, Test, E>>);
+	static_assert(tnt::is_tuplish_v<std::tuple<double, float, const char*, std::nullptr_t, bool>>);
+	static_assert(tnt::is_tuplish_v<const std::tuple<int, int>>);
+	static_assert(tnt::is_tuplish_v<volatile std::tuple<int, int>>);
+	static_assert(tnt::is_tuplish_v<std::tuple<std::tuple<>>>);
+	static_assert(!tnt::is_tuplish_v<std::tuple<>&>);
+	static_assert(!tnt::is_tuplish_v<std::tuple<int>&>);
+
+	static_assert(tnt::is_tuplish_v<std::pair<int, float>>);
+	static_assert(tnt::is_tuplish_v<const std::pair<int, float>>);
+	static_assert(tnt::is_tuplish_v<volatile std::pair<int, float>>);
+	static_assert(!tnt::is_tuplish_v<std::pair<int, float>&>);
+
+	static_assert(tnt::is_tuplish_v<std::array<int, 5>>);
+	static_assert(tnt::is_tuplish_v<const std::array<int, 5>>);
+	static_assert(!tnt::is_tuplish_v<std::array<int, 5>&>);
+
+	static_assert(tnt::is_tuplish_v<TupleClass>);
+	static_assert(tnt::is_tuplish_v<const TupleClass>);
+	static_assert(!tnt::is_tuplish_v<const TupleClass&>);
+
+	static_assert(!tnt::is_tuplish_v<Test>);
+	static_assert(!tnt::is_tuplish_v<int>);
+	static_assert(!tnt::is_tuplish_v<E>);
+	static_assert(!tnt::is_tuplish_v<Test>);
+	static_assert(!tnt::is_tuplish_v<const_int>);
+
+	static_assert(tnt::is_pairish_v<std::pair<int, int>>);
+	static_assert(tnt::is_pairish_v<const std::pair<int, int>>);
+	static_assert(tnt::is_pairish_v<std::pair<int&, const float&&>>);
+	static_assert(!tnt::is_pairish_v<const std::pair<int, int>&>);
+	static_assert(tnt::is_pairish_v<CustomPair>);
+	static_assert(tnt::is_pairish_v<const CustomPair>);
+	static_assert(!tnt::is_pairish_v<const CustomPair&>);
+
+	static_assert(!tnt::is_pairish_v<TupleClass>);
+	static_assert(!tnt::is_pairish_v<std::tuple<int, int>>);
+	static_assert(!tnt::is_pairish_v<Test>);
+	static_assert(!tnt::is_pairish_v<int>);
+	static_assert(!tnt::is_pairish_v<E>);
+	static_assert(!tnt::is_pairish_v<Test>);
+	static_assert(!tnt::is_pairish_v<const_int>);
+
+	static_assert(tnt::is_tuplish_of_pairish_v<std::tuple<>>);
+	static_assert(!tnt::is_tuplish_of_pairish_v<std::tuple<int>>);
+	static_assert(tnt::is_tuplish_of_pairish_v<std::tuple<std::pair<int, int>>>);
+	static_assert(tnt::is_tuplish_of_pairish_v<std::tuple<std::pair<int, int>, CustomPair>>);
+	static_assert(!tnt::is_tuplish_of_pairish_v<std::tuple<int, std::pair<int, int>>>);
+	static_assert(!tnt::is_tuplish_of_pairish_v<std::tuple<std::pair<int, int>, int>>);
+	static_assert(tnt::is_tuplish_of_pairish_v<std::tuple<std::pair<int, int>, const std::pair<float &, int>>>);
+	static_assert(tnt::is_tuplish_of_pairish_v<volatile std::tuple<std::pair<int, int>, std::pair<float&, int>>>);
+
+	static_assert(tnt::is_tuplish_of_pairish_v<const std::tuple<std::pair<int, int>>>);
+	static_assert(tnt::is_tuplish_of_pairish_v<volatile std::tuple<std::pair<int, int>>>);
+	static_assert(!tnt::is_tuplish_of_pairish_v<std::tuple<>&&>);
+	static_assert(!tnt::is_tuplish_of_pairish_v<std::tuple<std::pair<int, int>>&>);
+	static_assert(!tnt::is_tuplish_of_pairish_v<std::tuple<std::pair<int, int>&>>);
+
+	static_assert(!tnt::is_tuplish_of_pairish_v<std::array<int, 5>>);
+	static_assert(!tnt::is_tuplish_of_pairish_v<int[5]>);
+	static_assert(tnt::is_tuplish_of_pairish_v<std::array<std::pair<int, int>, 5>>);
+	static_assert(tnt::is_tuplish_of_pairish_v<const std::pair<int, int>[5]>);
+
+	static_assert(!tnt::is_tuplish_of_pairish_v<Test>);
+	static_assert(!tnt::is_tuplish_of_pairish_v<int>);
+	static_assert(!tnt::is_tuplish_of_pairish_v<E>);
+	static_assert(!tnt::is_tuplish_of_pairish_v<Test>);
+	static_assert(!tnt::is_tuplish_of_pairish_v<const_int>);
+}
+
 int main()
 {
 	test_integer_traits();
 	test_c_traits();
 	test_integral_constant_traits();
 	test_unversal_access();
+	test_tuple_pair_traits();
 }

@@ -52,6 +52,9 @@
  * has_get_by_size_v<I, U>
  * get<T>
  * get<I>
+ * is_tuplish_v (standard (tuple, array, pair) + bounded array)
+ * is_pairish_v
+ * is_tuplish_of_pairish_v
  */
 
 #include <cstddef>
@@ -329,5 +332,83 @@ constexpr std::enable_if_t<!is_bounded_array_v<U> && !has_get_by_size_v<I, U>,
 {
 	return std::get<I>(u);
 }
+
+/**
+ * Check whether the type is compatible with std::tuple, that is a fixed-size
+ * collection of values. It can be an bounded array or anything that is
+ * accessible with std::tuple_size and std::tuple_element. In other words it
+ * is anything that is accessible with tnt::tuple_size and tnt::tuple_element.
+ * From STL it can be std::tuple, std::pair, std::array and generic array.
+ * It is expected that an instance of such a type is also accessible with
+ * tnt::get, but unfortunately this checker doesn't check that.
+ */
+namespace details {
+
+template <class T, class IDXS>
+struct tuplish_types_h;
+
+template <class T, size_t... I>
+struct tuplish_types_h<T, std::index_sequence<I...>> {
+	using type = std::tuple<tnt::tuple_element_t<I, T>...>;
+};
+
+template <class T, class _ = void>
+struct is_tuplish_h : std::false_type {};
+
+template <class T>
+struct is_tuplish_h<T, std::void_t<
+	char [sizeof(tnt::tuple_size<T>)],
+	typename tuplish_types_h<T, std::make_index_sequence<tnt::tuple_size_v<T>>>::type>>
+: std::true_type {};
+} //namespace details {
+
+template <class T>
+constexpr bool is_tuplish_v = details::is_tuplish_h<std::remove_cv_t<T>>::value;
+
+/**
+ * Check whether the type is compatible with std::pair, that is a struct
+ * with `first` and `second` members and has is accessible with tuple_size
+ * and tuple_element.
+ * It is expected that an instance of such a type is also accessible with
+ * tnt::get, but unfortunately this checker doesn't check that.
+ */
+namespace details {
+template <class T, class _ = void>
+struct is_pairish_h : std::false_type {};
+
+template <class T>
+struct is_pairish_h<T, std::void_t<
+	char [sizeof(tnt::tuple_size<T>)],
+	std::enable_if_t<tnt::tuple_size_v<T> == 2, void>,
+	typename tuplish_types_h<T, std::make_index_sequence<tnt::tuple_size_v<T>>>::type,
+	decltype(std::declval<T&>().first),
+	decltype(std::declval<T&>().second)>>
+: std::true_type {};
+} //namespace details {
+
+template <class T>
+constexpr bool is_pairish_v = details::is_pairish_h<std::remove_cv_t<T>>::value;
+
+/**
+ * Check whether the type is compatible with std::tuple (see is_tuplish_v) and
+ * consist of types that are compatible with std::pair (see is_pairish_v).
+ */
+namespace details {
+template<class T, bool IS_TUPLISH, class IS>
+struct is_tuplish_of_pairish_h : std::false_type {};
+
+template<class T, size_t ...I>
+struct is_tuplish_of_pairish_h<T, true, std::index_sequence<I...>> {
+	static constexpr bool value = (is_pairish_v<tuple_element_t<I, T>> && ...);
+};
+
+template<class T>
+struct is_tuplish_of_pairish_h<T, true, void>
+: is_tuplish_of_pairish_h<T, true, std::make_index_sequence<tuple_size_v<T>>> {};
+} //namespace details {
+
+template <class T>
+constexpr bool is_tuplish_of_pairish_v =
+	details::is_tuplish_of_pairish_h<std::remove_cv_t<T>, is_tuplish_v<T>, void>::value;
 
 } // namespace tnt {
