@@ -55,11 +55,14 @@
  * is_tuplish_v (standard (tuple, array, pair) + bounded array)
  * is_pairish_v
  * is_tuplish_of_pairish_v
+ * is_variant_v
+ * is_optional_v
  */
 
 #include <cstddef>
 #include <tuple>
 #include <type_traits>
+#include <variant>
 
 namespace tnt {
 
@@ -410,5 +413,47 @@ struct is_tuplish_of_pairish_h<T, true, void>
 template <class T>
 constexpr bool is_tuplish_of_pairish_v =
 	details::is_tuplish_of_pairish_h<std::remove_cv_t<T>, is_tuplish_v<T>, void>::value;
+
+/**
+ * Check whether the type is looks like std::variant. That means that it
+ * is accessible with std variant_size, variant_alternative and get.
+ */
+namespace details {
+template <class T, class _ = void>
+struct is_variant_h : std::false_type {};
+template <class T>
+struct is_variant_h<T, std::void_t<
+	decltype(std::declval<T>().index()),
+	decltype(std::variant_size<T>::value),
+	typename std::variant_alternative<0, T>::type,
+	decltype(tnt::get<std::variant_alternative_t<0, T>>(std::declval<T>()))>>
+: std::is_same<size_t, std::decay_t<decltype(std::declval<T>().index())>> {};
+} //namespace details {
+
+template <class T>
+constexpr bool is_variant_v =
+	!std::is_reference_v<std::remove_cv_t<T>> &&
+	details::is_variant_h<std::remove_cv_t<T>>::value;
+
+/**
+ * Check whether the type looks like std::optional, at least it has
+ * operator bool, operator *, bool has_value() and value() methods.
+ */
+namespace details {
+template <class T, class _ = void>
+struct is_optional_h : std::false_type {};
+template <class T>
+struct is_optional_h<T, std::void_t<
+	decltype(std::declval<T>().has_value()),
+	decltype((bool)std::declval<T>()),
+	decltype(std::declval<T>().value()),
+	decltype(*std::declval<T>())>>
+: std::is_same<bool, std::decay_t<decltype(std::declval<T>().has_value())>> {};
+} // namespace details {
+
+template <class T>
+constexpr bool is_optional_v =
+	!std::is_reference_v<std::remove_cv_t<T>> &&
+	details::is_optional_h<std::remove_cv_t<T>>::value;
 
 } // namespace tnt {

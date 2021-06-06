@@ -28,6 +28,8 @@
  * THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
+#include <optional>
+#include <functional>
 
 #include "../src/Utils/Traits.hpp"
 
@@ -586,6 +588,79 @@ test_tuple_pair_traits()
 	static_assert(!tnt::is_tuplish_of_pairish_v<const_int>);
 }
 
+struct CustomOptional {
+	int i;
+	bool has;
+	bool has_value() const { return has; }
+	operator bool() const { return has; }
+	int& value() { return i; }
+	int& operator*() { return i; }
+};
+
+struct CustomVariant {
+	int i;
+	double d;
+	size_t m_index;
+	size_t index() const { return m_index; }
+	template <class T> T& get() { return std::get<T&>(std::tie(i, d)); }
+	template <class T> const T& get() const { return std::get<const T&>(std::tie(i, d)); }
+};
+
+namespace std
+{
+template<> struct variant_size<CustomVariant> : integral_constant<size_t, 2> {};
+template<> struct variant_alternative<0, CustomVariant> { using type = int; };
+template<> struct variant_alternative<1, CustomVariant> { using type = double; };
+} // namespace std {
+
+void
+test_variant_traits()
+{
+	enum E { V = 1 };
+	struct Test { };
+	using const_int = std::integral_constant<int, 0>;
+
+	static_assert(tnt::is_variant_v<std::variant<int>>);
+	static_assert(tnt::is_variant_v<std::variant<int, float>>);
+	static_assert(tnt::is_variant_v<const std::variant<int>>);
+	static_assert(tnt::is_variant_v<volatile std::variant<int>>);
+
+	static_assert(tnt::is_variant_v<CustomVariant>);
+	static_assert(tnt::is_variant_v<const CustomVariant>);
+	static_assert(tnt::is_variant_v<volatile CustomVariant>);
+
+	static_assert(!tnt::is_variant_v<std::variant<int>&>);
+	static_assert(!tnt::is_variant_v<std::tuple<int, float>>);
+	static_assert(!tnt::is_variant_v<std::optional<int>>);
+	static_assert(!tnt::is_variant_v<Test>);
+	static_assert(!tnt::is_variant_v<E>);
+	static_assert(!tnt::is_variant_v<const_int>);
+}
+
+void
+test_optional_traits()
+{
+	enum E { V = 1 };
+	struct Test { };
+	using const_int = std::integral_constant<int, 0>;
+
+	static_assert(tnt::is_optional_v<std::optional<int>>);
+	static_assert(tnt::is_optional_v<const std::optional<int>>);
+	static_assert(tnt::is_optional_v<volatile std::optional<int>>);
+
+	static_assert(tnt::is_optional_v<CustomOptional>);
+	static_assert(tnt::is_optional_v<const CustomOptional>);
+	static_assert(tnt::is_optional_v<volatile CustomOptional>);
+
+	static_assert(!tnt::is_optional_v<std::optional<int>&>);
+	static_assert(!tnt::is_optional_v<std::variant<int>>);
+	static_assert(!tnt::is_optional_v<std::tuple<int, float>>);
+	static_assert(!tnt::is_optional_v<std::variant<int>&>);
+	static_assert(!tnt::is_optional_v<Test>);
+	static_assert(!tnt::is_optional_v<E>);
+	static_assert(!tnt::is_optional_v<const_int>);
+}
+
 int main()
 {
 	test_integer_traits();
@@ -593,4 +668,6 @@ int main()
 	test_integral_constant_traits();
 	test_unversal_access();
 	test_tuple_pair_traits();
+	test_variant_traits();
+	test_optional_traits();
 }
