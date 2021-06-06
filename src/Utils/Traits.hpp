@@ -57,6 +57,13 @@
  * is_tuplish_of_pairish_v
  * is_variant_v
  * is_optional_v
+ * is_member_ptr_v
+ * is_uni_member_ptr_v
+ * member_class_t
+ * uni_member_class_t
+ * demember_t
+ * uni_demember_t
+ * uni_member
  */
 
 #include <cstddef>
@@ -455,5 +462,73 @@ template <class T>
 constexpr bool is_optional_v =
 	!std::is_reference_v<std::remove_cv_t<T>> &&
 	details::is_optional_h<std::remove_cv_t<T>>::value;
+
+/**
+ * Check whether the type is pointer to member (member object, not method).
+ */
+template <class T>
+constexpr bool is_member_ptr_v = std::is_member_object_pointer_v<T>;
+
+/**
+ * Check whether the type is pointer to member OR integral constant with it.
+ */
+template <class T>
+constexpr bool is_uni_member_ptr_v =
+	std::is_member_object_pointer_v<uni_integral_base_t<T>>;
+
+/**
+ * Safe getter that for pointer to member returns class and original
+ * type in any other case.
+ */
+namespace details {
+template <class T> struct member_class_h { using type = T; };
+template <class T, class U> struct member_class_h<T U::*> { using type = U; };
+} //namespace details {
+
+template <class T>
+using member_class_t = std::conditional_t<is_member_ptr_v<T>,
+	typename details::member_class_h<std::remove_cv_t<T>>::type, T>;
+
+/**
+ * Same as above but also extracts pointer to member from integral_constants.
+ */
+template <class T>
+using uni_member_class_t = std::conditional_t<is_uni_member_ptr_v<T>,
+	typename details::member_class_h<
+		std::remove_cv_t<uni_integral_base_t<T>>>::type, T>;
+
+/**
+ * Safe getter that for pointer to member returns member type and original
+ * type in any other case.
+ */
+namespace details {
+template <class T> struct demember_h { using type = T; };
+template <class T, class U> struct demember_h<T U::*> { using type = T; };
+} //namespace details {
+
+template <class T>
+using demember_t = std::conditional_t<is_member_ptr_v<T>,
+	typename details::demember_h<std::remove_cv_t<T>>::type, T>;
+
+/**
+ * Same as above but also extracts pointer to member from integral_constants.
+ */
+template <class T>
+using uni_demember_t = std::conditional_t<is_uni_member_ptr_v<T>,
+	typename details::demember_h<
+		std::remove_cv_t<uni_integral_base_t<T>>>::type, T>;
+
+/**
+ * Universal value extractor. Return static value member for
+ * std::integral_constant, or the value itself otherwise.
+ */
+template <class T, class U>
+auto& uni_member([[maybe_unused]] T& object, U&& uni_member)
+{
+	if constexpr (is_uni_member_ptr_v<U>)
+		return object.*uni_value(uni_member);
+	else
+		return uni_member;
+}
 
 } // namespace tnt {

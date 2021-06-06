@@ -661,6 +661,126 @@ test_optional_traits()
 	static_assert(!tnt::is_optional_v<const_int>);
 }
 
+void
+test_member_traits()
+{
+	struct Test { int i = 2; const int ci = 3; int f(); };
+	using member_t = decltype(&Test::i);
+	using cmember_t = decltype(&Test::ci);
+	using method_t = decltype(&Test::f);
+	using icon_member_t = std::integral_constant<member_t, &Test::i>;
+	using cicon_member_t = std::integral_constant<cmember_t, &Test::ci>;
+	enum E { V = 1 };
+	using const_int = std::integral_constant<int, 0>;
+
+	static_assert(tnt::is_member_ptr_v<member_t>);
+	static_assert(tnt::is_member_ptr_v<const member_t>);
+	static_assert(tnt::is_member_ptr_v<volatile member_t>);
+	static_assert(tnt::is_member_ptr_v<cmember_t>);
+	static_assert(tnt::is_member_ptr_v<const cmember_t>);
+	static_assert(!tnt::is_member_ptr_v<icon_member_t>);
+	static_assert(!tnt::is_member_ptr_v<const icon_member_t>);
+	static_assert(!tnt::is_member_ptr_v<cicon_member_t>);
+	static_assert(!tnt::is_member_ptr_v<const cicon_member_t>);
+	static_assert(!tnt::is_member_ptr_v<method_t>);
+	static_assert(!tnt::is_member_ptr_v<int>);
+	static_assert(!tnt::is_member_ptr_v<const int>);
+	static_assert(!tnt::is_member_ptr_v<E>);
+	static_assert(!tnt::is_member_ptr_v<const_int>);
+
+	static_assert(tnt::is_uni_member_ptr_v<member_t>);
+	static_assert(tnt::is_uni_member_ptr_v<const member_t>);
+	static_assert(tnt::is_uni_member_ptr_v<volatile member_t>);
+	static_assert(tnt::is_uni_member_ptr_v<cmember_t>);
+	static_assert(tnt::is_uni_member_ptr_v<const cmember_t>);
+	static_assert(tnt::is_uni_member_ptr_v<icon_member_t>);
+	static_assert(tnt::is_uni_member_ptr_v<const icon_member_t>);
+	static_assert(tnt::is_uni_member_ptr_v<cicon_member_t>);
+	static_assert(tnt::is_uni_member_ptr_v<const cicon_member_t>);
+	static_assert(!tnt::is_uni_member_ptr_v<method_t>);
+	static_assert(!tnt::is_uni_member_ptr_v<int>);
+	static_assert(!tnt::is_uni_member_ptr_v<const int>);
+	static_assert(!tnt::is_uni_member_ptr_v<E>);
+	static_assert(!tnt::is_uni_member_ptr_v<const_int>);
+
+	static_assert(std::is_same_v<Test, tnt::member_class_t<member_t>>);
+	static_assert(std::is_same_v<Test, tnt::member_class_t<const member_t>>);
+	static_assert(std::is_same_v<Test, tnt::member_class_t<volatile member_t>>);
+	static_assert(std::is_same_v<Test, tnt::member_class_t<cmember_t>>);
+	static_assert(std::is_same_v<Test, tnt::member_class_t<const cmember_t>>);
+	static_assert(std::is_same_v<method_t, tnt::member_class_t<method_t>>);
+	static_assert(std::is_same_v<int, tnt::member_class_t<int>>);
+	static_assert(std::is_same_v<const int, tnt::member_class_t<const int>>);
+	static_assert(std::is_same_v<E, tnt::member_class_t<E>>);
+	static_assert(std::is_same_v<const_int, tnt::member_class_t<const_int>>);
+	static_assert(std::is_same_v<icon_member_t, tnt::member_class_t<icon_member_t>>);
+	static_assert(std::is_same_v<const icon_member_t, tnt::member_class_t<const icon_member_t>>);
+	static_assert(std::is_same_v<cicon_member_t, tnt::member_class_t<cicon_member_t>>);
+	static_assert(std::is_same_v<const cicon_member_t, tnt::member_class_t<const cicon_member_t>>);
+
+	static_assert(std::is_same_v<Test, tnt::uni_member_class_t<member_t>>);
+	static_assert(std::is_same_v<Test, tnt::uni_member_class_t<const member_t>>);
+	static_assert(std::is_same_v<Test, tnt::uni_member_class_t<volatile member_t>>);
+	static_assert(std::is_same_v<Test, tnt::uni_member_class_t<cmember_t>>);
+	static_assert(std::is_same_v<Test, tnt::uni_member_class_t<const cmember_t>>);
+	static_assert(std::is_same_v<method_t, tnt::uni_member_class_t<method_t>>);
+	static_assert(std::is_same_v<int, tnt::uni_member_class_t<int>>);
+	static_assert(std::is_same_v<const int, tnt::uni_member_class_t<const int>>);
+	static_assert(std::is_same_v<E, tnt::uni_member_class_t<E>>);
+	static_assert(std::is_same_v<const_int, tnt::uni_member_class_t<const_int>>);
+	static_assert(std::is_same_v<Test, tnt::uni_member_class_t<icon_member_t>>);
+	static_assert(std::is_same_v<Test, tnt::uni_member_class_t<const icon_member_t>>);
+	static_assert(std::is_same_v<Test, tnt::uni_member_class_t<cicon_member_t>>);
+	static_assert(std::is_same_v<Test, tnt::uni_member_class_t<const cicon_member_t>>);
+
+	static_assert(std::is_same_v<int, tnt::demember_t<member_t>>);
+	static_assert(std::is_same_v<int, tnt::demember_t<const member_t>>);
+	static_assert(std::is_same_v<int, tnt::demember_t<volatile member_t>>);
+	static_assert(std::is_same_v<const int, tnt::demember_t<cmember_t>>);
+	static_assert(std::is_same_v<const int, tnt::demember_t<const cmember_t>>);
+	static_assert(std::is_same_v<method_t, tnt::demember_t<method_t>>);
+	static_assert(std::is_same_v<int, tnt::demember_t<int>>);
+	static_assert(std::is_same_v<const int, tnt::demember_t<const int>>);
+	static_assert(std::is_same_v<E, tnt::demember_t<E>>);
+	static_assert(std::is_same_v<const_int, tnt::demember_t<const_int>>);
+	static_assert(std::is_same_v<icon_member_t, tnt::demember_t<icon_member_t>>);
+	static_assert(std::is_same_v<const icon_member_t, tnt::demember_t<const icon_member_t>>);
+	static_assert(std::is_same_v<cicon_member_t, tnt::demember_t<cicon_member_t>>);
+	static_assert(std::is_same_v<const cicon_member_t, tnt::demember_t<const cicon_member_t>>);
+
+	static_assert(std::is_same_v<int, tnt::uni_demember_t<member_t>>);
+	static_assert(std::is_same_v<int, tnt::uni_demember_t<const member_t>>);
+	static_assert(std::is_same_v<int, tnt::uni_demember_t<volatile member_t>>);
+	static_assert(std::is_same_v<const int, tnt::uni_demember_t<cmember_t>>);
+	static_assert(std::is_same_v<const int, tnt::uni_demember_t<const cmember_t>>);
+	static_assert(std::is_same_v<method_t, tnt::uni_demember_t<method_t>>);
+	static_assert(std::is_same_v<int, tnt::uni_demember_t<int>>);
+	static_assert(std::is_same_v<const int, tnt::uni_demember_t<const int>>);
+	static_assert(std::is_same_v<E, tnt::uni_demember_t<E>>);
+	static_assert(std::is_same_v<const_int, tnt::uni_demember_t<const_int>>);
+	static_assert(std::is_same_v<int, tnt::uni_demember_t<icon_member_t>>);
+	static_assert(std::is_same_v<int, tnt::uni_demember_t<const icon_member_t>>);
+	static_assert(std::is_same_v<const int, tnt::uni_demember_t<cicon_member_t>>);
+	static_assert(std::is_same_v<const int, tnt::uni_demember_t<const cicon_member_t>>);
+
+	int i = 4;
+	Test t;
+	static_assert(std::is_same_v<int&, decltype(tnt::uni_member(t, i))>);
+	static_assert(std::is_same_v<int&, decltype(tnt::uni_member(t, &Test::i))>);
+	static_assert(std::is_same_v<const int&, decltype(tnt::uni_member(t, &Test::ci))>);
+	fail_unless(&tnt::uni_member(t, i) == &i);
+	fail_unless(&tnt::uni_member(t, &Test::i) == &t.i);
+	fail_unless(&tnt::uni_member(t, &Test::ci) == &t.ci);
+
+	const Test ct;
+	static_assert(std::is_same_v<int&, decltype(tnt::uni_member(ct, i))>);
+	static_assert(std::is_same_v<const int&, decltype(tnt::uni_member(ct, &Test::i))>);
+	static_assert(std::is_same_v<const int&, decltype(tnt::uni_member(ct, &Test::ci))>);
+	fail_unless(&tnt::uni_member(ct, i) == &i);
+	fail_unless(&tnt::uni_member(ct, &Test::i) == &ct.i);
+	fail_unless(&tnt::uni_member(ct, &Test::ci) == &ct.ci);
+}
+
 int main()
 {
 	test_integer_traits();
@@ -670,4 +790,5 @@ int main()
 	test_tuple_pair_traits();
 	test_variant_traits();
 	test_optional_traits();
+	test_member_traits();
 }
