@@ -64,6 +64,12 @@
  * demember_t
  * uni_demember_t
  * uni_member
+ * is_sizable_v
+ * is_contiguous_v
+ * is_contiguous_char_v
+ * is_const_iterable_v
+ * is_const_pairs_iterable_v
+ * is_limited_v (has static static_capacity member)
  */
 
 #include <cstddef>
@@ -530,5 +536,110 @@ auto& uni_member([[maybe_unused]] T& object, U&& uni_member)
 	else
 		return uni_member;
 }
+
+/**
+ * Check whether std::size() is applicable to value of this type.
+ */
+namespace details {
+template <class T, class _ = void>
+struct is_sizable_h : std::false_type {};
+template <class T>
+struct is_sizable_h<T, std::void_t<decltype(std::size(std::declval<T&>()))>>
+	: std::true_type {};
+} // namespace details {
+
+template <class T>
+constexpr bool is_sizable_v = details::is_sizable_h<std::remove_cv_t<T>>::value;
+
+/**
+ * Check whether std::data() and std::size() are applicable to value of
+ * this type and std::data() is dereferenceable.
+ */
+namespace details {
+template <class T, class _ = void>
+struct is_contiguous_h : std::false_type {};
+template <class T>
+struct is_contiguous_h<T,
+	std::void_t<
+		decltype(*std::data(std::declval<T&>())),
+		decltype(std::size(std::declval<T&>()))
+	>> : std::true_type {};
+} // namespace details {
+
+template <class T>
+constexpr bool is_contiguous_v =
+	details::is_contiguous_h<std::remove_cv_t<T>>::value;
+
+/**
+ * Check whether std::data() and std::size() are applicable to value of
+ * this type and std::data() is (cv) pointer to char.
+ */
+namespace details {
+template <bool is_contiguous, class T>
+struct is_contiguous_char_h : std::false_type {};
+template <class T>
+struct is_contiguous_char_h<true, T> {
+	static constexpr bool value =
+		tnt::is_char_ptr_v<decltype(std::data(std::declval<T&>()))>;
+};
+} // namespace details {
+
+template <class T>
+constexpr bool is_contiguous_char_v =
+	details::is_contiguous_char_h<is_contiguous_v<T>,
+				      std::remove_cv_t<T>>::value;
+
+/**
+ * Check whether std::cbegin() and std::cend() are applicable to value of
+ * this type and their result is dereferenceable.
+ */
+namespace details {
+template <class T, class _ = void>
+struct is_const_iterable_h : std::false_type {};
+template <class T>
+struct is_const_iterable_h<T,
+	std::void_t<
+		decltype(*std::cbegin(std::declval<T&>())),
+		decltype(*std::cend(std::declval<T&>()))
+	>> : std::true_type {};
+} // namespace details {
+
+template <class T>
+constexpr bool is_const_iterable_v =
+	details::is_const_iterable_h<std::remove_cv_t<T>>::value;
+
+/**
+ * Check whether std::cbegin()->first, std::cbegin()->second and std::cend()
+ * are applicable to value of this type.
+ */
+namespace details {
+template <class T, class _ = void>
+struct is_const_pairs_iterable_h : std::false_type {};
+template <class T>
+struct is_const_pairs_iterable_h<T,
+	std::void_t<
+		decltype(std::cbegin(std::declval<T&>())->first),
+		decltype(std::cbegin(std::declval<T&>())->second),
+		decltype(*std::cend(std::declval<T&>()))
+	>> : std::true_type {};
+} // namespace details {
+
+template <class T>
+constexpr bool is_const_pairs_iterable_v =
+	details::is_const_pairs_iterable_h<std::remove_cv_t<T>>::value;
+
+/**
+ * Check whether the type has static static_capacity member.
+ */
+namespace details {
+template <class T, class _ = void>
+struct is_limited_h : std::false_type {};
+template <class T>
+struct is_limited_h<T, std::void_t<decltype(T::static_capacity)>>
+	: std::true_type {};
+} // namespace details {
+
+template <class T>
+constexpr bool is_limited_v = details::is_limited_h<std::remove_cv_t<T>>::value;
 
 } // namespace tnt {

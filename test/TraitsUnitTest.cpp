@@ -35,6 +35,14 @@
 
 #include <array>
 #include <utility>
+#include <vector>
+#include <deque>
+#include <list>
+#include <forward_list>
+#include <set>
+#include <map>
+#include <unordered_set>
+#include <unordered_map>
 
 #include "Utils/Helpers.hpp"
 
@@ -781,6 +789,80 @@ test_member_traits()
 	fail_unless(&tnt::uni_member(ct, &Test::ci) == &ct.ci);
 }
 
+struct BrandNewArray {
+	int *begin() noexcept;
+	int *end() noexcept;
+	const int *begin() const noexcept;
+	const int *end() const noexcept;
+	int *data() noexcept;
+	const int *data() const noexcept;
+	int size() const noexcept;
+	static constexpr size_t static_capacity = 10;
+};
+
+struct BrandNewSet {
+	int *begin() noexcept;
+	int *end() noexcept;
+	const int *begin() const noexcept;
+	const int *end() const noexcept;
+	int size() const noexcept;
+};
+
+struct BrandNewMap {
+	std::pair<int, int> *begin() noexcept;
+	std::pair<int, int> *end() noexcept;
+	const std::pair<int, int> *begin() const noexcept;
+	const std::pair<int, int> *end() const noexcept;
+	int size() const noexcept;
+};
+
+template <class CONT, bool SIZABLE, bool CONTIGUOUS, bool CONTIGUOUS_CHAR, bool ITERABLE, bool PAIR_ITERABLE>
+void check_cont()
+{
+	static_assert(tnt::is_sizable_v<CONT> == SIZABLE);
+	static_assert(tnt::is_contiguous_v<CONT> == CONTIGUOUS);
+	static_assert(tnt::is_contiguous_char_v<CONT> == CONTIGUOUS_CHAR);
+	static_assert(tnt::is_const_iterable_v<CONT> == ITERABLE);
+	static_assert(tnt::is_const_pairs_iterable_v<CONT> == PAIR_ITERABLE);
+}
+
+void
+test_container_traits()
+{
+	check_cont<std::vector<int>, true, true, false, true, false>();
+	check_cont<const std::vector<int>, true, true, false, true, false>();
+	check_cont<const std::vector<int>&, true, true, false, true, false>();
+	check_cont<std::vector<bool>, true, false, false, true, false>();
+	check_cont<std::vector<std::pair<int, int>>, true, true, false, true, true>();
+	check_cont<std::vector<char>, true, true, true, true, false>();
+	check_cont<const std::vector<char>, true, true, true, true, false>();
+	check_cont<const std::vector<char>&, true, true, true, true, false>();
+
+	check_cont<int[5], true, true, false, true, false>();
+	check_cont<std::array<int, 5>, true, true, false, true, false>();
+	check_cont<std::list<int>, true, false, false, true, false>();
+	check_cont<std::forward_list<int>, false, false, false, true, false>();
+	check_cont<std::deque<int>, true, false, false, true, false>();
+	check_cont<std::set<int>, true, false, false, true, false>();
+	check_cont<std::unordered_set<int>, true, false, false, true, false>();
+	check_cont<std::map<int, int>, true, false, false, true, true>();
+	check_cont<std::unordered_map<int, int>, true, false, false, true, true>();
+	check_cont<char[5], true, true, true, true, false>();
+	check_cont<const char[5], true, true, true, true, false>();
+	check_cont<std::array<char, 5>, true, true, true, true, false>();
+	check_cont<const std::array<char, 5>, true, true, true, true, false>();
+	check_cont<std::array<char, 5>&, true, true, true, true, false>();
+
+	check_cont<BrandNewArray, true, true, false, true, false>();
+	check_cont<BrandNewSet, true, false, false, true, false>();
+	check_cont<BrandNewMap, true, false, false, true, true>();
+
+	static_assert(tnt::is_limited_v<BrandNewArray>);
+	static_assert(tnt::is_limited_v<const BrandNewArray>);
+	static_assert(!tnt::is_limited_v<std::vector<int>>);
+	static_assert(!tnt::is_limited_v<std::set<int>>);
+}
+
 int main()
 {
 	test_integer_traits();
@@ -791,4 +873,5 @@ int main()
 	test_variant_traits();
 	test_optional_traits();
 	test_member_traits();
+	test_container_traits();
 }
