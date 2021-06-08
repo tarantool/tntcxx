@@ -863,6 +863,37 @@ test_container_traits()
 	static_assert(!tnt::is_limited_v<std::set<int>>);
 }
 
+MAKE_IS_METHOD_CALLABLE_CHECKER(set);
+
+struct A1 { void set(int, float); };
+struct A2 { void set(float, float); };
+struct A3 { void set(int&, float&); };
+struct A4 { void set(const int&, const float&); };
+struct A5 { void get(int, float); };
+struct A6 { template <class T, class U> void set(T, U); };
+template <class T>
+struct A7 { template <class U> void set(T, U); };
+
+void
+test_is_method_callable()
+{
+	static_assert(is_set_callable_v<A1, int, float>);
+	static_assert(!is_set_callable_v<A1, int, void*>);
+	static_assert(!is_set_callable_v<A1, int, float, float>);
+	static_assert(is_set_callable_v<A1, int&, float&>);
+	static_assert(is_set_callable_v<A2, int, float>); // convert int to float.
+	static_assert(is_set_callable_v<A2, int&, float&>);
+	static_assert(is_set_callable_v<A3, int&, float&>);
+	static_assert(!is_set_callable_v<A3, int, float>); // can't convert rvalue to reference.
+	static_assert(is_set_callable_v<A4, int&, float&>);
+	static_assert(is_set_callable_v<A4, int, float>); // can convert rvalue to const reference.
+	static_assert(!is_set_callable_v<A5, int, float>); // no method.
+	static_assert(is_set_callable_v<A6, int, float>);
+	static_assert(!is_set_callable_v<A6, int, float, int>); // too many args.
+	static_assert(is_set_callable_v<A7<int>, int, float>);
+	static_assert(!is_set_callable_v<A7<int*>, int, float>); // can't convert.
+}
+
 int main()
 {
 	test_integer_traits();
@@ -874,4 +905,5 @@ int main()
 	test_optional_traits();
 	test_member_traits();
 	test_container_traits();
+	test_is_method_callable();
 }

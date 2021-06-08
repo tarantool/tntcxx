@@ -70,6 +70,7 @@
  * is_const_iterable_v
  * is_const_pairs_iterable_v
  * is_limited_v (has static static_capacity member)
+ * MAKE_IS_METHOD_CALLABLE_CHECKER (makes is_##ARG##_callable_v)
  */
 
 #include <cstddef>
@@ -641,5 +642,32 @@ struct is_limited_h<T, std::void_t<decltype(T::static_capacity)>>
 
 template <class T>
 constexpr bool is_limited_v = details::is_limited_h<std::remove_cv_t<T>>::value;
+
+/**
+ * Macro that creates a checker whether a method exists in a class and it is
+ * callable with given argument types. The return type of the method is not
+ * checked but it's simple to check with standard tools.
+ * The final checker will have a name is_##method##_callable_v.
+ * For example you want to check whether a class has method `sum` with two
+ * integer arguments.
+ * Then you are able to create a checker:
+ * MAKE_IS_METHOD_CALLABLE_CHECKER(sum);
+ * And use it:
+ * if constexpr(is_sum_callable<MyClass, int, int>) ...
+ */
+#define MAKE_IS_METHOD_CALLABLE_CHECKER(method)					\
+namespace details {								\
+template <class CLASS, class TUPLE, class _ = void>				\
+struct is_##method##_callable_h : std::false_type {};				\
+template <class CLASS, class... ARGS>						\
+struct is_##method##_callable_h<CLASS, std::tuple<ARGS...>,			\
+	std::void_t<								\
+	decltype(std::declval<CLASS>().method(std::declval<ARGS>()...))>>	\
+	: std::true_type {};							\
+}										\
+										\
+template <class CLASS, class... ARGS>						\
+constexpr bool is_##method##_callable_v =					\
+	details::is_##method##_callable_h<CLASS, std::tuple<ARGS...>>::value
 
 } // namespace tnt {
