@@ -26,3 +26,7 @@
 *.exe
 *.out
 *.app
+
+# Documentation builds
+doc/locale/en/
+doc/output
