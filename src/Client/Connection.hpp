@@ -175,6 +175,15 @@ public:
 	rid_t call(const std::string &func, const T &args);
 	rid_t ping();
 
+	/**
+	 * Authorizate user with user_name and password
+	 * @param user_name name of user
+	 * @param password user's password
+	 * @retval request id
+	 */
+	rid_t auth(const std::string& user_name, const std::string& password);
+
+
 	void setError(const std::string &msg);
 	std::string& getError();
 	void reset();
@@ -402,6 +411,15 @@ Connection<BUFFER, NetProvider>::select(const T &key, uint32_t space_id,
 {
 	m_EndEncoded += m_Encoder.encodeSelect(key, space_id, index_id, limit,
 					       offset, iterator);
+	m_Connector.readyToSend(*this);
+	return RequestEncoder<BUFFER>::getSync();
+}
+
+template<class BUFFER, class NetProvider>
+rid_t
+Connection<BUFFER, NetProvider>::auth(const std::string& user_name, const std::string& password)
+{
+	m_EndEncoded += m_Encoder.encodeAuth(user_name, password, m_Greeting);
 	m_Connector.readyToSend(*this);
 	return RequestEncoder<BUFFER>::getSync();
 }

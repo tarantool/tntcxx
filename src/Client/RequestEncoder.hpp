@@ -34,8 +34,10 @@
 #include <map>
 
 #include "IprotoConstants.hpp"
+#include "ResponseReader.hpp"
 #include "../mpp/mpp.hpp"
 #include "../Utils/Logger.hpp"
+#include "../../third_party/scramble/scramble.h"
 
 enum IteratorType {
 	EQ = 0,
@@ -82,6 +84,7 @@ public:
 			    uint32_t index_id = 0,
 			    uint32_t limit = UINT32_MAX, uint32_t offset = 0,
 			    IteratorType iterator = EQ);
+	size_t encodeAuth(const std::string& user_name, const std::string& password, const Greeting& greeting);
 	template <class T>
 	size_t encodeCall(const std::string &func, const T &args);
 
@@ -235,6 +238,25 @@ RequestEncoder<BUFFER>::encodeSelect(const T &key,
 	m_Buf.set(request_start + 1, __builtin_bswap32(request_size));
 	return request_size + PREHEADER_SIZE;
 }
+
+template<class BUFFER>
+size_t
+RequestEncoder<BUFFER>::encodeAuth(const std::string& user_name, const std::string& password, const Greeting& greeting)
+{
+	char scrambled[2 * SCRAMBLE_SIZE] = {};
+	scramble_prepare(scrambled, greeting.salt, password.c_str(), password.size());
+	iterator_t<BUFFER> request_start = m_Buf.end();
+	m_Buf.addBack('\xce');
+	m_Buf.addBack(uint32_t{0});
+	encodeHeader(Iproto::AUTH);
+	m_Enc.add(mpp::as_map(std::forward_as_tuple(
+		MPP_AS_CONST(Iproto::USER_NAME), user_name,
+		MPP_AS_CONST(Iproto::TUPLE), std::make_tuple("chap-sha1", scrambled))));
+	uint32_t request_size = (m_Buf.end() - request_start) - PREHEADER_SIZE;
+	m_Buf.set(request_start + 1, __builtin_bswap32(request_size));
+	return request_size + PREHEADER_SIZE;
+}
+
 
 template<class BUFFER>
 template <class T>

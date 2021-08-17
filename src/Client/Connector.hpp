@@ -33,6 +33,16 @@
 #include "DefaultNetProvider.hpp"
 #include "../Utils/Timer.hpp"
 
+struct Config {
+	const std::string addr;
+	unsigned port;
+	const std::string user_name = std::string();
+	const std::string password  = std::string();
+	constexpr static size_t DEFAULT_CONNECT_TIMEOUT = 2;
+	size_t timeout = DEFAULT_CONNECT_TIMEOUT;
+};
+
+
 template<class BUFFER, class NetProvider = DefaultNetProvider<BUFFER, NetworkEngine>>
 class Connector
 {
@@ -44,7 +54,11 @@ public:
 
 	int connect(Connection<BUFFER, NetProvider> &conn,
 		    const std::string_view& addr, unsigned port,
-		    size_t timeout = DEFAULT_CONNECT_TIMEOUT);
+		    size_t timeout = Config::DEFAULT_CONNECT_TIMEOUT);
+
+	
+	int connect(Connection<BUFFER, NetProvider> &conn, const Config& config);
+
 	void close(Connection<BUFFER, NetProvider> &conn);
 
 	int wait(Connection<BUFFER, NetProvider> &conn, rid_t future,
@@ -60,7 +74,7 @@ public:
 	void readyToDecode(Connection<BUFFER, NetProvider> &conn);
 	void readyToSend(Connection<BUFFER, NetProvider> &conn);
 
-	constexpr static size_t DEFAULT_CONNECT_TIMEOUT = 2;
+	
 private:
 	NetProvider m_NetProvider;
 	/**
@@ -99,6 +113,40 @@ Connector<BUFFER, NetProvider>::connect(Connection<BUFFER, NetProvider> &conn,
 		return -1;
 	}
 	LOG_DEBUG("Connected to ", addr, ':', port, " has been established");
+	return 0;
+}
+
+template<class BUFFER, class NetProvider>
+int
+Connector<BUFFER, NetProvider>::connect(Connection<BUFFER, NetProvider> &conn, const Config& config)
+{
+	if (conn.socket >= 0 && m_NetProvider.check(conn)) {
+		LOG_ERROR("Current connection to ", conn.socket, " is alive! "
+			"Please close it before connecting to the new address");
+		return -1;
+	}
+	if (m_NetProvider.connect(conn, config.addr, config.port, config.timeout) != 0) {
+		LOG_ERROR("Failed to connect to ", config.addr, ':', config.port);
+		LOG_ERROR("Reason: ", conn.getError());
+		return -1;
+	}
+	LOG_DEBUG("Connected to ", config.addr, ':', config.port, " has been established");
+	if (config.user_name != std::string() && config.password != std::string()) {
+		rid_t auth_f = conn.auth(config.user_name, config.password);
+		wait(conn, auth_f, 1000);
+		std::optional<Response<BUFFER>> response = conn.getResponse(auth_f);
+		
+
+		if (response->body.error_stack != std::nullopt) {
+			Error err = (*response->body.error_stack).error;
+			std::cout << "RESPONSE ERROR: msg=" << err.msg <<
+				" line=" << err.file << " file=" << err.file <<
+				" errno=" << err.saved_errno <<
+				" type=" << err.type_name <<
+				" code=" << err.errcode << std::endl;
+			return -1;
+		}
+	}
 	return 0;
 }
 

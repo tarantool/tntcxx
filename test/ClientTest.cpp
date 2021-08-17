@@ -36,7 +36,7 @@
 #include "../src/Client/Connector.hpp"
 
 const char *localhost = "127.0.0.1";
-int port = 3301;
+unsigned port = 3301;
 int WAIT_TIMEOUT = 1000; //milliseconds
 
 using Net_t = DefaultNetProvider<Buf_t, NetworkEngine>;
@@ -62,28 +62,29 @@ printResponse(Connection<BUFFER, NetProvider> &conn, Response<BUFFER> &response,
 			  " code=" << err.errcode << std::endl;
 		return;
 	}
-	assert(response.body.data != std::nullopt);
-	Data<BUFFER>& data = *response.body.data;
-	if (data.tuples.empty()) {
-		std::cout << "Empty result" << std::endl;
-		return;
-	}
-	std::vector<UserTuple> tuples;
-	switch (format) {
-		case TUPLES:
-			tuples = decodeUserTuple(conn.getInBuf(), data);
-			break;
-		case MULTI_RETURN:
-			tuples = decodeMultiReturn(conn.getInBuf(), data);
-			break;
-		case SELECT_RETURN:
-			tuples = decodeSelectReturn(conn.getInBuf(), data);
-			break;
-		default:
-			assert(0);
-	}
-	for (auto const& t : tuples) {
-		std::cout << t << std::endl;
+	if (response.body.data != std::nullopt) {
+		Data<BUFFER>& data = *response.body.data;
+		if (data.tuples.empty()) {
+			std::cout << "Empty result" << std::endl;
+			return;
+		}
+		std::vector<UserTuple> tuples;
+		switch (format) {
+			case TUPLES:
+				tuples = decodeUserTuple(conn.getInBuf(), data);
+				break;
+			case MULTI_RETURN:
+				tuples = decodeMultiReturn(conn.getInBuf(), data);
+				break;
+			case SELECT_RETURN:
+				tuples = decodeSelectReturn(conn.getInBuf(), data);
+				break;
+			default:
+				assert(0);
+		}
+		for (auto const& t : tuples) {
+			std::cout << t << std::endl;
+		}
 	}
 }
 
@@ -557,6 +558,82 @@ single_conn_call(Connector<BUFFER, NetProvider> &client)
 	client.close(conn);
 }
 
+/* Authentication */
+template <class BUFFER, class NetProvider = Net_t>
+void
+authentication_test(Connector<BUFFER, NetProvider> &client)
+{
+	TEST_INIT(0);
+	TEST_CASE("Authentication within user_name and password");
+	{
+		Connection<Buf_t, NetProvider> conn(client);
+		Config config = {localhost, port};
+		int rc = client.connect(conn, config);
+		fail_unless(rc == 0);
+		client.close(conn);
+	}
+	
+	TEST_CASE("Authentication with user_name and password good");
+	{
+		Connection<Buf_t, NetProvider> conn(client);
+		Config config = {localhost, port, "Anastas", "123456"};
+		int rc = client.connect(conn, config);
+		fail_unless(rc == 0);
+		client.close(conn);
+	}
+	
+	TEST_CASE("Authentication with user_name and wrong password");
+	{
+		Connection<Buf_t, NetProvider> conn(client);
+		Config config = {localhost, port, "Anastas", "1234567"};
+		int rc = client.connect(conn, config);
+		fail_unless(rc == -1);
+		client.close(conn);
+	}
+
+
+	TEST_CASE("Authentication with wrong user_name");
+	{
+		Connection<Buf_t, NetProvider> conn(client);
+		Config config = {localhost, port, "Anastasius", "123456"};
+		int rc = client.connect(conn, config);
+		fail_unless(rc == -1);
+		client.close(conn);
+	}
+
+	TEST_CASE("Authentication with some privileges without errors");
+	{
+		Connection<Buf_t, NetProvider> conn(client);
+		Config config = {localhost, port, "Anastas", "123456"};
+		int rc = client.connect(conn, config);
+		fail_unless(rc == 0);
+		uint32_t space_id = 512;
+		std::tuple data = std::make_tuple(666, "111", 1.01);
+		rid_t f1 = conn.space[space_id].replace(data);
+		data = std::make_tuple(777, "asd", 2.02);
+		rid_t f2 = conn.space[space_id].replace(data);
+
+		client.wait(conn, f1, WAIT_TIMEOUT);
+		fail_unless(conn.futureIsReady(f1));
+		std::optional<Response<Buf_t>> response = conn.getResponse(f1);
+		printResponse<BUFFER, NetProvider>(conn, *response);
+		fail_unless(response != std::nullopt);
+		fail_unless(response->body.data != std::nullopt);
+		fail_unless(response->body.error_stack == std::nullopt);
+
+		client.wait(conn, f2, WAIT_TIMEOUT);
+		fail_unless(conn.futureIsReady(f2));
+		response = conn.getResponse(f2);
+		fail_unless(response != std::nullopt);
+		fail_unless(response->body.data != std::nullopt);
+		fail_unless(response->body.error_stack == std::nullopt);
+
+		client.close(conn);
+	}
+}
+
+
+
 int main()
 {
 	if (cleanDir() != 0)
@@ -591,5 +668,7 @@ int main()
 	single_conn_upsert<Buf_t, NetLibEv_t>(another_client);
 	single_conn_select<Buf_t, NetLibEv_t>(another_client);
 	single_conn_call<Buf_t, NetLibEv_t>(another_client);
+
+	authentication_test<Buf_t>(client);
 	return 0;
 }
