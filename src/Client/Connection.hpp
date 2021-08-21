@@ -178,6 +178,14 @@ public:
 	template <class T>
 	rid_t execute(unsigned int stmt_id, const T& parameters);
 
+    /**
+    * Prepare the SQL statement contained in the 'statement' parameter.
+    * The syntax and requirements for Connection::prepare() are the same as for Connection::execute().
+    * @param statement statement, which should conform to the rules for SQL grammar
+    * @retval request id
+    */
+    rid_t prepare(const std::string& statement);
+
 	void setError(const std::string &msg, int errno_ = 0);
 	ConnectionError& getError();
 	void reset();
@@ -616,6 +624,15 @@ rid_t
 Connection<BUFFER, NetProvider>::execute(unsigned int stmt_id, const T& parameters)
 {
     impl->enc.encodeExecute(stmt_id, parameters);
+    impl->connector.readyToSend(*this);
+    return RequestEncoder<BUFFER>::getSync();
+}
+
+template<class BUFFER, class NetProvider>
+rid_t
+Connection<BUFFER, NetProvider>::prepare(const std::string& statement)
+{
+    impl->enc.encodePrepare(statement);
     impl->connector.readyToSend(*this);
     return RequestEncoder<BUFFER>::getSync();
 }

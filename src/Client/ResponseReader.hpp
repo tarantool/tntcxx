@@ -100,6 +100,8 @@ struct Metadata
 struct SqlData
 {
 	std::optional<Metadata> metadata = std::nullopt;
+	std::optional<uint32_t> stmt_id  = std::nullopt;
+	std::optional<int> bind_count    = std::nullopt;
 	std::optional<SqlInfo> sql_info  = std::nullopt;
 };
 
@@ -509,7 +511,10 @@ struct BodyKeyReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_UINT> {
 	{
 		using Str_t = mpp::SimpleStrReader<BUFFER, sizeof(Error{}.msg)>;
 		using Err_t = ErrorReader<BUFFER>;
-		using Data_t = DataReader<BUFFER>;		
+		using Data_t = DataReader<BUFFER>;
+		using Unsigned_t = mpp::SimpleReader<BUFFER, mpp::MP_UINT, uint32_t>;
+		using Int_t = mpp::SimpleReader<BUFFER, mpp::MP_UINT, int>;
+		
 		switch (key) {
 			case Iproto::DATA: {
 				if (body.data == std::nullopt) {
@@ -551,6 +556,35 @@ struct BodyKeyReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_UINT> {
 				}
 				body.data->sql_data->metadata = Metadata();
 				dec.SetReader(true, MetadataArrayReader{dec, *body.data->sql_data->metadata});
+				break;
+			}
+			case Iproto::STMT_ID: {
+				if (body.data == std::nullopt) {
+					body.data = Data<BUFFER>(itr);
+				}
+				if (body.data->sql_data == std::nullopt) {
+					body.data->sql_data = SqlData();
+				}
+				body.data->sql_data->stmt_id = 0;
+				dec.SetReader(true, Unsigned_t{*body.data->sql_data->stmt_id});
+				break;
+			}
+			case Iproto::BIND_COUNT: {
+				if (body.data == std::nullopt) {
+					body.data = Data<BUFFER>(itr);
+				}
+				if (body.data->sql_data == std::nullopt) {
+					body.data->sql_data = SqlData();
+				}
+				body.data->sql_data->bind_count = 0;
+				dec.SetReader(true, Int_t{*body.data->sql_data->bind_count});
+				break;
+			}
+			case Iproto::BIND_METADATA: {
+				if (body.data == std::nullopt) {
+					body.data = Data<BUFFER>(itr);
+				}
+				dec.Skip();
 				break;
 			}
 			default:
