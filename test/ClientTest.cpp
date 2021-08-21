@@ -59,28 +59,50 @@ printResponse(Connection<BUFFER, NetProvider> &conn, Response<BUFFER> &response,
 			  " code=" << err.errcode << std::endl;
 		return;
 	}
-	assert(response.body.data != std::nullopt);
-	Data<BUFFER>& data = *response.body.data;
-	if (data.tuples.empty()) {
-		std::cout << "Empty result" << std::endl;
-		return;
-	}
-	std::vector<UserTuple> tuples;
-	switch (format) {
-		case TUPLES:
-			tuples = decodeUserTuple(conn.getInBuf(), data);
-			break;
-		case MULTI_RETURN:
-			tuples = decodeMultiReturn(conn.getInBuf(), data);
-			break;
-		case SELECT_RETURN:
-			tuples = decodeSelectReturn(conn.getInBuf(), data);
-			break;
-		default:
-			assert(0);
-	}
-	for (auto const& t : tuples) {
-		std::cout << t << std::endl;
+	if (response.body.data != std::nullopt) {
+		Data<BUFFER>& data = *response.body.data;
+		if (response.body.data->sql_data != std::nullopt) {
+			if (response.body.data->sql_data->sql_info  != std::nullopt) {
+				std::cout << "Row count = " << response.body.data->sql_data->sql_info->row_count << std::endl;
+			}
+			if (response.body.data->sql_data->metadata != std::nullopt) {
+				std::vector<ColumnMap>& maps = response.body.data->sql_data->metadata->column_maps;
+				std::cout << "Metadata:\n";
+				for (auto& map : maps) {
+					std::cout << "Field name: "       << map.field_name       << std::endl;
+					std::cout << "Field name len: "   << map.field_name_len   << std::endl;
+					std::cout << "Field type: "       << map.field_type       << std::endl;
+					std::cout << "Field type len: "   << map.field_type_len   << std::endl;
+					std::cout << "Collation: "        << map.collation        << std::endl;
+					std::cout << "Collation len: "    << map.collation_len    << std::endl;
+					std::cout << "Is nullable: "      << map.is_nullable      << std::endl;
+					std::cout << "Is autoincrement: " << map.is_autoincrement << std::endl;
+					std::cout << "Span: "             << map.span             << std::endl;
+					std::cout << "Span len: "         << map.span_len         << std::endl;
+				}
+			}
+		}
+		if (data.tuples.empty()) {
+			std::cout << "No tuples" << std::endl;
+			return;
+		}
+		std::vector<UserTuple> tuples;
+		switch (format) {
+			case TUPLES:
+				tuples = decodeUserTuple(conn.getInBuf(), data);
+				break;
+			case MULTI_RETURN:
+				tuples = decodeMultiReturn(conn.getInBuf(), data);
+				break;
+			case SELECT_RETURN:
+				tuples = decodeSelectReturn(conn.getInBuf(), data);
+				break;
+			default:
+				assert(0);
+		}
+		for (auto const& t : tuples) {
+			std::cout << t << std::endl;
+		}
 	}
 }
 
@@ -565,6 +587,82 @@ single_conn_call(Connector<BUFFER, NetProvider> &client)
 	client.close(conn);
 }
 
+/** Single connection, separate executes */
+template <class BUFFER, class NetProvider>
+void
+single_conn_sql_statements(Connector<BUFFER, NetProvider> &client)
+{
+	TEST_INIT(0);
+	Connection<Buf_t, NetProvider> conn(client);
+	int rc = client.connect(conn, localhost, port);
+	fail_unless(rc == 0);
+
+	TEST_CASE("CREATE TABLE");
+	rid_t create_table = conn.execute("CREATE TABLE IF NOT EXISTS testing_sql "
+									  "(column1 UNSIGNED PRIMARY KEY, "
+									  "column2 VARCHAR(50), "
+									  "column3 DOUBLE);", std::make_tuple());
+	
+	client.wait(conn, create_table, WAIT_TIMEOUT);
+	fail_unless(conn.futureIsReady(create_table));
+	std::optional<Response<Buf_t>> response = conn.getResponse(create_table);
+	fail_unless(response != std::nullopt);
+	fail_unless(response->body.data->sql_data->sql_info != std::nullopt);
+
+	TEST_CASE("Simple INSERT");
+	rid_t insert = conn.execute("INSERT INTO testing_sql VALUES (20, 'first', 3.2),"
+	                                                           "(21, 'second', 5.4)", std::make_tuple());
+	
+	client.wait(conn, insert, WAIT_TIMEOUT);
+	fail_unless(conn.futureIsReady(insert));
+	response = conn.getResponse(insert);
+	fail_unless(response != std::nullopt);
+	if (response->body.error_stack != std::nullopt) {
+		std::cout << response->body.error_stack->error.msg << std::endl;
+	}
+	fail_unless(response->body.data->sql_data->sql_info != std::nullopt);
+	fail_unless(response->body.data->sql_data->sql_info->row_count == 2);
+
+	TEST_CASE("INSERT with binding arguments");
+	std::tuple args = std::make_tuple(1, "Timur",   12.8,
+	                                  2, "Nikita",  -8.0,
+									  3, "Anastas", 345.298);
+	rid_t insert_args = conn.execute("INSERT INTO testing_sql VALUES (?, ?, ?), (?, ?, ?), (?, ?, ?);", args);
+	
+	client.wait(conn, insert_args, WAIT_TIMEOUT);
+	fail_unless(conn.futureIsReady(insert_args));
+	response = conn.getResponse(insert_args);
+	fail_unless(response != std::nullopt);
+	fail_unless(response->body.data->sql_data->sql_info != std::nullopt);
+	fail_unless(response->body.data->sql_data->sql_info->row_count == 3);
+	printResponse<BUFFER, NetProvider>(conn, *response);
+
+
+	TEST_CASE("SELECT");
+	rid_t select = conn.execute("SELECT * FROM testing_sql;", std::make_tuple());
+	
+	client.wait(conn, select, WAIT_TIMEOUT);
+	fail_unless(conn.futureIsReady(select));
+	response = conn.getResponse(select);
+	fail_unless(response != std::nullopt);
+	fail_unless(response->body.data != std::nullopt);
+	fail_unless(response->body.data->sql_data->metadata != std::nullopt);
+	fail_unless(response->body.data->sql_data->metadata->dimension == 3);
+	printResponse<BUFFER, NetProvider>(conn, *response);
+
+	TEST_CASE("DROP TABLE");
+	rid_t drop_table = conn.execute("DROP TABLE IF EXISTS testing_sql;", std::make_tuple());
+	
+	client.wait(conn, drop_table, WAIT_TIMEOUT);
+	fail_unless(conn.futureIsReady(drop_table));
+	response = conn.getResponse(drop_table);
+	fail_unless(response != std::nullopt);
+	fail_unless(response->body.data->sql_data->sql_info != std::nullopt);
+
+	client.close(conn);
+}
+
+
 int main()
 {
 	if (cleanDir() != 0)
@@ -586,6 +684,7 @@ int main()
 	single_conn_upsert<Buf_t, NetEpoll_t>(client);
 	single_conn_select<Buf_t, NetEpoll_t>(client);
 	single_conn_call<Buf_t, NetEpoll_t>(client);
+	single_conn_sql_statements<Buf_t, NetEpoll_t>(client);
 #endif
 	/* LibEv network provide */
 	using NetLibEv_t = LibevNetProvider<Buf_t, NetworkEngine>;
@@ -601,5 +700,6 @@ int main()
 	single_conn_upsert<Buf_t, NetLibEv_t>(another_client);
 	single_conn_select<Buf_t, NetLibEv_t>(another_client);
 	single_conn_call<Buf_t, NetLibEv_t>(another_client);
+	single_conn_sql_statements<Buf_t, NetLibEv_t>(another_client);
 	return 0;
 }

@@ -158,6 +158,25 @@ public:
 	template <class T>
 	rid_t call(const std::string &func, const T &args);
 	rid_t ping();
+	
+	/**
+	 * Execute the SQL statement contained in the 'statement' parameter.
+	 * @param statement statement, which should conform to the rules for SQL grammar
+	 * @param parameters tuple for placeholders in the statement
+	 * @retval request id
+	 */
+	 
+	template <class T>
+	rid_t execute(const std::string& statement, const T& parameters);
+
+	/**
+	 * Execute the SQL statement contained in the 'statement' parameter.
+	 * @param stmt_id the statement id obtained with prepare()
+	 * @param parameters tuple for placeholders in the statement
+	 * @retval request id
+	 */
+	template <class T>
+	rid_t execute(unsigned int stmt_id, const T& parameters);
 
 	void setError(const std::string &msg, int errno_ = 0);
 	ConnectionError& getError();
@@ -581,6 +600,25 @@ decodeGreeting(Connection<BUFFER, NetProvider> &conn)
 }
 
 ////////////////////////////BOX-like interface functions////////////////////////
+template<class BUFFER, class NetProvider>
+template <class T>
+rid_t
+Connection<BUFFER, NetProvider>::execute(const std::string& statement, const T& parameters)
+{
+    impl->enc.encodeExecute(statement, parameters);
+    impl->connector.readyToSend(*this);
+    return RequestEncoder<BUFFER>::getSync();
+}
+
+template<class BUFFER, class NetProvider>
+template <class T>
+rid_t
+Connection<BUFFER, NetProvider>::execute(unsigned int stmt_id, const T& parameters)
+{
+    impl->enc.encodeExecute(stmt_id, parameters);
+    impl->connector.readyToSend(*this);
+    return RequestEncoder<BUFFER>::getSync();
+}
 
 template<class BUFFER, class NetProvider>
 template <class T>
