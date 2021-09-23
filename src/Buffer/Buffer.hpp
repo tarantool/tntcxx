@@ -41,9 +41,25 @@
 #include "../Utils/Mempool.hpp"
 #include "../Utils/List.hpp"
 #include "../Utils/CStr.hpp"
-#include "../Utils/Wrappers.hpp"
 
 namespace tnt {
+
+/**
+ * A pair data+size for convenient append to a buffer.
+ */
+struct Data {
+	const char* data;
+	size_t size;
+
+	Data(const char *adata, size_t asize) : data(adata), size(asize) {}
+};
+
+/**
+ * Special wrapper of size_t for advancing buffer's end.
+ */
+struct Advance {
+	size_t size;
+};
 
 /**
  * Exception safe C++ IO buffer.
@@ -196,12 +212,13 @@ public:
 	 * Copy content of @a buf (or object @a t) to the buffer's tail
 	 * (append data). Can cause reallocation that may throw.
 	 */
-	void addBack(wrap::Data data);
+	void addBack(Data data);
 	template <class T>
 	void addBack(const T& t);
 	template <char... C>
 	void addBack(CStr<C...>);
-	void addBack(wrap::Advance advance);
+	void addBack(Advance advance);
+	void advance(size_t s) { addBack(Advance{s}); } //TODO: use addBack^^.
 
 	void dropBack(size_t size);
 	void dropFront(size_t size);
@@ -213,7 +230,7 @@ public:
 	void setEnd(char *) noexcept;
 
 	/**
-	 * Guard that get stores current end and restores it on destruction
+	 * Guard that get and stores current end and restores it on destruction
 	 * unless disarmed.
 	 */
 	struct EndGuard {
@@ -609,7 +626,7 @@ Buffer<N, allocator>::~Buffer()
 
 template <size_t N, class allocator>
 void
-Buffer<N, allocator>::addBack(wrap::Data data)
+Buffer<N, allocator>::addBack(Data data)
 {
 	assert(data.size != 0);
 
@@ -644,7 +661,7 @@ Buffer<N, allocator>::addBack(wrap::Data data)
 
 template <size_t N, class allocator>
 void
-Buffer<N, allocator>::addBack(wrap::Advance advance)
+Buffer<N, allocator>::addBack(Advance advance)
 {
 	assert(advance.size != 0);
 
@@ -676,7 +693,7 @@ void
 Buffer<N, allocator>::addBack(const T& t)
 {
 	static_assert(sizeof(T) <= Block::DATA_SIZE,
-		"Please use wrap::Data data for big objects");
+		"Please use struct Data for big objects");
 	if constexpr (sizeof(T) == 1) {
 		memcpy(m_end, &t, sizeof(T));
 		++m_end;
@@ -724,7 +741,7 @@ Buffer<N, allocator>::addBack(CStr<C...>)
 			memcpy(m_end, CStr<C...>::data, CStr<C...>::rnd_size);
 			m_end += CStr<C...>::size;
 		} else {
-			addBack(wrap::Data{CStr<C...>::data, CStr<C...>::size});
+			addBack(Data{CStr<C...>::data, CStr<C...>::size});
 		}
 	}
 }
@@ -843,7 +860,7 @@ Buffer<N, allocator>::insert(const iterator &itr, size_t size)
 	/* Remember last block before extending the buffer. */
 	Block *src_block = &m_blocks.last();
 	char *src_block_end = m_end;
-	addBack(wrap::Advance{size});
+	addBack(Advance{size});
 	Block *dst_block = &m_blocks.last();
 	char *src = nullptr;
 	char *dst = nullptr;

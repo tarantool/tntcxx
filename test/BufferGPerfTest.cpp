@@ -44,7 +44,7 @@ struct StaticBuffer {
 		mempcpy(p, &t, sizeof(t));
 		p += sizeof(t);
 	}
-	void addBack(wrap::Data d)
+	void addBack(tnt::Data d)
 	{
 		mempcpy(p, d.data, d.size);
 		p += d.size;
@@ -183,7 +183,7 @@ template <class CONT>
 void write(CONT &c, VariadicData_t& t)
 {
 	c.addBack(t.size);
-	c.addBack(wrap::Data{t.data, t.size});
+	c.addBack({t.data, t.size});
 }
 
 template <class T>

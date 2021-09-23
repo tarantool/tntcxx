@@ -39,7 +39,6 @@
 #include "Constants.hpp"
 #include "Types.hpp"
 #include "Traits.hpp"
-#include "../Utils/Wrappers.hpp"
 
 //TODO : add std::variant
 //TODO : add time_t?
@@ -582,10 +581,10 @@ Enc<BUFFER>::add_internal(CStr<C...> prefix, const T& t, const MORE&... more)
 		if constexpr(is_c_str_v<T> || std::is_array_v<T>) {
 			size_t size = strlen(t);
 			add_str(prefix, size);
-			m_Buf.addBack(wrap::Data(t, size));
+			m_Buf.addBack({t, size});
 		} else {
 			add_str(prefix, t.size());
-			m_Buf.addBack(wrap::Data(t));
+			m_Buf.addBack({std::data(t), std::size(t)});
 		}
 		add_internal<compact::MP_END, false, void>(CStr<>{}, more...);
 
@@ -602,24 +601,24 @@ Enc<BUFFER>::add_internal(CStr<C...> prefix, const T& t, const MORE&... more)
 			sz = std::size(t);
 		m_Buf.addBack(enc_bswap(static_cast<FIXED_TYPE>(sz)));
 		if constexpr(is_c_str_v<T>)
-			m_Buf.addBack(wrap::Data(t, sz));
+			m_Buf.addBack({t, sz});
 		else
-			m_Buf.addBack(wrap::Data(std::data(t), sz));
+			m_Buf.addBack({std::data(t), sz});
 		add_internal<compact::MP_END, false, void>(CStr<>{}, more...);
 	} else if constexpr (TYPE == compact::MP_BIN && has_fixed_size_v<T>) {
 		auto add = conv_const_bin<get_fixed_size_v<T>>();
 		m_Buf.addBack(prefix.join(add));
-		m_Buf.addBack(wrap::Data(t));
+		m_Buf.addBack({std::data(t), std::size(t)});
 		add_internal<compact::MP_END, false, void>(CStr<>{}, more...);
 	} else if constexpr (TYPE == compact::MP_BIN) {
 		if constexpr(is_c_str_v<T>) {
 			static_assert(always_false_v<T>, "C string as BIN?");
 			size_t size = strlen(t);
 			add_bin(prefix, size);
-			m_Buf.addBack(wrap::Data(t, size));
+			m_Buf.addBack({t, size});
 		} else {
 			add_bin(prefix, t.size());
-			m_Buf.addBack(wrap::Data(t));
+			m_Buf.addBack({std::data(t), std::size(t)});
 		}
 		add_internal<compact::MP_END, false, void>(CStr<>{}, more...);
 	} else if constexpr (TYPE == compact::MP_ARR) {

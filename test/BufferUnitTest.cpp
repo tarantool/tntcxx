@@ -138,7 +138,7 @@ buffer_basic()
 	fail_unless(buf.empty());
 	fail_if(buf.debugSelfCheck());
 	/* Test non-template ::addBack() method. */
-	buf.addBack(wrap::Data{char_samples, SAMPLES_CNT});
+	buf.addBack(tnt::Data{char_samples, SAMPLES_CNT});
 	fail_unless(! buf.empty());
 	fail_if(buf.debugSelfCheck());
 	char char_res[SAMPLES_CNT];
@@ -152,7 +152,7 @@ buffer_basic()
 	fail_if(buf.debugSelfCheck());
 	/* Add double value in buffer. */
 	itr = buf.end();
-	buf.addBack(wrap::Advance{sizeof(double)});
+	buf.addBack(tnt::Advance{sizeof(double)});
 	buf.set(itr, double_sample);
 	double double_res = 0;
 	buf.get(itr, double_res);
@@ -164,7 +164,7 @@ buffer_basic()
 	fail_if(buf.debugSelfCheck());
 	/* Add struct value in buffer. */
 	itr = buf.end();
-	buf.addBack(wrap::Advance{sizeof(struct_sample)});
+	buf.addBack(tnt::Advance{sizeof(struct_sample)});
 	buf.set(itr, struct_sample);
 	struct struct_sample struct_res = { };
 	buf.get(itr, struct_res);
@@ -244,7 +244,7 @@ buffer_add_read()
 			char data[16];
 			for (size_t j = 0; j < sz; j++)
 				data[j] = rand();
-			buf.addBack(wrap::Data{data, sz});
+			buf.addBack(tnt::Data{data, sz});
 		}
 		}
 	}
@@ -532,7 +532,7 @@ buffer_out()
 	tnt::Buffer<N> buf;
 	buf.addBack(0xce); // uin32 tag
 	auto save = buf.end();
-	buf.addBack(wrap::Advance{4}); // uint32, will be set later
+	buf.addBack(tnt::Advance{4}); // uint32, will be set later
 	buf.addBack(0x82); // map(2) - header
 	buf.addBack(0x00); // IPROTO_REQUEST_TYPE
 	buf.addBack(0x01); // IPROTO_SELECT
