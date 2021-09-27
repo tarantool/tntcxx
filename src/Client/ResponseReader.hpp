@@ -79,16 +79,16 @@ struct SqlInfo
 
 struct ColumnMap
 {
-	char field_name[Iproto::FIELD_NAME_MAX];
-	size_t field_name_len;
-	char field_type[Iproto::FIELD_TYPE_NAME_MAX];
-	size_t field_type_len;
-	char collation[Iproto::COLLATION_MAX];
-	size_t collation_len;
-	bool is_nullable;
-	bool is_autoincrement;
-	char span[Iproto::SPAN_MAX];
-	size_t span_len;
+	char field_name[Iproto::FIELD_NAME_MAX] = {};
+	size_t field_name_len = 0;
+	char field_type[Iproto::FIELD_TYPE_NAME_MAX] = {};
+	size_t field_type_len = 0;
+	char collation[Iproto::COLLATION_MAX] = {};
+	size_t collation_len  = 0;
+	bool is_nullable      = 0;
+	bool is_autoincrement = 0;
+	char span[Iproto::SPAN_MAX] = {};
+	size_t span_len = 0;
 };
 
 struct Metadata
@@ -402,29 +402,35 @@ struct ColumnMapKeyReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_UINT> {
 		using CollationReader_t = mpp::SimpleStrReader<BUFFER, sizeof(ColumnMap{}.collation)>;
 		using SpanReader_t = mpp::SimpleStrReader<BUFFER, sizeof(ColumnMap{}.span)>;
 		using Bool_t = mpp::SimpleReader<BUFFER, mpp::MP_BOOL, bool>;
-		//TODO: handle "access denied" and custom errors
+		LOG_DEBUG("Column map switch.....................");
 		switch (key) {
 			case Iproto::FIELD_NAME: {
+				LOG_DEBUG("field name.....................");
 				dec.SetReader(true, FieldNameReader_t{column_map.field_name, column_map.field_name_len});
 				break;
 			}
 			case Iproto::FIELD_TYPE: {
+				LOG_DEBUG("Field type.....................");
 				dec.SetReader(true, FieldTypeReader_t{column_map.field_type, column_map.field_type_len});
 				break;
 			}
 			case Iproto::FIELD_COLL: {
+				LOG_DEBUG("Collation.....................");
 				dec.SetReader(true, CollationReader_t{column_map.collation, column_map.collation_len});
 				break;
 			}
 			case Iproto::FIELD_IS_NULLABLE: {
+				LOG_DEBUG("is nullable.....................");
 				dec.SetReader(true, Bool_t{column_map.is_nullable});
 				break;
 			}
 			case Iproto::FIELD_IS_AUTOINCREMENT: {
+				LOG_DEBUG("auto increment.....................");
 				dec.SetReader(true, Bool_t{column_map.is_autoincrement});
 				break;
 			}
 			case Iproto::FIELD_SPAN: {
+				LOG_DEBUG("span.....................");
 				dec.SetReader(true, SpanReader_t{column_map.span, column_map.span_len});
 				break;
 			}
@@ -447,6 +453,7 @@ struct MetadataArrayValueReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_MAP> {
 		metadata.column_maps.push_back(ColumnMap());
 		metadata.dimension += 1;
 		dec.SetReader(false, ColumnMapKeyReader<BUFFER>{dec, metadata.column_maps.back()});
+		LOG_DEBUG("MetadataArrayValueReader..........");
 
 	}
 	mpp::Dec<BUFFER>& dec;
@@ -461,6 +468,7 @@ struct MetadataArrayReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_ARR> {
 	void Value(const iterator_t<BUFFER>&, mpp::compact::Type, mpp::ArrValue)
 	{
 		dec.SetReader(false, MetadataArrayValueReader<BUFFER>{dec, metadata});
+		LOG_DEBUG("MetadataArrayReader..........");
 	}
 	mpp::Dec<BUFFER>& dec;
 	Metadata& metadata;

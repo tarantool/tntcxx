@@ -73,12 +73,14 @@ printResponse(Connection<BUFFER, NetProvider> &conn, Response<BUFFER> &response,
 					std::cout << "Field name len: "   << map.field_name_len   << std::endl;
 					std::cout << "Field type: "       << map.field_type       << std::endl;
 					std::cout << "Field type len: "   << map.field_type_len   << std::endl;
-					std::cout << "Collation: "        << map.collation        << std::endl;
-					std::cout << "Collation len: "    << map.collation_len    << std::endl;
-					std::cout << "Is nullable: "      << map.is_nullable      << std::endl;
-					std::cout << "Is autoincrement: " << map.is_autoincrement << std::endl;
-					std::cout << "Span: "             << map.span             << std::endl;
-					std::cout << "Span len: "         << map.span_len         << std::endl;
+					if (map.span_len != 0) {
+					    std::cout << "Collation: "        << map.collation        << std::endl;
+					    std::cout << "Collation len: "    << map.collation_len    << std::endl;
+					    std::cout << "Is nullable: "      << map.is_nullable      << std::endl;
+						std::cout << "Is autoincrement: " << map.is_autoincrement << std::endl;
+						std::cout << "Span: "             << map.span             << std::endl;
+					    std::cout << "Span len: "         << map.span_len         << std::endl;
+					}
 				}
 			}
 			if (response.body.data->sql_data->stmt_id    != std::nullopt) {
@@ -605,7 +607,7 @@ single_conn_sql_statements(Connector<BUFFER, NetProvider> &client)
 
 	TEST_CASE("CREATE TABLE");
 	rid_t create_table = conn.execute("CREATE TABLE IF NOT EXISTS testing_sql "
-									  "(column1 UNSIGNED PRIMARY KEY, "
+									  "(column1 UNSIGNED PRIMARY KEY AUTOINCREMENT, "
 									  "column2 VARCHAR(50), "
 									  "column3 DOUBLE);", std::make_tuple());
 	
@@ -652,9 +654,71 @@ single_conn_sql_statements(Connector<BUFFER, NetProvider> &client)
 	response = conn.getResponse(select);
 	fail_unless(response != std::nullopt);
 	fail_unless(response->body.data != std::nullopt);
+	fail_unless(response->body.data->dimension == 5);
+	
+	printResponse<BUFFER, NetProvider>(conn, *response);
+
+	TEST_CASE("metadata");
+	{
+		std::vector<ColumnMap>& column_maps = response->body.data->sql_data->metadata->column_maps;
+		fail_unless(response->body.data->sql_data->metadata != std::nullopt);
+		fail_unless(response->body.data->sql_data->metadata->dimension == 3);
+		fail_unless(strcmp(column_maps[0].field_name, "COLUMN1") == 0);
+		fail_unless(strcmp(column_maps[1].field_name, "COLUMN2") == 0);
+		fail_unless(strcmp(column_maps[2].field_name, "COLUMN3") == 0);
+		fail_unless(column_maps[0].field_name_len == 7);
+		fail_unless(column_maps[1].field_name_len == 7);
+		fail_unless(column_maps[2].field_name_len == 7);
+		fail_unless(strcmp(column_maps[0].field_type, "unsigned") == 0);
+		fail_unless(strcmp(column_maps[1].field_type, "string") == 0);
+		fail_unless(strcmp(column_maps[2].field_type, "double") == 0);
+		fail_unless(column_maps[0].field_type_len == 8);
+		fail_unless(column_maps[1].field_type_len == 6);
+		fail_unless(column_maps[2].field_type_len == 6);
+		fail_unless(column_maps[0].span_len == 0);
+		fail_unless(column_maps[1].span_len == 0);
+		fail_unless(column_maps[2].span_len == 0);
+	}
+
+
+	TEST_CASE("full metadata"); 
+	/* Setting full metadata */
+	uint32_t space_id = 380;
+	std::tuple key = std::make_tuple("sql_full_metadata");
+	std::tuple op1 = std::make_tuple("=", "value", true);
+	rid_t set_full_metadata = conn.space[space_id].update(key, std::make_tuple(op1));
+	client.wait(conn, set_full_metadata, WAIT_TIMEOUT);
+	fail_unless(conn.futureIsReady(set_full_metadata));
+
+	rid_t new_select = conn.execute("SELECT * FROM testing_sql;", std::make_tuple());
+	
+	client.wait(conn, new_select, WAIT_TIMEOUT);
+	fail_unless(conn.futureIsReady(new_select));
+	response = conn.getResponse(new_select);
+	fail_unless(response != std::nullopt);
+	fail_unless(response->body.data != std::nullopt);
+	fail_unless(response->body.data->dimension == 5);
+	
+	printResponse<BUFFER, NetProvider>(conn, *response);
+
+	std::vector<ColumnMap>& column_maps = response->body.data->sql_data->metadata->column_maps;
 	fail_unless(response->body.data->sql_data->metadata != std::nullopt);
 	fail_unless(response->body.data->sql_data->metadata->dimension == 3);
-	printResponse<BUFFER, NetProvider>(conn, *response);
+	fail_unless(strcmp(column_maps[0].field_name, "COLUMN1") == 0);
+	fail_unless(strcmp(column_maps[1].field_name, "COLUMN2") == 0);
+	fail_unless(strcmp(column_maps[2].field_name, "COLUMN3") == 0);
+	fail_unless(column_maps[0].field_name_len == 7);
+	fail_unless(column_maps[1].field_name_len == 7);
+	fail_unless(column_maps[2].field_name_len == 7);
+	fail_unless(strcmp(column_maps[0].field_type, "unsigned") == 0);
+	fail_unless(strcmp(column_maps[1].field_type, "string") == 0);
+	fail_unless(strcmp(column_maps[2].field_type, "double") == 0);
+	fail_unless(column_maps[0].field_type_len == 8);
+	fail_unless(column_maps[1].field_type_len == 6);
+	fail_unless(column_maps[2].field_type_len == 6);
+	// fail_unless(column_maps[0].span_len == 0);
+	// fail_unless(column_maps[1].span_len == 0);
+	// fail_unless(column_maps[2].span_len == 0);
 
 	TEST_CASE("prepare");
 	rid_t pr_select = conn.prepare("SELECT * FROM testing_sql;");
