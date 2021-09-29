@@ -333,9 +333,162 @@ test_integral_constant_traits()
 	static_assert(!tnt::is_uni_bool_v<float>);
 }
 
+/**
+ * Class for tnt::get tests.
+ * Does not provide std::tuple_size and tuple_element specialization in order
+ * to make sure that tnt::get works without them.
+ */
+struct GetableClass {
+	int first;
+	float second;
+	bool third;
+	template <class T> T& get()
+	{
+		return std::get<T&>(std::tie(first, second, third));
+	}
+	template <class T> constexpr const T& get() const
+	{
+		return std::get<const T&>(std::tie(first, second, third));
+	}
+	template <size_t I> auto& get()
+	{
+		return std::get<I>(std::tie(first, second, third));
+	}
+	template <size_t I> constexpr const auto& get() const
+	{
+		return std::get<I>(std::tie(first, second, third));
+	}
+};
+
+/**
+ * Class for tnt::tuple_size and tnt::tuple_element tests.
+ * Provides std::tuple_size and tuple_element specialization.
+ */
+struct TupleClass : GetableClass {
+};
+
+namespace std {
+template <>
+struct tuple_size<TupleClass> : std::integral_constant<size_t, 3> {};
+template <size_t I>
+struct tuple_element<I, TupleClass> { using type = std::tuple_element_t<I, std::tuple<int, float, bool>>; };
+}
+
+void
+test_unversal_access()
+{
+	TEST_INIT(0);
+
+	using T = std::tuple<float, int>;
+	using A = long[3];
+	using SA = std::array<short, 4>;
+	static_assert(tnt::tuple_size_v<T> == 2);
+	static_assert(tnt::tuple_size_v<const volatile T> == 2);
+	static_assert(tnt::tuple_size_v<A> == 3);
+	static_assert(tnt::tuple_size_v<const volatile A> == 3);
+	static_assert(tnt::tuple_size_v<SA> == 4);
+	static_assert(tnt::tuple_size_v<const volatile SA> == 4);
+	static_assert(tnt::tuple_size_v<TupleClass> == 3);
+	static_assert(tnt::tuple_size_v<const volatile TupleClass> == 3);
+
+	static_assert(std::is_same_v<float, tnt::tuple_element_t<0, T>>);
+	static_assert(std::is_same_v<int, tnt::tuple_element_t<1, T>>);
+	static_assert(std::is_same_v<const volatile float, tnt::tuple_element_t<0, const volatile T>>);
+	static_assert(std::is_same_v<long, tnt::tuple_element_t<0, A>>);
+	static_assert(std::is_same_v<const long, tnt::tuple_element_t<0, const A>>);
+	static_assert(std::is_same_v<const volatile long, tnt::tuple_element_t<0, const volatile A>>);
+	static_assert(std::is_same_v<short, tnt::tuple_element_t<0, SA>>);
+	static_assert(std::is_same_v<const short, tnt::tuple_element_t<0, const SA>>);
+	static_assert(std::is_same_v<const volatile short, tnt::tuple_element_t<0, const volatile SA>>);
+	static_assert(std::is_same_v<int, tnt::tuple_element_t<0, TupleClass>>);
+	static_assert(std::is_same_v<const volatile int, tnt::tuple_element_t<0, const volatile TupleClass>>);
+	static_assert(std::is_same_v<float, tnt::tuple_element_t<1, TupleClass>>);
+	static_assert(std::is_same_v<const volatile float, tnt::tuple_element_t<1, const volatile TupleClass>>);
+
+	static_assert(tnt::has_get_by_type_v<int, GetableClass>);
+	static_assert(tnt::has_get_by_size_v<0, const GetableClass>);
+	static_assert(!tnt::has_get_by_type_v<int, T>);
+	static_assert(!tnt::has_get_by_size_v<0, const T>);
+	static_assert(!tnt::has_get_by_type_v<int, A>);
+	static_assert(!tnt::has_get_by_size_v<0, A>);
+	static_assert(!tnt::has_get_by_type_v<int, SA>);
+	static_assert(!tnt::has_get_by_size_v<0, SA>);
+
+	constexpr GetableClass cgc{1, 1.5, false};
+	constexpr std::tuple<int, float> ct{2, 3.14f};
+	constexpr int carr[] = {1, 2, 3};
+	constexpr std::array<short, 2> cstdarr = {4, 5};
+
+	static_assert(tnt::get<int>(cgc) == 1);
+	static_assert(tnt::get<float>(cgc) == 1.5);
+	static_assert(tnt::get<bool>(cgc) == false);
+	static_assert(tnt::get<0>(cgc) == 1);
+	static_assert(tnt::get<1>(cgc) == 1.5);
+	static_assert(tnt::get<2>(cgc) == false);
+
+	static_assert(tnt::get<int>(ct) == 2);
+	static_assert(tnt::get<float>(ct) == 3.14f);
+	static_assert(tnt::get<0>(ct) == 2);
+	static_assert(tnt::get<1>(ct) == 3.14f);
+
+	static_assert(tnt::get<0>(carr) == 1);
+	static_assert(tnt::get<1>(carr) == 2);
+	static_assert(tnt::get<2>(carr) == 3);
+
+	static_assert(tnt::get<0>(cstdarr) == 4);
+	static_assert(tnt::get<1>(cstdarr) == 5);
+
+	GetableClass gc{1, 1.5, false};
+	std::tuple<int, float> t{2, 3.14f};
+	int arr[] = {1, 2, 3};
+	std::array<short, 2> stdarr = {4, 5};
+
+	fail_unless(tnt::get<int>(gc) == 1);
+	fail_unless(tnt::get<float>(gc) == 1.5);
+	tnt::get<float>(gc) = 2.5;
+	fail_unless(tnt::get<float>(gc) == 2.5);
+	fail_unless(tnt::get<bool>(gc) == false);
+	fail_unless(tnt::get<0>(gc) == 1);
+	tnt::get<0>(gc) += 2;
+	fail_unless(tnt::get<0>(gc) == 3);
+	fail_unless(tnt::get<1>(gc) == 2.5);
+	fail_unless(tnt::get<2>(gc) == false);
+	tnt::get<2>(gc) = true;
+	fail_unless(tnt::get<2>(gc) == true);
+	tnt::get<bool>(gc) = false;
+	fail_unless(tnt::get<2>(gc) == false);
+
+	fail_unless(tnt::get<int>(t) == 2);
+	fail_unless(tnt::get<float>(t) == 3.14f);
+	tnt::get<float>(t) = 4.f;
+	fail_unless(tnt::get<float>(t) == 4.f);
+	fail_unless(tnt::get<0>(t) == 2);
+	tnt::get<0>(t)++;
+	fail_unless(tnt::get<0>(t) == 3);
+	fail_unless(tnt::get<1>(t) == 4.f);
+
+	fail_unless(tnt::get<0>(arr) == 1);
+	fail_unless(tnt::get<1>(arr) == 2);
+	tnt::get<1>(arr) += 8;
+	fail_unless(tnt::get<1>(arr) == 10);
+	fail_unless(tnt::get<2>(arr) == 3);
+
+	fail_unless(tnt::get<0>(stdarr) == 4);
+	fail_unless(tnt::get<1>(stdarr) == 5);
+	tnt::get<1>(stdarr) += 5;
+	fail_unless(tnt::get<1>(stdarr) == 10);
+
+	TupleClass tc;
+	tnt::get<0>(tc) = 5;
+	fail_unless(tnt::get<0>(tc) == 5);
+	tnt::get<float>(tc) = 3.5f;
+	fail_unless(tnt::get<float>(tc) == 3.5f);
+}
+
 int main()
 {
 	test_integer_traits();
 	test_c_traits();
 	test_integral_constant_traits();
+	test_unversal_access();
 }

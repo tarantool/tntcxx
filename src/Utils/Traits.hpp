@@ -46,9 +46,16 @@
  * is_uni_integral_v
  * is_uni_bool_v
  * is_uni_integer_v
+ * tuple_size_v (standard (tuple, array, pair) + bounded array)
+ * tuple_element_t<I>
+ * has_get_by_type_v<T, U>
+ * has_get_by_size_v<I, U>
+ * get<T>
+ * get<I>
  */
 
 #include <cstddef>
+#include <tuple>
 #include <type_traits>
 
 namespace tnt {
@@ -190,5 +197,137 @@ constexpr bool is_uni_bool_v = std::is_same_v<bool,
  */
 template <class T>
 constexpr bool is_uni_integer_v = is_integer_v<uni_integral_base_t<T>>;
+
+/**
+ * Universal tuple_size.
+ * If a type is a C bounded array - return its size.
+ * If std::tuple_size is defined - use it.
+ * Undefined otherwise.
+ */
+template <class T, class _ = void>
+struct tuple_size;
+
+template <class T>
+struct tuple_size<T, std::enable_if_t<is_bounded_array_v<T>, void>> : std::extent<T> {};
+
+template <class T>
+struct tuple_size<T, std::void_t<char [sizeof(std::tuple_size<T>)]>> : std::tuple_size<T> {};
+
+template <class T>
+constexpr size_t tuple_size_v = tuple_size<T>::value;
+
+/**
+ * Universal tuple_element.
+ * If a type is a C bounded array - return type of element.
+ * If std::tuple_element is defined - use it.
+ * Undefined otherwise.
+ */
+template <size_t I, class T, class _ = void>
+struct tuple_element;
+
+template <size_t I, class T>
+struct tuple_element<I, T,
+	std::enable_if_t<is_bounded_array_v<T>, void>>
+: std::remove_extent<T> {};
+
+template <size_t I, class T>
+struct tuple_element<I, T,
+	std::void_t<char [sizeof(std::tuple_element<I, std::remove_cv_t<T>>)]>>
+: std::tuple_element<I, T> {};
+
+template <size_t I, class T>
+using tuple_element_t = typename tuple_element<I, T>::type;
+
+/**
+ * Checker that a type has get<T> and get <I> methods.
+ */
+namespace details {
+template <class T, class U, class _ = void>
+struct has_get_by_type_h : std::false_type {};
+template <class T, class U>
+struct has_get_by_type_h<T, U,
+	std::void_t<decltype(std::declval<U>().template get<T>())>>
+: std::true_type { };
+
+template <size_t I, class U, class _ = void>
+struct has_get_by_size_h : std::false_type {};
+template <size_t I, class U>
+struct has_get_by_size_h<I, U,
+	std::void_t<decltype(std::declval<U>().template get<I>())>>
+: std::true_type { };
+} //namespace details {
+
+template <class T, class U>
+constexpr bool has_get_by_type_v = details::has_get_by_type_h<T, U>::value;
+template <size_t I, class U>
+constexpr bool has_get_by_size_v = details::has_get_by_size_h<I, U>::value;
+
+/**
+ * Universal get by type.
+ * 1. Call `get` method template, if present.
+ * 2. Call std::get otherwise.
+ */
+template <class T, class U>
+constexpr std::enable_if_t<has_get_by_type_v<T, U>, T&> get(U& u)
+{
+	return u.template get<T>();
+}
+template <class T, class U>
+constexpr std::enable_if_t<has_get_by_type_v<T, U>, const T&> get(const U& u)
+{
+	return u.template get<T>();
+}
+
+template <class T, class U>
+constexpr std::enable_if_t<!has_get_by_type_v<T, U>, T&> get(U& u)
+{
+	return std::get<T>(u);
+}
+template <class T, class U>
+constexpr std::enable_if_t<!has_get_by_type_v<T, U>, const T&> get(const U& u)
+{
+	return std::get<T>(u);
+}
+
+/**
+ * Universal get by index.
+ * 1. Call [] for C arrays.
+ * 2. Call `get` method template, if present.
+ * 3. Call std::get otherwise.
+ */
+template <size_t I, class U>
+constexpr std::enable_if_t<is_bounded_array_v<U>,
+	std::remove_extent_t<U>&> get(U& u)
+{
+	return u[I];
+}
+
+template <size_t I, class U>
+constexpr std::enable_if_t<has_get_by_size_v<I, U>,
+	decltype(std::declval<U&>().template get<I>())> get(U& u)
+{
+	return u.template get<I>();
+}
+
+template <size_t I, class U>
+constexpr std::enable_if_t<has_get_by_size_v<I, U>,
+	decltype(std::declval<const U&>().template get<I>())> get(const U& u)
+{
+	return u.template get<I>();
+}
+
+template <size_t I, class U>
+constexpr std::enable_if_t<!is_bounded_array_v<U> && !has_get_by_size_v<I, U>,
+	decltype(std::get<I>(std::declval<U&>()))> get(U& u)
+{
+	return std::get<I>(u);
+}
+
+template <size_t I, class U>
+constexpr std::enable_if_t<!is_bounded_array_v<U> && !has_get_by_size_v<I, U>,
+	decltype(std::get<I>(std::declval<const U&>()))> get(const U& u)
+{
+	return std::get<I>(u);
+}
 
 } // namespace tnt {
