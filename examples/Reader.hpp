@@ -57,16 +57,16 @@ using BufIter_t = typename Buf_t::iterator;
 //doclabel14-1
 struct UserTupleValueReader : mpp::DefaultErrorHandler {
 	explicit UserTupleValueReader(UserTuple& t) : tuple(t) {}
-	static constexpr mpp::Type VALID_TYPES = mpp::MP_UINT | mpp::MP_STR | mpp::MP_DBL;
+	static constexpr mpp::Family VALID_TYPES = mpp::MP_UINT | mpp::MP_STR | mpp::MP_DBL;
 	template <class T>
-	void Value(BufIter_t&, mpp::compact::Type, T v)
+	void Value(BufIter_t&, mpp::compact::Family, T v)
 	{
 		using A = UserTuple;
 		static constexpr std::tuple map(&A::field1, &A::field3);
 		auto ptr = std::get<std::decay_t<T> A::*>(map);
 		tuple.*ptr = v;
 	}
-	void Value(BufIter_t& itr, mpp::compact::Type, mpp::StrValue v)
+	void Value(BufIter_t& itr, mpp::compact::Family, mpp::StrValue v)
 	{
 		BufIter_t tmp = itr;
 		tmp += v.offset;
@@ -77,7 +77,7 @@ struct UserTupleValueReader : mpp::DefaultErrorHandler {
 			--v.size;
 		}
 	}
-	void WrongType(mpp::Type expected, mpp::Type got)
+	void WrongType(mpp::Family expected, mpp::Family got)
 	{
 		std::cout << "expected type is " << expected <<
 			     " but got " << got << std::endl;
@@ -94,7 +94,7 @@ struct UserTupleReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_ARR> {
 
 	UserTupleReader(mpp::Dec<BUFFER>& d, UserTuple& t) : dec(d), tuple(t) {}
 
-	void Value(const iterator_t<BUFFER>&, mpp::compact::Type, mpp::ArrValue u)
+	void Value(const iterator_t<BUFFER>&, mpp::compact::Family, mpp::ArrValue u)
 	{
 		assert(u.size == 3);
 		(void) u;

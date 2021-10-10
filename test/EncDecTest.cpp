@@ -209,17 +209,17 @@ struct ArrValueReader : mpp::DefaultErrorHandler {
 	using Buffer_t = tnt::Buffer<16 * 1024>;
 	using BufferIterator_t = typename Buffer_t::iterator;
 	explicit ArrValueReader(TestArrStruct& a) : arr(a) {}
-	static constexpr mpp::Type VALID_TYPES = mpp::MP_DBL | mpp::MP_FLT |
+	static constexpr mpp::Family VALID_TYPES = mpp::MP_DBL | mpp::MP_FLT |
 		mpp::MP_STR | mpp::MP_NIL | mpp::MP_BOOL;
 	template <class T>
-	void Value(const BufferIterator_t&, mpp::compact::Type, T v)
+	void Value(const BufferIterator_t&, mpp::compact::Family, T v)
 	{
 		using A = TestArrStruct;
 		static constexpr std::tuple map(&A::dbl, &A::flt, &A::nil, &A::b);
 		auto ptr = std::get<std::decay_t<T> A::*>(map);
 		arr.*ptr = v;
 	}
-	void Value(BufferIterator_t& itr, mpp::compact::Type, mpp::StrValue v)
+	void Value(BufferIterator_t& itr, mpp::compact::Family, mpp::StrValue v)
 	{
 		BufferIterator_t tmp = itr;
 		tmp += v.offset;
@@ -240,7 +240,7 @@ struct ArrReader : mpp::SimpleReaderBase<tnt::Buffer<16 * 1024>, mpp::MP_ARR> {
 	using Buffer_t = tnt::Buffer<16 * 1024>;
 	using BufferIterator_t = typename Buffer_t::iterator;
 	ArrReader(TestArrStruct& a, mpp::Dec<Buffer_t>& d) : arr(a), dec(d) {}
-	void Value(const BufferIterator_t&, mpp::compact::Type, mpp::ArrValue v)
+	void Value(const BufferIterator_t&, mpp::compact::Family, mpp::ArrValue v)
 	{
 		arr.parsed_arr_size = v.size;
 		dec.SetReader(false, ArrValueReader{arr});
@@ -266,7 +266,7 @@ struct TestMapStruct {
 struct MapKeyReader : mpp::SimpleReaderBase<Buffer_t, mpp::MP_UINT> {
 	MapKeyReader(mpp::Dec<Buffer_t>& d, TestMapStruct& m) : dec(d), map(m) {}
 
-	void Value(const BufferIterator_t&, mpp::compact::Type, uint64_t k)
+	void Value(const BufferIterator_t&, mpp::compact::Family, uint64_t k)
 	{
 		using map_t = TestMapStruct;
 		using Boo_t = mpp::SimpleReader<Buffer_t, mpp::MP_BOOL, bool>;
@@ -301,7 +301,7 @@ struct MapKeyReader : mpp::SimpleReaderBase<Buffer_t, mpp::MP_UINT> {
 struct MapReader : mpp::SimpleReaderBase<tnt::Buffer<16 * 1024>, mpp::MP_MAP> {
 	MapReader(mpp::Dec<Buffer_t>& d, TestMapStruct& m) : dec(d), map(m) {}
 
-	void Value(const BufferIterator_t&, mpp::compact::Type, mpp::MapValue)
+	void Value(const BufferIterator_t&, mpp::compact::Family, mpp::MapValue)
 	{
 		dec.SetReader(false, MapKeyReader{dec, map});
 	}

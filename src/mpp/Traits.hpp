@@ -175,7 +175,7 @@ constexpr bool is_simple_spec_v =
 	is_str_v < T > || is_bin_v < T > || is_arr_v < T > || is_map_v<T>;
 
 template <class T>
-constexpr compact::Type get_simple_type() noexcept
+constexpr compact::Family get_simple_family() noexcept
 {
 	if constexpr (is_str_v<T>)
 		return compact::MP_STR;

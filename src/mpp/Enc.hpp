@@ -107,11 +107,11 @@ private:
 	template <char...C, class T>
 	void add_map(CStr<C...> prefix, T size);
 
-	template <compact::Type TYPE, bool FIXED_SET, class FIXED_TYPE,
+	template <compact::Family TYPE, bool FIXED_SET, class FIXED_TYPE,
 		  char... C, class T, class... MORE>
 	void add_internal(CStr<C...> prefix, const T& t, const MORE&... more);
 
-	template <compact::Type, bool, class, char... C>
+	template <compact::Family, bool, class, char... C>
 	void add_internal(CStr<C...> suffix);
 
 	BUFFER& m_Buf;
@@ -428,7 +428,7 @@ Enc<BUFFER>::add_map(CStr<C...> prefix, T size)
 }
 
 template <class BUFFER>
-template <compact::Type TYPE, bool FIXED_SET, class FIXED_TYPE, char... C>
+template <compact::Family TYPE, bool FIXED_SET, class FIXED_TYPE, char... C>
 void
 Enc<BUFFER>::add_internal(CStr<C...> suffix)
 {
@@ -436,7 +436,7 @@ Enc<BUFFER>::add_internal(CStr<C...> suffix)
 }
 
 template <class BUFFER>
-template <compact::Type TYPE, bool FIXED_SET, class FIXED_TYPE,
+template <compact::Family TYPE, bool FIXED_SET, class FIXED_TYPE,
 	  char... C, class T, class... MORE>
 void
 Enc<BUFFER>::add_internal(CStr<C...> prefix, const T& t, const MORE&... more)
@@ -448,7 +448,7 @@ Enc<BUFFER>::add_internal(CStr<C...> prefix, const T& t, const MORE&... more)
 
 	if constexpr (is_simple_spec_v<T>) {
 		static_assert(TYPE == compact::MP_END, "Double type spec?");
-		add_internal<get_simple_type<T>(), FIXED_SET, FIXED_TYPE>(
+		add_internal<get_simple_family<T>(), FIXED_SET, FIXED_TYPE>(
 			prefix, t.value, more...);
 	} else if constexpr (is_fixed_v<T>) {
 		using fix_type = typename T::type;

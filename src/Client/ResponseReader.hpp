@@ -109,7 +109,7 @@ struct HeaderKeyReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_UINT> {
 
 	HeaderKeyReader(mpp::Dec<BUFFER>& d, Header& h) : dec(d), header(h) {}
 
-	void Value(const iterator_t<BUFFER>&, mpp::compact::Type, uint64_t key)
+	void Value(const iterator_t<BUFFER>&, mpp::compact::Family, uint64_t key)
 	{
 		using Int_t = mpp::SimpleReader<BUFFER, mpp::MP_UINT, int>;
 		switch (key) {
@@ -136,7 +136,7 @@ struct HeaderReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_MAP> {
 
 	HeaderReader(mpp::Dec<BUFFER>& d, Header& h) : dec(d), header(h) {}
 
-	void Value(const iterator_t<BUFFER>&, mpp::compact::Type, mpp::MapValue)
+	void Value(const iterator_t<BUFFER>&, mpp::compact::Family, mpp::MapValue)
 	{
 		dec.SetReader(false, HeaderKeyReader{dec, header});
 	}
@@ -149,9 +149,9 @@ template <class BUFFER>
 struct TupleReader : mpp::ReaderTemplate<BUFFER> {
 
 	TupleReader(mpp::Dec<BUFFER>& d, Data<BUFFER>& dt) : dec(d), data(dt) {}
-	static constexpr mpp::Type VALID_TYPES = mpp::MP_ARR | mpp::MP_UINT |
+	static constexpr mpp::Family VALID_TYPES = mpp::MP_ARR | mpp::MP_UINT |
 		mpp::MP_INT | mpp::MP_BOOL | mpp::MP_DBL | mpp::MP_STR; //| mpp::MP_NIL;
-	void Value(iterator_t<BUFFER>& arg, mpp::compact::Type, mpp::ArrValue u)
+	void Value(iterator_t<BUFFER>& arg, mpp::compact::Family, mpp::ArrValue u)
 	{
 		data.tuples.emplace_back(arg, u.size);
 		dec.Skip();
@@ -161,13 +161,13 @@ struct TupleReader : mpp::ReaderTemplate<BUFFER> {
 	 * value. In this case store pointer right to its value.
 	 */
 	template <class T>
-	void Value(iterator_t<BUFFER>& arg, mpp::compact::Type, T v)
+	void Value(iterator_t<BUFFER>& arg, mpp::compact::Family, T v)
 	{
 		(void) v;
 		data.tuples.emplace_back(arg, 1);
 		dec.Skip();
 	}
-	void WrongType(mpp::Type expected, mpp::Type got)
+	void WrongType(mpp::Family expected, mpp::Family got)
 	{
 		std::cout << "expected type is " << expected <<
 			  " but got " << got << std::endl;
@@ -181,7 +181,7 @@ struct DataReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_ARR> {
 
 	DataReader(mpp::Dec<BUFFER>& d, Data<BUFFER>& dt) : dec(d), data(dt) {}
 
-	void Value(const iterator_t<BUFFER>&, mpp::compact::Type, mpp::ArrValue u)
+	void Value(const iterator_t<BUFFER>&, mpp::compact::Family, mpp::ArrValue u)
 	{
 		data.dimension = u.size;
 		dec.SetReader(false, TupleReader<BUFFER>{dec, data});
@@ -196,7 +196,7 @@ struct ErrorFieldsKeyReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_STR> {
 
 	ErrorFieldsKeyReader(mpp::Dec<BUFFER>& d, Error& er) : dec(d), error(er) {}
 
-	void Value(const iterator_t<BUFFER>&, mpp::compact::Type, const mpp::StrValue& v)
+	void Value(const iterator_t<BUFFER>&, mpp::compact::Family, const mpp::StrValue& v)
 	{
 		//TODO: assert(strcmp(v, "custom_type", sizeof("custom_type");
 		(void) v;
@@ -212,7 +212,7 @@ struct ErrorFieldsReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_MAP> {
 
 	ErrorFieldsReader(mpp::Dec<BUFFER>& d, Error& er) : dec(d), error(er) {}
 
-	void Value(const iterator_t<BUFFER>&, mpp::compact::Type, mpp::MapValue)
+	void Value(const iterator_t<BUFFER>&, mpp::compact::Family, mpp::MapValue)
 	{
 		dec.SetReader(false, ErrorFieldsKeyReader<BUFFER>{dec, error});
 	}
@@ -225,7 +225,7 @@ struct ErrorKeyReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_UINT> {
 
 	ErrorKeyReader(mpp::Dec<BUFFER>& d, Error& er) : dec(d), error(er) {}
 
-	void Value(const iterator_t<BUFFER>&, mpp::compact::Type, uint64_t key)
+	void Value(const iterator_t<BUFFER>&, mpp::compact::Family, uint64_t key)
 	{
 		using TypeNameReader_t = mpp::SimpleStrReader<BUFFER, sizeof(Error{}.type_name)>;
 		using Int_t = mpp::SimpleReader<BUFFER, mpp::MP_UINT, int>;
@@ -276,7 +276,7 @@ struct ErrorArrayValueReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_MAP> {
 
 	ErrorArrayValueReader(mpp::Dec<BUFFER>& d, Error& er) : dec(d), error(er) {}
 
-	void Value(const iterator_t<BUFFER>&, mpp::compact::Type, mpp::MapValue)
+	void Value(const iterator_t<BUFFER>&, mpp::compact::Family, mpp::MapValue)
 	{
 		dec.SetReader(false, ErrorKeyReader<BUFFER>{dec, error});
 
@@ -290,7 +290,7 @@ struct ErrorArrayReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_ARR> {
 
 	ErrorArrayReader(mpp::Dec<BUFFER>& d, ErrorStack& s) : dec(d), stack(s) {}
 
-	void Value(const iterator_t<BUFFER>&, mpp::compact::Type, mpp::ArrValue v)
+	void Value(const iterator_t<BUFFER>&, mpp::compact::Family, mpp::ArrValue v)
 	{
 		stack.count = v.size;
 		assert(stack.count == 1);
@@ -305,7 +305,7 @@ struct ErrorStackReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_UINT> {
 
 	ErrorStackReader(mpp::Dec<BUFFER>& d, ErrorStack& er) : dec(d), error(er) {}
 
-	void Value(const iterator_t<BUFFER>&, mpp::compact::Type, uint64_t key)
+	void Value(const iterator_t<BUFFER>&, mpp::compact::Family, uint64_t key)
 	{
 		if (key != Iproto::ERROR_STACK) {
 			dec.AbortAndSkipRead();
@@ -345,7 +345,7 @@ struct ErrorReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_MAP> {
 
 	ErrorReader(mpp::Dec<BUFFER>& d, ErrorStack& er) : dec(d), error(er) {}
 
-	void Value(const iterator_t<BUFFER>&, mpp::compact::Type, mpp::MapValue)
+	void Value(const iterator_t<BUFFER>&, mpp::compact::Family, mpp::MapValue)
 	{
 		dec.SetReader(false, ErrorStackReader<BUFFER>{dec, error});
 
@@ -360,7 +360,7 @@ struct BodyKeyReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_UINT> {
 
 	BodyKeyReader(mpp::Dec<BUFFER>& d, Body<BUFFER>& b) : dec(d), body(b) {}
 
-	void Value(iterator_t<BUFFER>& itr, mpp::compact::Type, uint64_t key)
+	void Value(iterator_t<BUFFER>& itr, mpp::compact::Family, uint64_t key)
 	{
 		using Str_t = mpp::SimpleStrReader<BUFFER, sizeof(Error{}.msg)>;
 		using Err_t = ErrorReader<BUFFER>;
@@ -398,7 +398,7 @@ struct BodyReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_MAP> {
 
 	BodyReader(mpp::Dec<BUFFER>& d, Body<BUFFER>& b) : dec(d), body(b) {}
 
-	void Value(const iterator_t<BUFFER>&, mpp::compact::Type, mpp::MapValue)
+	void Value(const iterator_t<BUFFER>&, mpp::compact::Family, mpp::MapValue)
 	{
 		dec.SetReader(false, BodyKeyReader{dec, body});
 	}

@@ -54,16 +54,16 @@ template <class BUFFER>
 struct TupleValueReader : mpp::DefaultErrorHandler {
 	using BufIter_t = typename BUFFER::iterator;
 	explicit TupleValueReader(mpp::Dec<BUFFER>& d, UserTuple& t) : dec(d), tuple(t) {}
-	static constexpr mpp::Type VALID_TYPES = mpp::MP_UINT | mpp::MP_STR | mpp::MP_DBL;
+	static constexpr mpp::Family VALID_TYPES = mpp::MP_UINT | mpp::MP_STR | mpp::MP_DBL;
 	template <class T>
-	void Value(const BufIter_t&, mpp::compact::Type, T v)
+	void Value(const BufIter_t&, mpp::compact::Family, T v)
 	{
 		using A = UserTuple;
 		static constexpr std::tuple map(&A::field1, &A::field3);
 		auto ptr = std::get<std::decay_t<T> A::*>(map);
 		tuple.*ptr = v;
 	}
-	void Value(BufIter_t& itr, mpp::compact::Type, mpp::StrValue v)
+	void Value(BufIter_t& itr, mpp::compact::Family, mpp::StrValue v)
 	{
 		BufIter_t tmp = itr;
 		tmp += v.offset;
@@ -74,7 +74,7 @@ struct TupleValueReader : mpp::DefaultErrorHandler {
 			--v.size;
 		}
 	}
-	void WrongType(mpp::Type expected, mpp::Type got)
+	void WrongType(mpp::Family expected, mpp::Family got)
 	{
 		std::cout << "expected type is " << expected << " but got " <<
 			got << std::endl;
@@ -88,9 +88,9 @@ template <class BUFFER>
 struct ArrayReader : mpp::DefaultErrorHandler {
 	using BufIter_t = typename BUFFER::iterator;
 	explicit ArrayReader(mpp::Dec<BUFFER>& d, UserTuple& t) : dec(d), tuple(t) {}
-	static constexpr mpp::Type VALID_TYPES = mpp::MP_ARR;
+	static constexpr mpp::Family VALID_TYPES = mpp::MP_ARR;
 
-	void Value(const BufIter_t&, mpp::compact::Type, mpp::ArrValue)
+	void Value(const BufIter_t&, mpp::compact::Family, mpp::ArrValue)
 	{
 		dec.SetReader(false, TupleValueReader{dec, tuple});
 	}
@@ -106,14 +106,14 @@ struct SelectArrayReader : mpp::DefaultErrorHandler {
 	explicit SelectArrayReader(mpp::Dec<BUFFER>& d, std::vector<BufIter_t> &t,
 				   size_t &fc) : dec(d), tuples(t),
 				   field_count(fc) {}
-	static constexpr mpp::Type VALID_TYPES =  mpp::MP_ANY;
+	static constexpr mpp::Family VALID_TYPES =  mpp::MP_ANY;
 	template <class T>
-	void Value(BufIter_t& arg, mpp::compact::Type, T)
+	void Value(BufIter_t& arg, mpp::compact::Family, T)
 	{
 		tuples.emplace_back(arg);
 		dec.Skip();
 	}
-	void Value(const BufIter_t&, mpp::compact::Type, mpp::ArrValue arr)
+	void Value(const BufIter_t&, mpp::compact::Family, mpp::ArrValue arr)
 	{
 		field_count = arr.size;
 		dec.SetReader(false, SelectArrayReader{dec, tuples, field_count});

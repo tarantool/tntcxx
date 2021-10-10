@@ -36,7 +36,7 @@
 namespace mpp {
 
 namespace compact {
-enum Type : uint8_t {
+enum Family : uint8_t {
 	MP_NIL  /* = 0x00 */,
 	MP_BOOL /* = 0x01 */,
 	MP_UINT /* = 0x02 */,
@@ -52,8 +52,8 @@ enum Type : uint8_t {
 };
 } // namespace compact {
 
-using TypeUnder_t = uint32_t;
-enum Type : TypeUnder_t {
+using FamilyUnder_t = uint32_t;
+enum Family : FamilyUnder_t {
 	MP_NIL  = 1u << compact::MP_NIL,
 	MP_BOOL = 1u << compact::MP_BOOL,
 	MP_UINT = 1u << compact::MP_UINT,
@@ -70,7 +70,7 @@ enum Type : TypeUnder_t {
 	MP_ANUM = (1u << compact::MP_UINT) | (1u << compact::MP_INT) |
 		  (1u << compact::MP_FLT) | (1u << compact::MP_DBL),
 	MP_NONE = 0,
-	MP_ANY  = std::numeric_limits<TypeUnder_t>::max(),
+	MP_ANY  = std::numeric_limits<FamilyUnder_t>::max(),
 };
 
 enum ReadError_t {
@@ -82,7 +82,7 @@ enum ReadError_t {
 	READ_ERROR_END
 };
 
-enum ReadResult_t : TypeUnder_t {
+enum ReadResult_t : FamilyUnder_t {
 	READ_SUCCESS = 0,
 	READ_NEED_MORE = 1u << READ_ERROR_NEED_MORE,
 	READ_BAD_MSGPACK = 1u << READ_ERROR_BAD_MSGPACK,
@@ -92,7 +92,7 @@ enum ReadResult_t : TypeUnder_t {
 	READ_RESULT_END
 };
 
-inline const char *TypeName[] = {
+inline const char *FamilyName[] = {
 	"MP_NIL",
 	"MP_BOOL",
 	"MP_UINT",
@@ -107,7 +107,7 @@ inline const char *TypeName[] = {
 	"MP_BAD",
 	"MP_NONE"
 };
-static_assert(std::size(TypeName) == compact::MP_END + 2, "Smth is forgotten");
+static_assert(std::size(FamilyName) == compact::MP_END + 2, "Smth is forgotten");
 
 inline const char *ReadErrorName[] = {
 	"READ_ERROR_NEED_MORE",
@@ -120,56 +120,56 @@ inline const char *ReadErrorName[] = {
 };
 static_assert(std::size(ReadErrorName) == READ_ERROR_END + 2, "Forgotten");
 
-inline constexpr Type
-operator|(Type a, Type b)
+inline constexpr Family
+operator|(Family a, Family b)
 {
-	return static_cast<Type>(static_cast<TypeUnder_t>(a) |
-				 static_cast<TypeUnder_t>(b));
+	return static_cast<Family>(static_cast<FamilyUnder_t>(a) |
+				   static_cast<FamilyUnder_t>(b));
 }
 
-inline constexpr Type
-operator&(Type a, Type b)
+inline constexpr Family
+operator&(Family a, Family b)
 {
-	return static_cast<Type>(static_cast<TypeUnder_t>(a) &
-				 static_cast<TypeUnder_t>(b));
+	return static_cast<Family>(static_cast<FamilyUnder_t>(a) &
+				   static_cast<FamilyUnder_t>(b));
 }
 
 inline constexpr ReadResult_t
 operator|(ReadResult_t a, ReadResult_t b)
 {
-	return static_cast<ReadResult_t>(static_cast<TypeUnder_t>(a) |
-					 static_cast<TypeUnder_t>(b));
+	return static_cast<ReadResult_t>(static_cast<FamilyUnder_t>(a) |
+					 static_cast<FamilyUnder_t>(b));
 }
 
 inline constexpr ReadResult_t
 operator&(ReadResult_t a, ReadResult_t b)
 {
-	return static_cast<ReadResult_t>(static_cast<TypeUnder_t>(a) &
-					 static_cast<TypeUnder_t>(b));
+	return static_cast<ReadResult_t>(static_cast<FamilyUnder_t>(a) &
+					 static_cast<FamilyUnder_t>(b));
 }
 
 inline constexpr ReadResult_t
 operator~(ReadResult_t a)
 {
-	return static_cast<ReadResult_t>(~static_cast<TypeUnder_t>(a));
+	return static_cast<ReadResult_t>(~static_cast<FamilyUnder_t>(a));
 }
 
 inline std::ostream&
-operator<<(std::ostream& strm, compact::Type t)
+operator<<(std::ostream& strm, compact::Family t)
 {
-	if (t >= compact::Type::MP_END)
-		return strm << TypeName[compact::Type::MP_END]
+	if (t >= compact::Family::MP_END)
+		return strm << FamilyName[compact::Family::MP_END]
 			    << "(" << static_cast<uint64_t>(t) << ")";
-	return strm << TypeName[t];
+	return strm << FamilyName[t];
 }
 
 inline std::ostream&
-operator<<(std::ostream& strm, Type t)
+operator<<(std::ostream& strm, Family t)
 {
 	if (t == MP_NONE)
-		return strm << TypeName[compact::Type::MP_END + 1];
-	static_assert(sizeof(TypeUnder_t) == sizeof(t), "Very wrong");
-	TypeUnder_t base = t;
+		return strm << FamilyName[compact::Family::MP_END + 1];
+	static_assert(sizeof(FamilyUnder_t) == sizeof(t), "Very wrong");
+	FamilyUnder_t base = t;
 	bool first = true;
 	do {
 		static_assert(sizeof(unsigned) == sizeof(t), "Wrong ctz");
@@ -179,7 +179,7 @@ operator<<(std::ostream& strm, Type t)
 			first = false;
 		else
 			strm << "|";
-		strm << static_cast<compact::Type>(part);
+		strm << static_cast<compact::Family>(part);
 	} while (base != 0);
 	return strm;
 }
@@ -198,8 +198,8 @@ operator<<(std::ostream& strm, ReadResult_t t)
 {
 	if (t == READ_SUCCESS)
 		return strm << ReadErrorName[READ_ERROR_END + 1];
-	static_assert(sizeof(TypeUnder_t) == sizeof(t), "Very wrong");
-	TypeUnder_t base = t;
+	static_assert(sizeof(FamilyUnder_t) == sizeof(t), "Very wrong");
+	FamilyUnder_t base = t;
 	bool first = true;
 	do {
 		static_assert(sizeof(unsigned) == sizeof(t), "Wrong ctz");
@@ -220,7 +220,7 @@ struct ArrValue { uint32_t offset; uint32_t size; };
 struct MapValue { uint32_t offset; uint32_t size; };
 struct ExtValue { int8_t type; uint8_t offset; uint32_t size; };
 
-// The order of types myst be exactly the same as in Compact::Type!
+// The order of types must be exactly the same as in compact::Family!
 using Value_t = std::variant<
 	std::nullptr_t, bool, uint64_t, int64_t, float, double,
 	StrValue, BinValue, ArrValue, MapValue, ExtValue
