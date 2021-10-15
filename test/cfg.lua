@@ -1,6 +1,9 @@
 box.cfg{listen = 3301, net_msg_max=10000, readahead=163200, log='tarantool.txt'}
 box.schema.user.grant('guest', 'super', nil, nil, {if_not_exists=true})
 
+sset = box.space._session_settings
+sset:update('sql_full_metadata', {{'=', 'value', true}})
+
 if box.space.t then box.space.t:drop() end
 s = box.schema.space.create('T')
 s:format{{name='id',type='integer'},{name='a',type='string'},{name='b',type='number'}}
