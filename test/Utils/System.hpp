@@ -33,6 +33,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/wait.h>
+#include <signal.h>
 #ifdef __linux__
 #include <sys/prctl.h>
 #endif
@@ -68,6 +69,7 @@ launchTarantool()
 	if (execlp("tarantool", "tarantool", "test_cfg.lua", NULL) == -1) {
 		fprintf(stderr, "Can't launch Tarantool: execlp failed! %s\n",
 			strerror(errno));
+		kill(getppid(), SIGKILL);
 	}
 	exit(EXIT_FAILURE);
 }
