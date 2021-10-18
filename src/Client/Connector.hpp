@@ -30,10 +30,10 @@
  * SUCH DAMAGE.
  */
 #include "Connection.hpp"
-#include "DefaultNetProvider.hpp"
+#include "EpollNetProvider.hpp"
 #include "../Utils/Timer.hpp"
 
-template<class BUFFER, class NetProvider = DefaultNetProvider<BUFFER, NetworkEngine>>
+template<class BUFFER, class NetProvider = EpollNetProvider<BUFFER, NetworkEngine>>
 class Connector
 {
 public:

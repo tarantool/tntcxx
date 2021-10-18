@@ -140,7 +140,7 @@ The connector's main class has the following signature:
 
 ..  code-block:: c
 
-    template<class BUFFER, class NetProvider = DefaultNetProvider<BUFFER>>
+    template<class BUFFER, class NetProvider = EpollNetProvider<BUFFER>>
     class Connector;
 
 The buffer is parametrized by allocator. It means that users can

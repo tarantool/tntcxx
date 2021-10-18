@@ -44,18 +44,18 @@ To create client one should specify buffer's and network provider's implementati
 as template parameters. Connector's main class has the following signature:
 
 ```
-template<class BUFFER, class NetProvider = DefaultNetProvider<BUFFER>>
+template<class BUFFER, class NetProvider = EpollNetProvider<BUFFER>>
 class Connector;
 ```
 
 If one don't want to bother with implementing its own buffer or network provider,
 one can use default one: `tnt::Buffer<16 * 1024>` and
-`DefaultNetProvider<tnt::Buffer<16 * 1024>>`.
+`EpollNetProvider<tnt::Buffer<16 * 1024>>`.
 So the default instantiation would look
 like:
 ```
 using Buf_t = tnt::Buffer<16 * 1024>;
-using Net_t = DefaultNetProvider<Buf_t >;
+using Net_t = EpollNetProvider<Buf_t >;
 Connector<Buf_t, Net_t> client;
 ```
 

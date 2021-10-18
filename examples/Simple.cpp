@@ -54,7 +54,7 @@ int WAIT_TIMEOUT = 1000; //milliseconds
 
 //doclabel02-1
 using Buf_t = tnt::Buffer<16 * 1024>;
-using Net_t = DefaultNetProvider<Buf_t, NetworkEngine>;
+using Net_t = EpollNetProvider<Buf_t, NetworkEngine>;
 //doclabel02-2
 
 //doclabel16-1

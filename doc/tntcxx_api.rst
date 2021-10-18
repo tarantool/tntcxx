@@ -24,7 +24,7 @@ Below is the description of the connector public API.
 Connector class
 ---------------
 
-..  cpp:class:: template<class BUFFER, class NetProvider = DefaultNetProvider<BUFFER>> \
+..  cpp:class:: template<class BUFFER, class NetProvider = EpollNetProvider<BUFFER>> \
                 Connector
 
     The ``Connector`` class is a template class that defines a connector client
@@ -39,7 +39,7 @@ Connector class
     ..  code-block:: cpp
 
         using Buf_t = tnt::Buffer<16 * 1024>;
-        using Net_t = DefaultNetProvider<Buf_t >;
+        using Net_t = EpollNetProvider<Buf_t >;
         Connector<Buf_t, Net_t> client;
 
 
@@ -84,7 +84,7 @@ Public methods
     ..  code-block:: cpp
 
         using Buf_t = tnt::Buffer<16 * 1024>;
-        using Net_t = DefaultNetProvider<Buf_t >;
+        using Net_t = EpollNetProvider<Buf_t >;
 
         Connector<Buf_t, Net_t> client;
         Connection<Buf_t, Net_t> conn(client);
@@ -128,7 +128,7 @@ Public methods
 
     *   timeout exceeded
     *   other possible errors depend on a network provider used.
-        If the ``DefaultNetProvider`` is used, failing of the ``poll``,
+        If the ``EpollNetProvider`` is used, failing of the ``poll``,
         ``read``, and ``write`` system calls leads to system errors,
         such as, ``EBADF``, ``ENOTSOCK``, ``EFAULT``, ``EINVAL``, ``EPIPE``,
         and ``ENOTCONN`` (``EWOULDBLOCK`` and ``EAGAIN`` don't occur
@@ -168,7 +168,7 @@ Public methods
 
     *   timeout exceeded
     *   other possible errors depend on a network provider used.
-        If the ``DefaultNetProvider`` is used, failing of the ``poll``,
+        If the ``EpollNetProvider`` is used, failing of the ``poll``,
         ``read``, and ``write`` system calls leads to system errors,
         such as, ``EBADF``, ``ENOTSOCK``, ``EFAULT``, ``EINVAL``, ``EPIPE``,
         and ``ENOTCONN`` (``EWOULDBLOCK`` and ``EAGAIN`` don't occur
@@ -207,7 +207,7 @@ Public methods
 
     *   timeout exceeded
     *   other possible errors depend on a network provider used.
-        If the ``DefaultNetProvider`` is used, failing of the ``poll``,
+        If the ``EpollNetProvider`` is used, failing of the ``poll``,
         ``read``, and ``write`` system calls leads to system errors,
         such as, ``EBADF``, ``ENOTSOCK``, ``EFAULT``, ``EINVAL``, ``EPIPE``,
         and ``ENOTCONN`` (``EWOULDBLOCK`` and ``EAGAIN`` don't occur
@@ -268,7 +268,7 @@ Connection class
 
         //Instantiating a connector client
         using Buf_t = tnt::Buffer<16 * 1024>;
-        using Net_t = DefaultNetProvider<Buf_t >;
+        using Net_t = EpollNetProvider<Buf_t >;
         Connector<Buf_t, Net_t> client;
 
         //Instantiating connection objects

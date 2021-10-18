@@ -49,13 +49,13 @@ template<class BUFFER, class NetProvider>
 class Connector;
 
 template<class BUFFER, class NETWORK>
-class DefaultNetProvider {
+class EpollNetProvider {
 public:
-	using NetProvider_t = DefaultNetProvider<BUFFER, NETWORK>;
+	using NetProvider_t = EpollNetProvider<BUFFER, NETWORK>;
 	using Conn_t = Connection<BUFFER, NetProvider_t >;
 	using Connector_t = Connector<BUFFER, NetProvider_t >;
-	DefaultNetProvider();
-	~DefaultNetProvider();
+	EpollNetProvider();
+	~EpollNetProvider();
 	int connect(Conn_t &conn, const std::string_view& addr, unsigned port,
 		    size_t timeout);
 	void close(Conn_t &conn);
@@ -86,7 +86,7 @@ private:
 };
 
 template<class BUFFER, class NETWORK>
-DefaultNetProvider<BUFFER, NETWORK>::DefaultNetProvider()
+EpollNetProvider<BUFFER, NETWORK>::EpollNetProvider()
 {
 	m_EpollFd = epoll_create(EPOLL_QUEUE_LEN);
 	if (m_EpollFd == -1) {
@@ -97,7 +97,7 @@ DefaultNetProvider<BUFFER, NETWORK>::DefaultNetProvider()
 }
 
 template<class BUFFER, class NETWORK>
-DefaultNetProvider<BUFFER, NETWORK>::~DefaultNetProvider()
+EpollNetProvider<BUFFER, NETWORK>::~EpollNetProvider()
 {
 	::close(m_EpollFd);
 	m_EpollFd = 0;
@@ -106,7 +106,7 @@ DefaultNetProvider<BUFFER, NETWORK>::~DefaultNetProvider()
 
 template<class BUFFER, class NETWORK>
 int
-DefaultNetProvider<BUFFER, NETWORK>::registerEpoll(int socket)
+EpollNetProvider<BUFFER, NETWORK>::registerEpoll(int socket)
 {
 	/* Configure epoll with new socket. */
 	assert(m_EpollFd >= 0);
@@ -120,7 +120,7 @@ DefaultNetProvider<BUFFER, NETWORK>::registerEpoll(int socket)
 
 template<class BUFFER, class NETWORK>
 int
-DefaultNetProvider<BUFFER, NETWORK>::setPollSetting(int socket, int setting)
+EpollNetProvider<BUFFER, NETWORK>::setPollSetting(int socket, int setting)
 {
 	struct epoll_event event;
 	event.events = setting;
@@ -133,9 +133,9 @@ DefaultNetProvider<BUFFER, NETWORK>::setPollSetting(int socket, int setting)
 
 template<class BUFFER, class NETWORK>
 int
-DefaultNetProvider<BUFFER, NETWORK>::connect(Conn_t &conn,
-					     const std::string_view& addr,
-					     unsigned port, size_t timeout)
+EpollNetProvider<BUFFER, NETWORK>::connect(Conn_t &conn,
+					   const std::string_view& addr,
+					   unsigned port, size_t timeout)
 {
 	int socket = -1;
 	socket = port == 0 ? NETWORK::connectUNIX(addr) :
@@ -180,7 +180,7 @@ DefaultNetProvider<BUFFER, NETWORK>::connect(Conn_t &conn,
 
 template<class BUFFER, class NETWORK>
 void
-DefaultNetProvider<BUFFER, NETWORK>::close(Conn_t &connection)
+EpollNetProvider<BUFFER, NETWORK>::close(Conn_t &connection)
 {
 #ifndef NDEBUG
 	struct sockaddr sa;
@@ -218,8 +218,8 @@ DefaultNetProvider<BUFFER, NETWORK>::close(Conn_t &connection)
 
 template<class BUFFER, class NETWORK>
 int
-DefaultNetProvider<BUFFER, NETWORK>::poll(struct ConnectionEvent *fds,
-					  size_t *fd_count, int timeout)
+EpollNetProvider<BUFFER, NETWORK>::poll(struct ConnectionEvent *fds,
+					size_t *fd_count, int timeout)
 {
 	static struct epoll_event events[EPOLL_EVENTS_MAX];
 	*fd_count = 0;
@@ -239,13 +239,13 @@ DefaultNetProvider<BUFFER, NETWORK>::poll(struct ConnectionEvent *fds,
 
 template<class BUFFER, class NETWORK>
 void
-DefaultNetProvider<BUFFER, NETWORK>::readyToSend(Conn_t &conn)
+EpollNetProvider<BUFFER, NETWORK>::readyToSend(Conn_t &conn)
 {
 	if (conn.status.is_send_blocked) {
 #ifndef NDEBUG
 		// If connection's send is blocked, then it must be in
 		// the write list anyway.
-		Connection<BUFFER, DefaultNetProvider> *tmp;
+		Connection<BUFFER, EpollNetProvider> *tmp;
 		rlist_foreach_entry(tmp, &m_ready_to_write, m_in_write) {
 			if (tmp->socket == conn.socket)
 				return;
@@ -255,7 +255,7 @@ DefaultNetProvider<BUFFER, NETWORK>::readyToSend(Conn_t &conn)
 		return;
 	}
 
-	Connection<BUFFER, DefaultNetProvider> *tmp;
+	Connection<BUFFER, EpollNetProvider> *tmp;
 	rlist_foreach_entry(tmp, &m_ready_to_write, m_in_write) {
 		if (tmp == &conn)
 			return;
@@ -266,7 +266,7 @@ DefaultNetProvider<BUFFER, NETWORK>::readyToSend(Conn_t &conn)
 
 template<class BUFFER, class NETWORK>
 int
-DefaultNetProvider<BUFFER, NETWORK>::recv(Conn_t &conn)
+EpollNetProvider<BUFFER, NETWORK>::recv(Conn_t &conn)
 {
 	assert(! conn.status.is_failed);
 	size_t total = NETWORK::readyToRecv(conn.socket);
@@ -301,7 +301,7 @@ DefaultNetProvider<BUFFER, NETWORK>::recv(Conn_t &conn)
 
 template<class BUFFER, class NETWORK>
 void
-DefaultNetProvider<BUFFER, NETWORK>::send(Conn_t &conn)
+EpollNetProvider<BUFFER, NETWORK>::send(Conn_t &conn)
 {
 	assert(! conn.status.is_failed);
 	while (hasDataToSend(conn)) {
@@ -347,7 +347,7 @@ DefaultNetProvider<BUFFER, NETWORK>::send(Conn_t &conn)
 
 template<class BUFFER, class NETWORK>
 int
-DefaultNetProvider<BUFFER, NETWORK>::wait(int timeout)
+EpollNetProvider<BUFFER, NETWORK>::wait(int timeout)
 {
 	assert(timeout >= 0);
 	if (timeout == 0)
@@ -355,7 +355,7 @@ DefaultNetProvider<BUFFER, NETWORK>::wait(int timeout)
 	LOG_DEBUG("Network engine wait for ", timeout, " milliseconds");
 	/* Send pending requests. */
 	if (!rlist_empty(&m_ready_to_write)) {
-		Connection<BUFFER, DefaultNetProvider> *conn, *tmp;
+		Connection<BUFFER, EpollNetProvider> *conn, *tmp;
 		rlist_foreach_entry_safe(conn, &m_ready_to_write, m_in_write, tmp) {
 			send(*conn);
 		}
@@ -368,7 +368,7 @@ DefaultNetProvider<BUFFER, NETWORK>::wait(int timeout)
 		return -1;
 	}
 	for (size_t i = 0; i < event_cnt; ++i) {
-		Connection<BUFFER, DefaultNetProvider> *conn =
+		Connection<BUFFER, EpollNetProvider> *conn =
 			m_Connections[events[i].sock];
 		if ((events[i].event & EPOLLIN) != 0) {
 			LOG_DEBUG("Registered poll event ", i, ": ",
@@ -389,7 +389,7 @@ DefaultNetProvider<BUFFER, NETWORK>::wait(int timeout)
 
 template<class BUFFER, class NETWORK>
 bool
-DefaultNetProvider<BUFFER, NETWORK>::check(Conn_t &connection)
+EpollNetProvider<BUFFER, NETWORK>::check(Conn_t &connection)
 {
 	int error = 0;
 	socklen_t len = sizeof(error);

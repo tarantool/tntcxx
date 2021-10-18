@@ -152,7 +152,7 @@ testEngines()
 	std::cout << "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" << std::endl;
 	std::cout << "              TEST SUITE #" << suite_numb++ << std::endl;
 	std::cout << "              BUFFER SIZE=" << BUFFER::blockSize() << std::endl;
-	using DefaultNet_t = DefaultNetProvider<BUFFER, NetworkEngine >;
+	using DefaultNet_t = EpollNetProvider<BUFFER, NetworkEngine >;
 	using LibEvNet_t = LibevNetProvider<BUFFER, NetworkEngine >;
 	std::cout << "===================================================" << std::endl;
 	std::cout << "        STARTING TEST EPOLL" << std::endl;

@@ -54,7 +54,7 @@ operator<<(std::ostream& strm, const UserTuple &t)
 using Buf_t = tnt::Buffer<16 * 1024>;
 using BufIter_t = typename Buf_t::iterator;
 using Network_t = NetworkEngine;
-using Net_t = DefaultNetProvider<Buf_t, Network_t >;
+using Net_t = EpollNetProvider<Buf_t, Network_t >;
 
 //doclabel14-1
 struct UserTupleValueReader : mpp::DefaultErrorHandler {
