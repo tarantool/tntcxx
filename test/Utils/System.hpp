@@ -32,8 +32,10 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <wait.h>
+#include <sys/wait.h>
+#ifdef __linux__
 #include <sys/prctl.h>
+#endif
 
 int
 launchTarantool()
@@ -48,11 +50,16 @@ launchTarantool()
 	/* Returning from parent. */
 	if (pid != 0)
 		return 0;
-	/* Kill child (i.e. Tarantool process) when the test is finished. */
+	/*
+	 * Kill child (i.e. Tarantool process) when the test is finished.
+	 * Doesn't work on MacOS tho.
+	 */
+#ifdef __linux__
 	if (prctl(PR_SET_PDEATHSIG, SIGTERM) == -1) {
 		fprintf(stderr, "Can't launch Tarantool: %s", strerror(errno));
 		exit(EXIT_FAILURE);
 	}
+#endif
 	if (getppid() != ppid_before_fork) {
 		fprintf(stderr, "Can't launch Tarantool: parent process exited "\
 				"just before prctl call");
