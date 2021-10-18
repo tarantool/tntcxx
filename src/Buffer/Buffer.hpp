@@ -35,6 +35,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstring>
+#include <string>
 #include <type_traits>
 
 #include "../Utils/Mempool.hpp"
