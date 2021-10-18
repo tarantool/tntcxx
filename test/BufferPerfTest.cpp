@@ -37,12 +37,12 @@ struct StaticBuffer {
 	template <class T>
 	void addBack(T&& t)
 	{
-		mempcpy(p, &t, sizeof(t));
+		memcpy(p, &t, sizeof(t));
 		p += sizeof(t);
 	}
 	void addBack(wrap::Data d)
 	{
-		mempcpy(p, d.data, d.size);
+		memcpy(p, d.data, d.size);
 		p += d.size;
 	}
 };
