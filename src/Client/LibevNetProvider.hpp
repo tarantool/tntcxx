@@ -39,7 +39,6 @@
 #include <string_view>
 
 #include "Connection.hpp"
-#include "Connector.hpp"
 #include "NetworkEngine.hpp"
 #include "../Utils/rlist.h"
 #include "ev.h"

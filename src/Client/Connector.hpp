@@ -30,10 +30,23 @@
  * SUCH DAMAGE.
  */
 #include "Connection.hpp"
-#include "EpollNetProvider.hpp"
+#include "NetworkEngine.hpp"
 #include "../Utils/Timer.hpp"
 
-template<class BUFFER, class NetProvider = EpollNetProvider<BUFFER, NetworkEngine>>
+/**
+ * MacOS does not have epoll so let's use Libev as default network provider.
+ */
+#ifdef __linux__
+#include "EpollNetProvider.hpp"
+template<class BUFFER>
+using DefaultNetProvider = EpollNetProvider<BUFFER, NetworkEngine>;
+#else
+#include "LibevNetProvider.hpp"
+template<class BUFFER>
+using DefaultNetProvider = LibevNetProvider<BUFFER, NetworkEngine>;
+#endif
+
+template<class BUFFER, class NetProvider = DefaultNetProvider<BUFFER>>
 class Connector
 {
 public:

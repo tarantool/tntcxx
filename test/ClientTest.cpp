@@ -39,16 +39,13 @@ const char *localhost = "127.0.0.1";
 int port = 3301;
 int WAIT_TIMEOUT = 1000; //milliseconds
 
-using Net_t = EpollNetProvider<Buf_t, NetworkEngine>;
-
-
 enum ResultFormat {
 	TUPLES = 0,
 	MULTI_RETURN,
 	SELECT_RETURN
 };
 
-template <class BUFFER, class NetProvider = Net_t>
+template <class BUFFER, class NetProvider>
 void
 printResponse(Connection<BUFFER, NetProvider> &conn, Response<BUFFER> &response,
 	       enum ResultFormat format = TUPLES)
@@ -87,12 +84,12 @@ printResponse(Connection<BUFFER, NetProvider> &conn, Response<BUFFER> &response,
 	}
 }
 
-template<class BUFFER, class NetProvider = Net_t>
+template<class BUFFER, class NetProvider>
 bool
 compareTupleResult(std::vector<UserTuple> &tuples,
 		   std::vector<UserTuple> &expected);
 
-template <class BUFFER, class NetProvider = Net_t>
+template <class BUFFER, class NetProvider>
 void
 trivial(Connector<BUFFER, NetProvider> &client)
 {
@@ -122,7 +119,7 @@ trivial(Connector<BUFFER, NetProvider> &client)
 }
 
 /** Single connection, separate/sequence pings, no errors */
-template <class BUFFER, class NetProvider = Net_t>
+template <class BUFFER, class NetProvider>
 void
 single_conn_ping(Connector<BUFFER, NetProvider> &client)
 {
@@ -163,7 +160,7 @@ single_conn_ping(Connector<BUFFER, NetProvider> &client)
 }
 
 /** Several connection, separate/sequence pings, no errors */
-template <class BUFFER, class NetProvider = Net_t>
+template <class BUFFER, class NetProvider>
 void
 many_conn_ping(Connector<BUFFER, NetProvider> &client)
 {
@@ -197,7 +194,7 @@ many_conn_ping(Connector<BUFFER, NetProvider> &client)
 }
 
 /** Single connection, errors in response. */
-template <class BUFFER, class NetProvider = Net_t>
+template <class BUFFER, class NetProvider>
 void
 single_conn_error(Connector<BUFFER, NetProvider> &client)
 {
@@ -234,7 +231,7 @@ single_conn_error(Connector<BUFFER, NetProvider> &client)
 }
 
 /** Single connection, separate replaces */
-template <class BUFFER, class NetProvider = Net_t>
+template <class BUFFER, class NetProvider>
 void
 single_conn_replace(Connector<BUFFER, NetProvider> &client)
 {
@@ -267,7 +264,7 @@ single_conn_replace(Connector<BUFFER, NetProvider> &client)
 }
 
 /** Single connection, separate inserts */
-template <class BUFFER, class NetProvider = Net_t>
+template <class BUFFER, class NetProvider>
 void
 single_conn_insert(Connector<BUFFER, NetProvider> &client)
 {
@@ -311,7 +308,7 @@ single_conn_insert(Connector<BUFFER, NetProvider> &client)
 }
 
 /** Single connection, separate updates */
-template <class BUFFER, class NetProvider = Net_t>
+template <class BUFFER, class NetProvider>
 void
 single_conn_update(Connector<BUFFER, NetProvider> &client)
 {
@@ -346,7 +343,7 @@ single_conn_update(Connector<BUFFER, NetProvider> &client)
 }
 
 /** Single connection, separate deletes */
-template <class BUFFER, class NetProvider = Net_t>
+template <class BUFFER, class NetProvider>
 void
 single_conn_delete(Connector<BUFFER, NetProvider> &client)
 {
@@ -390,7 +387,7 @@ single_conn_delete(Connector<BUFFER, NetProvider> &client)
 }
 
 /** Single connection, separate upserts */
-template <class BUFFER, class NetProvider = Net_t>
+template <class BUFFER, class NetProvider>
 void
 single_conn_upsert(Connector<BUFFER, NetProvider> &client)
 {
@@ -421,7 +418,7 @@ single_conn_upsert(Connector<BUFFER, NetProvider> &client)
 }
 
 /** Single connection, select single tuple */
-template <class BUFFER, class NetProvider = Net_t>
+template <class BUFFER, class NetProvider>
 void
 single_conn_select(Connector<BUFFER, NetProvider> &client)
 {
@@ -477,7 +474,7 @@ single_conn_select(Connector<BUFFER, NetProvider> &client)
 }
 
 /** Single connection, call procedure with arguments */
-template <class BUFFER, class NetProvider = Net_t>
+template <class BUFFER, class NetProvider>
 void
 single_conn_call(Connector<BUFFER, NetProvider> &client)
 {
@@ -564,19 +561,21 @@ int main()
 	if (launchTarantool() != 0)
 		return -1;
 	sleep(1);
-	Connector<Buf_t> client;
-	trivial(client);
-	single_conn_ping<Buf_t>(client);
-	many_conn_ping<Buf_t>(client);
-	single_conn_error<Buf_t>(client);
-	single_conn_replace<Buf_t>(client);
-	single_conn_insert<Buf_t>(client);
-	single_conn_update<Buf_t>(client);
-	single_conn_delete<Buf_t>(client);
-	single_conn_upsert<Buf_t>(client);
-	single_conn_select<Buf_t>(client);
-	single_conn_call<Buf_t>(client);
-
+#ifdef __linux__
+	using NetEpoll_t = EpollNetProvider<Buf_t, NetworkEngine>;
+	Connector<Buf_t, NetEpoll_t> client;
+	trivial<Buf_t, NetEpoll_t>(client);
+	single_conn_ping<Buf_t, NetEpoll_t>(client);
+	many_conn_ping<Buf_t, NetEpoll_t>(client);
+	single_conn_error<Buf_t, NetEpoll_t>(client);
+	single_conn_replace<Buf_t, NetEpoll_t>(client);
+	single_conn_insert<Buf_t, NetEpoll_t>(client);
+	single_conn_update<Buf_t, NetEpoll_t>(client);
+	single_conn_delete<Buf_t, NetEpoll_t>(client);
+	single_conn_upsert<Buf_t, NetEpoll_t>(client);
+	single_conn_select<Buf_t, NetEpoll_t>(client);
+	single_conn_call<Buf_t, NetEpoll_t>(client);
+#endif
 	/* LibEv network provide */
 	using NetLibEv_t = LibevNetProvider<Buf_t, NetworkEngine>;
 	Connector<Buf_t, NetLibEv_t > another_client;
