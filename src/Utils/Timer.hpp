@@ -30,7 +30,6 @@
  * SUCH DAMAGE.
  */
 #include <chrono>
-#include "Logger.hpp"
 
 class Timer {
 public:

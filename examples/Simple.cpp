@@ -128,8 +128,8 @@ main()
 	int rc = client.connect(conn, address, port);
 	//doclabel06-2
 	if (rc != 0) {
-		assert(conn.status.is_failed);
-		std::cerr << conn.getError() << std::endl;
+		//assert(conn.getError().saved_errno != 0);
+		std::cerr << conn.getError().msg << std::endl;
 		return -1;
 	}
 	//doclabel06-3
@@ -178,8 +178,7 @@ main()
 		 *  - epoll is failed.
 		 */
 		if (client.wait(conn, ping, WAIT_TIMEOUT) != 0) {
-			assert(conn.status.is_failed);
-			std::cerr << conn.getError() << std::endl;
+			std::cerr << conn.getError().msg << std::endl;
 			conn.reset();
 		}
 	}
@@ -219,8 +218,7 @@ main()
 	/* Let's create another connection. */
 	Connection<Buf_t, Net_t> another(client);
 	if (client.connect(another, address, port) != 0) {
-		assert(conn.status.is_failed);
-		std::cerr << conn.getError() << std::endl;
+		std::cerr << conn.getError().msg << std::endl;
 		return -1;
 	}
 	/* Simultaneously execute two requests from different connections. */
@@ -230,8 +228,9 @@ main()
 	 * waitAny() returns the first connection received response.
 	 * All connections registered via :connect() call are participating.
 	 */
-	Connection<Buf_t, Net_t> *first = client.waitAny(WAIT_TIMEOUT);
-	if (first == &conn) {
+	std::optional<Connection<Buf_t, Net_t>> conn_opt = client.waitAny(WAIT_TIMEOUT);
+	Connection<Buf_t, Net_t> first = *conn_opt;
+	if (first == conn) {
 		assert(conn.futureIsReady(f1));
 		(void) f1;
 	} else {

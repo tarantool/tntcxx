@@ -33,6 +33,8 @@
 #include "NetworkEngine.hpp"
 #include "../Utils/Timer.hpp"
 
+#include <set>
+
 /**
  * MacOS does not have epoll so let's use Libev as default network provider.
  */
@@ -54,45 +56,40 @@ public:
 	~Connector();
 	Connector(const Connector& connector) = delete;
 	Connector& operator = (const Connector& connector) = delete;
-
+	//////////////////////////////Main API//////////////////////////////////
 	int connect(Connection<BUFFER, NetProvider> &conn,
 		    const std::string_view& addr, unsigned port,
 		    size_t timeout = DEFAULT_CONNECT_TIMEOUT);
-	void close(Connection<BUFFER, NetProvider> &conn);
 
 	int wait(Connection<BUFFER, NetProvider> &conn, rid_t future,
-		 int timeout = 0);
-	void waitAll(Connection<BUFFER, NetProvider> &conn, rid_t *futures,
-		     size_t future_count, int timeout = 0);
-	Connection<BUFFER, NetProvider>* waitAny(int timeout = 0);
+		 int timeout = 0, Response<BUFFER> *result = nullptr);
+	int waitAll(Connection<BUFFER, NetProvider> &conn, rid_t *futures,
+		     size_t future_count, //Response<BUFFER> *responses,
+		     int timeout = 0);
+	////////////////////////////Service interfaces//////////////////////////
+	std::optional<Connection<BUFFER, NetProvider>> waitAny(int timeout = 0);
+	void readyToDecode(const Connection<BUFFER, NetProvider> &conn);
+	void readyToSend(const Connection<BUFFER, NetProvider> &conn);
+	void finishSend(const Connection<BUFFER, NetProvider> &conn);
 
-	/**
-	 * Add to @m_ready_to_read queue and parse response.
-	 * Invoked by NetworkProvider.
-	 * */
-	void readyToDecode(Connection<BUFFER, NetProvider> &conn);
-	void readyToSend(Connection<BUFFER, NetProvider> &conn);
-
-	constexpr static size_t DEFAULT_CONNECT_TIMEOUT = 2;
+	std::set<Connection<BUFFER, NetProvider>> m_ReadyToSend;
+	void close(int socket);
+	void close(Connection<BUFFER, NetProvider> &conn);
 private:
+	//Timeout of Connector::connect() method.
+	constexpr static size_t DEFAULT_CONNECT_TIMEOUT = 2;
 	NetProvider m_NetProvider;
-	/**
-	 * Lists of asynchronous connections which are ready to send
-	 * requests or read responses.
-	 */
-	struct rlist m_ready_to_read;
+	std::set<Connection<BUFFER, NetProvider>> m_ReadyToDecode;
 };
 
 template<class BUFFER, class NetProvider>
-Connector<BUFFER, NetProvider>::Connector() : m_NetProvider()
+Connector<BUFFER, NetProvider>::Connector() : m_NetProvider(*this)
 {
-	rlist_create(&m_ready_to_read);
 }
 
 template<class BUFFER, class NetProvider>
 Connector<BUFFER, NetProvider>::~Connector()
 {
-	assert(rlist_empty(&m_ready_to_read));
 }
 
 template<class BUFFER, class NetProvider>
@@ -101,69 +98,77 @@ Connector<BUFFER, NetProvider>::connect(Connection<BUFFER, NetProvider> &conn,
 					const std::string_view& addr,
 					unsigned port, size_t timeout)
 {
-	if (conn.socket >= 0 && m_NetProvider.check(conn)) {
-		LOG_ERROR("Current connection to ", conn.socket, " is alive! "
-			"Please close it before connecting to the new address");
-		return -1;
-	}
+	//Make sure that connection is not yet established.
+	assert(conn.getSocket() < 0);
 	if (m_NetProvider.connect(conn, addr, port, timeout) != 0) {
 		LOG_ERROR("Failed to connect to ", addr, ':', port);
-		LOG_ERROR("Reason: ", conn.getError());
 		return -1;
 	}
-	LOG_DEBUG("Connected to ", addr, ':', port, " has been established");
+	LOG_DEBUG("Connection to ", addr, ':', port, " has been established");
 	return 0;
+}
+
+template<class BUFFER, class NetProvider>
+void
+Connector<BUFFER, NetProvider>::close(int socket)
+{
+	m_NetProvider.close(socket);
 }
 
 template<class BUFFER, class NetProvider>
 void
 Connector<BUFFER, NetProvider>::close(Connection<BUFFER, NetProvider> &conn)
 {
-	m_NetProvider.close(conn);
+	assert(conn.getSocket() >= 0);
+	m_NetProvider.close(conn.getSocket());
+	conn.setSocket(-1);
+}
+
+template<class BUFFER, class NetProvider>
+int
+connectionDecodeResponses(Connection<BUFFER, NetProvider> &conn,
+			  Response<BUFFER> *result)
+{
+	while (hasDataToDecode(conn)) {
+		DecodeStatus rc = processResponse(conn,  result);
+		if (rc == DECODE_ERR)
+			return -1;
+		//In case we've received only a part of response
+		//we should wait until the rest arrives - otherwise
+		//we can't properly decode response. */
+		if (rc == DECODE_NEEDMORE)
+			return 0;
+		assert(rc == DECODE_SUCC);
+	}
+	return 0;
 }
 
 template<class BUFFER, class NetProvider>
 int
 Connector<BUFFER, NetProvider>::wait(Connection<BUFFER, NetProvider> &conn,
-				     rid_t future, int timeout)
+				     rid_t future, int timeout,
+				     Response<BUFFER> *result)
 {
 	LOG_DEBUG("Waiting for the future ", future, " with timeout ", timeout);
 	Timer timer{timeout};
 	timer.start();
-	while (hasDataToDecode(conn)) {
-		if (conn.status.is_failed) {
-			LOG_ERROR("Connection has failed. Please, handle error"
-				  "and reset connection status.");
-			return -1;
-		}
-		DecodeStatus rc = decodeResponse(conn);
-		if (rc == DECODE_ERR)
-			return -1;
-		if (rc == DECODE_NEEDMORE)
-			break;
-	}
-	if (! m_NetProvider.check(conn)) {
-		LOG_ERROR("Connection has been lost: ", conn.getError(),
-			  ". Please re-connect to the host");
+	if (connectionDecodeResponses(conn, result) != 0)
 		return -1;
-	}
 	while (! conn.futureIsReady(future) && !timer.isExpired()) {
 		if (m_NetProvider.wait(timeout - timer.elapsed()) != 0) {
+			conn.setError("Failed to poll: " + std::to_string(errno));
 			return -1;
 		}
-		if (conn.status.is_failed != 0) {
-			LOG_ERROR("Connection got error during wait: ",
-				  conn.getError());
-			return -1;
-		}
-		if (conn.status.is_ready_to_decode) {
-			while (hasDataToDecode(conn)) {
-				DecodeStatus rc = decodeResponse(conn);
-				if (rc == DECODE_ERR)
-					return -1;
-				if (rc == DECODE_NEEDMORE)
-					break;
-			}
+		if (hasDataToDecode(conn)) {
+			assert(m_ReadyToDecode.find(conn) != m_ReadyToDecode.end());
+			if (connectionDecodeResponses(conn, result) != 0)
+				return -1;
+			/*
+			 * In case we've handled whole data in input buffer -
+			 * mark connection as completed.
+			 */
+			if (!hasDataToDecode(conn))
+				m_ReadyToDecode.erase(conn);
 		}
 	}
 	if (! conn.futureIsReady(future)) {
@@ -176,61 +181,78 @@ Connector<BUFFER, NetProvider>::wait(Connection<BUFFER, NetProvider> &conn,
 }
 
 template<class BUFFER, class NetProvider>
-void
+int
 Connector<BUFFER, NetProvider>::waitAll(Connection<BUFFER, NetProvider> &conn,
 					rid_t *futures, size_t future_count,
 					int timeout)
 {
 	Timer timer{timeout};
 	timer.start();
-	for (size_t i = 0; i < future_count && !timer.isExpired(); ++i) {
-		if (wait(conn, futures[i], timeout - timer.elapsed()) != 0) {
+	while (!timer.isExpired()) {
+		if (m_NetProvider.wait(timeout - timer.elapsed()) != 0) {
 			conn.setError("Failed to poll: " + std::to_string(errno));
-			return;
+			return -1;
 		}
-		if (conn.status.is_failed) {
-			LOG_ERROR("wait() on connection ", &conn, ' ', conn.getError(), " has failed:");
+		if (hasDataToDecode(conn)) {
+			assert(m_ReadyToDecode.find(conn) != m_ReadyToDecode.end());
+			if (connectionDecodeResponses(conn, static_cast<Response<BUFFER>*>(nullptr)) != 0)
+				return -1;
+			if (!hasDataToDecode(conn))
+				m_ReadyToDecode.erase(conn);
 		}
-		if (timer.isExpired()) {
-			LOG_WARNING("waitAll() is timed out! Only ", i, " futures are handled");
-			return;
+		bool finish = true;
+		for (size_t i = 0; i < future_count; ++i) {
+			if (!conn.futureIsReady(futures[i])) {
+				finish = false;
+				break;
+			}
 		}
+		if (finish)
+			return 0;
 	}
+	LOG_ERROR("Connection has been timed out: not all futures are ready");
+	return -1;
 }
 
-//std::optional with Connection&
+
 template<class BUFFER, class NetProvider>
-Connection<BUFFER, NetProvider> *
+std::optional<Connection<BUFFER, NetProvider>>
 Connector<BUFFER, NetProvider>::waitAny(int timeout)
 {
 	Timer timer{timeout};
 	timer.start();
-	while (rlist_empty(&m_ready_to_read) && !timer.isExpired()) {
+	while (m_ReadyToDecode.empty() && !timer.isExpired())
 		m_NetProvider.wait(timeout - timer.elapsed());
+	if (m_ReadyToDecode.empty()) {
+		LOG_ERROR("wait() has been timed out! No responses are received");
+		return std::nullopt;
 	}
-	using Conn_t = Connection<BUFFER, NetProvider>;
-	Connection<BUFFER, NetProvider> *conn =
-		rlist_first_entry(&m_ready_to_read, Conn_t, m_in_read);
-	assert(conn->status.is_ready_to_decode);
-	while (hasDataToDecode(*conn)) {
-		if (decodeResponse(*conn) != 0)
-			return nullptr;
-	}
+	Connection<BUFFER, NetProvider> conn = *m_ReadyToDecode.begin();
+	assert(hasDataToDecode(conn));
+	if (connectionDecodeResponses(conn, static_cast<Response<BUFFER>*>(nullptr)) != 0)
+		return std::nullopt;
+	if (!hasDataToDecode(conn))
+		m_ReadyToDecode.erase(conn);
 	return conn;
 }
 
 template<class BUFFER, class NetProvider>
 void
-Connector<BUFFER, NetProvider>::readyToSend(Connection<BUFFER, NetProvider> &conn)
+Connector<BUFFER, NetProvider>::readyToSend(const Connection<BUFFER, NetProvider> &conn)
 {
-	m_NetProvider.readyToSend(conn);
+	m_ReadyToSend.insert(conn);
 }
 
 template<class BUFFER, class NetProvider>
 void
-Connector<BUFFER, NetProvider>::readyToDecode(Connection<BUFFER, NetProvider> &conn)
+Connector<BUFFER, NetProvider>::readyToDecode(const Connection<BUFFER, NetProvider> &conn)
 {
-	//assert(rlist_empty(&m_ready_to_read));
-	rlist_add_tail(&m_ready_to_read, &conn.m_in_read);
-	conn.status.is_ready_to_decode = true;
+	m_ReadyToDecode.insert(conn);
+}
+
+template<class BUFFER, class NetProvider>
+void
+Connector<BUFFER, NetProvider>::finishSend(const Connection<BUFFER, NetProvider> &conn)
+{
+	m_ReadyToSend.erase(conn);
 }

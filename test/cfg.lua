@@ -1,4 +1,4 @@
-box.cfg{listen = 3301, net_msg_max=10000, readahead=163200, log_level = 7, log='tarantool.txt'}
+box.cfg{listen = 3301, net_msg_max=10000, readahead=163200, log='tarantool.txt'}
 box.schema.user.grant('guest', 'super', nil, nil, {if_not_exists=true})
 
 if box.space.t then box.space.t:drop() end
@@ -21,6 +21,10 @@ end
 
 function remote_multi()
     return 'Hello', 1, 6.66
+end
+
+function bench_func(...)
+    return {...}
 end
 
 function get_rps()

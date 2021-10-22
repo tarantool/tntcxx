@@ -51,6 +51,8 @@ static constexpr size_t GIANT_BUFFER_SIZE   = 128 * 1024;
 /** In total 1 million requests per test. */
 constexpr size_t NUM_REQ = 2000;
 constexpr size_t NUM_TEST = 500;
+constexpr size_t TOTAL_REQ = NUM_REQ * NUM_TEST;
+constexpr size_t NUM_CONN = 1;
 
 struct RequestResult {
 	double rps;
@@ -61,22 +63,26 @@ struct BenchResults {
 	RequestResult ping;
 	RequestResult replace;
 	RequestResult select;
+	RequestResult call;
 };
 
 void printResults(BenchResults &r)
 {
 	std::cout << "++++++++++++++++++++++++++++++++++++++++++++++++++" << std::endl;
 	std::cout << "+                 RESULTS                          " << std::endl;
-	std::cout << "+          " << NUM_TEST * NUM_REQ << " REQUESTS ARE DONE   " << std::endl;
+	std::cout << "+          " << TOTAL_REQ << " REQUESTS ARE DONE   " << std::endl;
 	std::cout << "+  PING " << std::endl;
-	std::cout << "+          MRPS        " << r.ping.rps / 1000000 << std::endl;
+	std::cout << "+          MRPS        " << r.ping.rps / TOTAL_REQ << std::endl;
 	std::cout << "+          SERVER RPS  " << r.ping.server_rps    << std::endl;
 	std::cout << "+  REPLACE " << std::endl;
-	std::cout << "+          MRPS        " << r.replace.rps / 1000000 << std::endl;
+	std::cout << "+          MRPS        " << r.replace.rps / TOTAL_REQ << std::endl;
 	std::cout << "+          SERVER RPS  " << r.replace.server_rps    << std::endl;
 	std::cout << "+  SELECT " << std::endl;
-	std::cout << "+          MRPS        " << r.select.rps / 1000000 << std::endl;
+	std::cout << "+          MRPS        " << r.select.rps / TOTAL_REQ << std::endl;
 	std::cout << "+          SERVER RPS  " << r.select.server_rps    << std::endl;
+	std::cout << "+  CALL " << std::endl;
+	std::cout << "+          MRPS        " << r.call.rps / TOTAL_REQ << std::endl;
+	std::cout << "+          SERVER RPS  " << r.call.server_rps    << std::endl;
 	std::cout << "++++++++++++++++++++++++++++++++++++++++++++++++++" << std::endl;
 }
 
@@ -91,6 +97,8 @@ executeRequest(Connection<BUFFER, NetProvider> &conn, int request_type, int key)
 			return conn.ping();
 		case Iproto::SELECT:
 			return conn.space[space_id].select(std::make_tuple(key));
+		case Iproto::CALL:
+			return conn.call("bench_func", std::make_tuple(1, 2, 3, 4, 5));
 		default:
 			abort();
 	}
@@ -98,7 +106,7 @@ executeRequest(Connection<BUFFER, NetProvider> &conn, int request_type, int key)
 
 template<class BUFFER, class NetProvider>
 RequestResult
-testBatchRequests(int request_type)
+testBatchRequestsSingleConn(int request_type)
 {
 	Connector<BUFFER, NetProvider> client;
 	Connection<BUFFER, NetProvider> conn(client);
@@ -113,14 +121,15 @@ testBatchRequests(int request_type)
 		rid_t ids[NUM_REQ];
 		for (size_t i = 0; i < NUM_REQ; i++)
 			ids[i] = executeRequest(conn, request_type, i);
-		client.waitAll(conn, ids, NUM_REQ, WAIT_TIMEOUT);
+		client.wait(conn, ids[NUM_REQ-1], WAIT_TIMEOUT);
 		for (size_t i = 0; i < NUM_REQ; i++) {
 			if (!conn.futureIsReady(ids[i])) {
 				std::cerr << "Test failed: response is not ready!" << std::endl;
 				abort();
 			}
 			auto resp = conn.getResponse(ids[i]);
-			if (resp->header.code != 0) {
+			if (resp.header.code != 0) {
+				std::cerr << "Test failed: server responded with an error!" << std::endl;
 				abort();
 			}
 		}
@@ -134,13 +143,68 @@ testBatchRequests(int request_type)
 }
 
 template<class BUFFER, class NetProvider>
+RequestResult
+testBatchRequestsSeveralConns(int request_type)
+{
+	Connector<BUFFER, NetProvider> client;
+	std::vector<Connection<BUFFER, NetProvider>> conns;
+	for (size_t i = 0; i < NUM_CONN; ++i) {
+		Connection<BUFFER, NetProvider> conn(client);
+		int rc = client.connect(conn, localhost, port);
+		if (rc != 0) {
+			std::cerr << "Failed to connect to localhost:" << port << std::endl;
+			abort();
+		}
+		conns.push_back(conn);
+	}
+	PerfTimer timer;
+	timer.start();
+	for (size_t k = 0; k < NUM_TEST; k++) {
+		rid_t ids[NUM_REQ];
+		for (size_t j = 0; j < NUM_CONN; j++) {
+			for (size_t i = 0; i < NUM_REQ / NUM_CONN; i++) {
+				rid_t future = j * (NUM_REQ / NUM_CONN) + i;
+				ids[future] = executeRequest(conns[j], request_type, i);
+			}
+		}
+		for (size_t j = 0; j < NUM_CONN; j++) {
+			rid_t last_feature = (j+1)*(NUM_REQ / NUM_CONN) - 1;
+			if (client.wait(conns[j], ids[last_feature], WAIT_TIMEOUT) != 0) {
+				std::cerr << "Wait failed: " << conns[j].getError().msg << std::endl;
+				abort();
+			}
+		}
+		for (size_t j = 0; j < NUM_CONN; j++) {
+			for (size_t i = 0; i < NUM_REQ / NUM_CONN; i++) {
+				rid_t future = j*(NUM_REQ / NUM_CONN) + i;
+				if (!conns[j].futureIsReady(ids[future])) {
+					std::cerr << "Test failed: response is not ready!" << std::endl;
+					abort();
+				}
+				auto resp = conns[j].getResponse(ids[future]);
+				if (resp.header.code != 0) {
+					abort();
+				}
+			}
+		}
+	}
+	timer.stop();
+	RequestResult r;
+	r.rps = NUM_REQ * NUM_TEST / timer.result();
+	r.server_rps = getServerRps(client, conns[0]);
+	return r;
+}
+
+
+template<class BUFFER, class NetProvider>
 void
 testRequestTypes()
 {
 	BenchResults r;
-	r.ping = testBatchRequests<BUFFER, NetProvider>(Iproto::PING);
-	r.replace = testBatchRequests<BUFFER, NetProvider>(Iproto::REPLACE);
-	r.select = testBatchRequests<BUFFER, NetProvider>(Iproto::SELECT);
+	r.ping = testBatchRequestsSingleConn<BUFFER, NetProvider>(Iproto::PING);
+	r.replace = testBatchRequestsSingleConn<BUFFER, NetProvider>(Iproto::REPLACE);
+	r.select = testBatchRequestsSingleConn<BUFFER, NetProvider>(Iproto::SELECT);
+	r.call = testBatchRequestsSingleConn<BUFFER, NetProvider>(Iproto::CALL);
 	printResults(r);
 }
 
@@ -177,7 +241,7 @@ getServerRps(Connector<BUFFER, NetProvider> &client,
 		std::cerr << "Failed to retrieve rps from server!" << std::endl;
 		abort();
 	}
-	Response<BUFFER> response = *conn.getResponse(f);
+	Response<BUFFER> response = conn.getResponse(f);
 	if (response.body.data == std::nullopt) {
 		std::cerr << "Failed to retrieve rps from server: error is returned" << std::endl;
 		abort();
@@ -196,6 +260,7 @@ greetings()
 	std::cout << "              GLOBAL CONFIGS                       " << std::endl;
 	std::cout << "          TIMEOUT " << WAIT_TIMEOUT << " MILLISECONDS   " << std::endl;
 	std::cout << "          SERVER ADDRESS " << localhost << ":" << port << std::endl;
+	std::cout << "          NUMBER OF CONNECTIONS " << NUM_CONN << std::endl;
 }
 
 template<std::size_t... I>

@@ -34,7 +34,6 @@
 #include <sys/epoll.h>
 #include <errno.h>
 #include <unistd.h>
-#include <stdexcept>
 #include <cstring>
 #include <string>
 #include <string_view>
@@ -54,13 +53,11 @@ public:
 	using NetProvider_t = EpollNetProvider<BUFFER, NETWORK>;
 	using Conn_t = Connection<BUFFER, NetProvider_t >;
 	using Connector_t = Connector<BUFFER, NetProvider_t >;
-	EpollNetProvider();
+	EpollNetProvider(Connector_t &connector);
 	~EpollNetProvider();
 	int connect(Conn_t &conn, const std::string_view& addr, unsigned port,
 		    size_t timeout);
-	void close(Conn_t &conn);
-	/** Add to @m_ready_to_write*/
-	void readyToSend(Conn_t &conn);
+	void close(int socket);
 	/** Read and write to sockets; polling using epoll. */
 	int wait(int timeout);
 
@@ -71,29 +68,32 @@ private:
 	static constexpr size_t EPOLL_QUEUE_LEN = 1024;
 	static constexpr size_t EPOLL_EVENTS_MAX = 128;
 
-	void send(Conn_t &conn);
+	//return 0 if all data from buffer was processed (sent or read);
+	//return -1 in case of errors;
+	//return 1 in case socket is blocked.
+	int send(Conn_t &conn);
 	int recv(Conn_t &conn);
 
 	int poll(struct ConnectionEvent *fds, size_t *fd_count,
 		 int timeout = DEFAULT_TIMEOUT);
-	int setPollSetting(int socket, int setting);
-	int registerEpoll(int socket);
+	void setPollSetting(int socket, int setting);
+	void registerEpoll(int socket);
 
 	/** <socket : connection> map. Contains both ready to read/send connections */
-	std::unordered_map<int, Conn_t *> m_Connections;
-	rlist m_ready_to_write;
+	std::map<int, Conn_t > m_Connections;
+	Connector_t &m_Connector;
 	int m_EpollFd;
 };
 
 template<class BUFFER, class NETWORK>
-EpollNetProvider<BUFFER, NETWORK>::EpollNetProvider()
+EpollNetProvider<BUFFER, NETWORK>::EpollNetProvider(Connector_t &connector) :
+	m_Connector(connector)
 {
 	m_EpollFd = epoll_create(EPOLL_QUEUE_LEN);
 	if (m_EpollFd == -1) {
 		LOG_ERROR("Failed to initialize epoll: ", strerror(errno));
 		abort();
 	}
-	rlist_create(&m_ready_to_write);
 }
 
 template<class BUFFER, class NETWORK>
@@ -101,11 +101,13 @@ EpollNetProvider<BUFFER, NETWORK>::~EpollNetProvider()
 {
 	::close(m_EpollFd);
 	m_EpollFd = 0;
-	assert(rlist_empty(&m_ready_to_write));
+
+	for (auto conn = m_Connections.begin(); conn != m_Connections.end();)
+		conn = m_Connections.erase(conn);
 }
 
 template<class BUFFER, class NETWORK>
-int
+void
 EpollNetProvider<BUFFER, NETWORK>::registerEpoll(int socket)
 {
 	/* Configure epoll with new socket. */
@@ -113,23 +115,27 @@ EpollNetProvider<BUFFER, NETWORK>::registerEpoll(int socket)
 	struct epoll_event event;
 	event.events = EPOLLIN;
 	event.data.fd = socket;
-	if (epoll_ctl(m_EpollFd, EPOLL_CTL_ADD, socket, &event) != 0)
-		return -1;
-	return 0;
+	if (epoll_ctl(m_EpollFd, EPOLL_CTL_ADD, socket, &event) != 0) {
+		LOG_ERROR("Failed to add socket to epoll: "
+			  "epoll_ctl() returned with errno: ",
+			  strerror(errno));
+		abort();
+	}
 }
 
 template<class BUFFER, class NETWORK>
-int
-EpollNetProvider<BUFFER, NETWORK>::setPollSetting(int socket, int setting)
-{
+void
+EpollNetProvider<BUFFER, NETWORK>::setPollSetting(int socket, int setting) {
 	struct epoll_event event;
 	event.events = setting;
 	event.data.fd = socket;
-	if (epoll_ctl(m_EpollFd, EPOLL_CTL_MOD, socket, &event) != 0)
-		return -1;
-	return 0;
+	if (epoll_ctl(m_EpollFd, EPOLL_CTL_MOD, socket, &event) != 0) {
+		LOG_ERROR("Failed to change epoll mode: "
+			  "epoll_ctl() returned with errno: ",
+			  strerror(errno));
+		abort();
+	}
 }
-
 
 template<class BUFFER, class NETWORK>
 int
@@ -168,24 +174,21 @@ EpollNetProvider<BUFFER, NETWORK>::connect(Conn_t &conn,
 	LOG_DEBUG("Greetings are decoded");
 	LOG_DEBUG("Authentication processing...");
 	//TODO: add authentication step.
-	if (registerEpoll(socket) != 0) {
-		conn.setError(std::string("Failed to register epoll watcher"));
-		::close(socket);
-		return -1;
-	}
-	conn.socket = socket;
-	m_Connections[socket] = &conn;
+	registerEpoll(socket);
+	conn.setSocket(socket);
+	m_Connections.insert({socket, conn});
 	return 0;
 }
 
 template<class BUFFER, class NETWORK>
 void
-EpollNetProvider<BUFFER, NETWORK>::close(Conn_t &connection)
+EpollNetProvider<BUFFER, NETWORK>::close(int socket)
 {
+	assert(socket >= 0);
 #ifndef NDEBUG
 	struct sockaddr sa;
 	socklen_t sa_len = sizeof(sa);
-	if (getsockname(connection.socket, &sa, &sa_len) != -1) {
+	if (getsockname(socket, &sa, &sa_len) != -1) {
 		char addr[120];
 		if (sa.sa_family == AF_INET) {
 			struct sockaddr_in *sa_in = (struct sockaddr_in *) &sa;
@@ -195,25 +198,29 @@ EpollNetProvider<BUFFER, NETWORK>::close(Conn_t &connection)
 			struct sockaddr_un *sa_un = (struct sockaddr_un *) &sa;
 			snprintf(addr, 120, "%s", sa_un->sun_path);
 		}
-		LOG_DEBUG("Closed connection to socket ", connection.socket,
+		LOG_DEBUG("Closed connection to socket ", socket,
 			  " corresponding to address ", addr);
 	}
 #endif
-	NETWORK::close(connection.socket);
-	if (connection.socket >= 0) {
-		struct epoll_event event;
-		event.events = EPOLLIN;
-		event.data.fd = connection.socket;
-		/*
-		 * Descriptor is automatically removed from epoll handler
-		 * when all descriptors are closed. So in case
-		 * there's other descriptors on open socket, invoke
-		 * epoll_ctl manually.
-		 */
-		epoll_ctl(m_EpollFd, EPOLL_CTL_DEL, connection.socket, &event);
+	NETWORK::close(socket);
+	struct epoll_event event;
+	event.events = EPOLLIN;
+	event.data.fd = socket;
+	/*
+	 * Descriptor is automatically removed from epoll handler
+	 * when all descriptors are closed. So in case
+	 * there's other descriptors on open socket, invoke
+	 * epoll_ctl manually.
+	 */
+	epoll_ctl(m_EpollFd, EPOLL_CTL_DEL, socket, &event);
+	//close can be called during epoll provider destruction. In this case
+	//all connections staying alive only due to the presence in m_Connections
+	//map. While cleaning up m_Connections destructors of connections will be
+	//called. So to avoid double-free presence check in m_Connections is required.
+	if (m_Connections.find(socket) != m_Connections.end()) {
+		assert(m_Connections.find(socket)->second.getSocket() == socket);
+		m_Connections.erase(socket);
 	}
-	m_Connections.erase(connection.socket);
-	connection.socket = -1;
 }
 
 template<class BUFFER, class NETWORK>
@@ -238,111 +245,59 @@ EpollNetProvider<BUFFER, NETWORK>::poll(struct ConnectionEvent *fds,
 }
 
 template<class BUFFER, class NETWORK>
-void
-EpollNetProvider<BUFFER, NETWORK>::readyToSend(Conn_t &conn)
-{
-	if (conn.status.is_send_blocked) {
-#ifndef NDEBUG
-		// If connection's send is blocked, then it must be in
-		// the write list anyway.
-		Connection<BUFFER, EpollNetProvider> *tmp;
-		rlist_foreach_entry(tmp, &m_ready_to_write, m_in_write) {
-			if (tmp->socket == conn.socket)
-				return;
-		}
-		assert(0);
-#endif
-		return;
-	}
-
-	Connection<BUFFER, EpollNetProvider> *tmp;
-	rlist_foreach_entry(tmp, &m_ready_to_write, m_in_write) {
-		if (tmp == &conn)
-			return;
-	}
-	rlist_add_tail(&m_ready_to_write, &conn.m_in_write);
-	conn.status.is_ready_to_send = true;
-}
-
-template<class BUFFER, class NETWORK>
 int
 EpollNetProvider<BUFFER, NETWORK>::recv(Conn_t &conn)
 {
-	assert(! conn.status.is_failed);
-	size_t total = NETWORK::readyToRecv(conn.socket);
+	size_t total = NETWORK::readyToRecv(conn.getSocket());
 	if (total < 0) {
 		LOG_ERROR("Failed to check socket: ioctl returned errno ",
 			  strerror(errno));
 		return -1;
 	}
 	if (total == 0) {
-		LOG_DEBUG("Socket ", conn.socket, " has no data to read");
-		return -1;
+		LOG_DEBUG("Socket ", conn.getSocket(), " has no data to read");
+		return 0;
 	}
 	size_t iov_cnt = 0;
-	struct iovec *iov =
-		inBufferToIOV(conn, total, &iov_cnt);
-	int read_bytes = NETWORK::recvall(conn.socket, iov, iov_cnt, true);
-	hasNotRecvBytes(conn, total - read_bytes);
-	LOG_DEBUG("read ", read_bytes, " bytes from ", conn.socket, " socket");
-	if (read_bytes < 0) {
-		if (errno == EWOULDBLOCK || errno == EAGAIN)
-			return -1;
+	/* Get IO vectors array pointing to the input buffer. */
+	struct iovec *iov = inBufferToIOV(conn, total, &iov_cnt);
+	int has_read_bytes = NETWORK::recvall(conn.getSocket(), iov, iov_cnt, true);
+	if (has_read_bytes < 0) {
+		//Don't consider EWOULDBLOCK to be an error.
+		if (netWouldBlock(errno))
+			return 0;
 		conn.setError(std::string("Failed to receive response: ") +
-					  strerror(errno));
-		if (errno == EBADF || errno == ENOTCONN ||
-		    errno == ENOTSOCK || errno == EINVAL) {
-				close(conn);
-		}
+					  strerror(errno), errno);
 		return -1;
 	}
-	return total - read_bytes;
+	hasNotRecvBytes(conn, total - has_read_bytes);
+	return total - has_read_bytes;
 }
 
 template<class BUFFER, class NETWORK>
-void
+int
 EpollNetProvider<BUFFER, NETWORK>::send(Conn_t &conn)
 {
-	assert(! conn.status.is_failed);
 	while (hasDataToSend(conn)) {
 		size_t sent_bytes = 0;
 		size_t iov_cnt = 0;
 		struct iovec *iov = outBufferToIOV(conn, &iov_cnt);
-		int rc = NETWORK::sendall(conn.socket, iov, iov_cnt,
+		int rc = NETWORK::sendall(conn.getSocket(), iov, iov_cnt,
 						 &sent_bytes);
 		hasSentBytes(conn, sent_bytes);
-		LOG_DEBUG("send ", sent_bytes, " bytes to the ", conn.socket, " socket");
 		if (rc != 0) {
-			if (errno == EWOULDBLOCK || errno == EAGAIN) {
-				int setting = EPOLLIN | EPOLLOUT;
-				if (setPollSetting(conn.socket, setting) != 0) {
-					LOG_ERROR("Failed to change epoll mode: "
-						  "epoll_ctl() returned with errno: ",
-						  strerror(errno));
-					abort();
-				}
-				conn.status.is_send_blocked = true;
-			} else {
-				conn.setError(std::string("Failed to send request: ") +
-					      strerror(errno));
-				if (errno == EBADF || errno == ENOTSOCK ||
-				    errno == EFAULT || errno == EINVAL ||
-				    errno == EPIPE) {
-					close(conn);
-				}
+			if (netWouldBlock(errno)) {
+				setPollSetting(conn.getSocket(), EPOLLIN | EPOLLOUT);
+				return 1;
 			}
-			return;
+			conn.setError(std::string("Failed to send request: ") +
+				      strerror(errno), errno);
+
+			return -1;
 		}
 	}
 	/* All data from connection has been successfully written. */
-	if (conn.status.is_send_blocked) {
-		if (setPollSetting(conn.socket, EPOLLIN) != 0) {
-			LOG_ERROR("Failed to change epoll mode: epoll_ctl() "
-				  "returned with errno: ", strerror(errno));
-			abort();
-		}
-		conn.status.is_send_blocked = false;
-	}
+	return 0;
 }
 
 template<class BUFFER, class NETWORK>
@@ -354,34 +309,53 @@ EpollNetProvider<BUFFER, NETWORK>::wait(int timeout)
 		timeout = DEFAULT_TIMEOUT;
 	LOG_DEBUG("Network engine wait for ", timeout, " milliseconds");
 	/* Send pending requests. */
-	if (!rlist_empty(&m_ready_to_write)) {
-		Connection<BUFFER, EpollNetProvider> *conn, *tmp;
-		rlist_foreach_entry_safe(conn, &m_ready_to_write, m_in_write, tmp) {
-			send(*conn);
-		}
+	for (auto conn = m_Connector.m_ReadyToSend.begin();
+	     conn != m_Connector.m_ReadyToSend.end();) {
+		Conn_t to_be_send(*conn);
+		(void) send(to_be_send);
+		conn = m_Connector.m_ReadyToSend.erase(conn);
 	}
+
 	/* Firstly poll connections to point out if there's data to read. */
 	static struct ConnectionEvent events[EVENT_POLL_COUNT_MAX];
 	size_t event_cnt = 0;
 	if (poll((ConnectionEvent *)&events, &event_cnt, timeout) != 0) {
+		//Poll error doesn't belong to any connection so just global
+		//log it.
 		LOG_ERROR("Poll failed: ", strerror(errno));
 		return -1;
 	}
 	for (size_t i = 0; i < event_cnt; ++i) {
-		Connection<BUFFER, EpollNetProvider> *conn =
-			m_Connections[events[i].sock];
+		assert(m_Connections.find(events[i].sock) != m_Connections.end());
 		if ((events[i].event & EPOLLIN) != 0) {
+			Conn_t conn = m_Connections.find(events[i].sock)->second;
+			assert(conn.getSocket() == events[i].sock);
 			LOG_DEBUG("Registered poll event ", i, ": ",
-				  conn->socket, " socket is ready to read");
-			if (recv(*conn) == 0)
-				conn->readyToDecode();
+				  conn.getSocket(), " socket is ready to read");
+			/*
+			 * Once we read all bytes from socket connection
+			 * becomes ready to decode.
+			 */
+			int rc = recv(conn);
+			if (rc < 0)
+				return -1;
+			if (rc == 0)
+				m_Connector.readyToDecode(conn);
 		}
+
 		if ((events[i].event & EPOLLOUT) != 0) {
-			/* We are watching only for blocked sockets. */
+			Conn_t conn = m_Connections.find(events[i].sock)->second;
+			assert(conn.getSocket() == events[i].sock);
 			LOG_DEBUG("Registered poll event ", i, ": ",
-				  conn->socket, " socket is ready to write");
-			assert(conn->status.is_send_blocked);
-			send(*conn);
+				  conn.getSocket(), " socket is ready to write");
+			int rc = send(conn);
+			if (rc < 0)
+				return -1;
+			/* All data from connection has been successfully written. */
+			if (rc == 0) {
+				m_Connector.finishSend(conn);
+				setPollSetting(conn.getSocket(), EPOLLIN);
+			}
 		}
 	}
 	return 0;
@@ -393,7 +367,7 @@ EpollNetProvider<BUFFER, NETWORK>::check(Conn_t &connection)
 {
 	int error = 0;
 	socklen_t len = sizeof(error);
-	int rc = getsockopt(connection.socket, SOL_SOCKET, SO_ERROR, &error, &len);
+	int rc = getsockopt(connection.getSocket(), SOL_SOCKET, SO_ERROR, &error, &len);
 	if (rc != 0) {
 		connection.setError(strerror(rc));
 		return false;

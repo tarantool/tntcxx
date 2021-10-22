@@ -96,16 +96,15 @@ trivial(Connector<BUFFER, NetProvider> &client)
 	TEST_INIT(0);
 	Connection<Buf_t, NetProvider> conn(client);
 	TEST_CASE("Nonexistent future");
-	std::optional<Response<Buf_t>> response = conn.getResponse(666);
-	fail_unless(response == std::nullopt);
+	fail_unless(!conn.futureIsReady(666));
 	/* Execute request without connecting to the host. */
 	TEST_CASE("No established connection");
 	rid_t f = conn.ping();
-	client.wait(conn, f, WAIT_TIMEOUT);
-	fail_unless(conn.status.is_failed);
+	int rc = client.wait(conn, f, WAIT_TIMEOUT);
+	fail_unless(rc != 0);
 	/* Connect to the wrong address. */
 	TEST_CASE("Bad address");
-	int rc = client.connect(conn, "asdasd", port);
+	rc = client.connect(conn, "asdasd", port);
 	fail_unless(rc != 0);
 	TEST_CASE("Unreachable address");
 	rc = client.connect(conn, "101.101.101", port);
@@ -177,15 +176,15 @@ many_conn_ping(Connector<BUFFER, NetProvider> &client)
 	 * Try to re-connect to another address whithout closing
 	 * current connection.
 	 */
-	rc = client.connect(conn2, localhost, port + 2);
-	fail_unless(rc != 0);
+	//rc = client.connect(conn2, localhost, port + 2);
+	//fail_unless(rc != 0);
 	rc = client.connect(conn3, localhost, port);
 	fail_unless(rc == 0);
 	rid_t f1 = conn1.ping();
 	rid_t f2 = conn2.ping();
 	rid_t f3 = conn3.ping();
-	Connection<Buf_t, NetProvider> *conn = client.waitAny(WAIT_TIMEOUT);
-	(void) conn;
+	std::optional<Connection<Buf_t, NetProvider>> conn_opt = client.waitAny(WAIT_TIMEOUT);
+	fail_unless(conn_opt.has_value());
 	fail_unless(conn1.futureIsReady(f1) || conn2.futureIsReady(f2) ||
 		    conn3.futureIsReady(f3));
 	client.close(conn1);
