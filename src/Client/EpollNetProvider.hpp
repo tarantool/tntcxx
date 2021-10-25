@@ -42,7 +42,6 @@
 #include "Connector.hpp"
 #include "NetworkEngine.hpp"
 #include "../Utils/Timer.hpp"
-#include "../Utils/rlist.h"
 
 template<class BUFFER, class NetProvider>
 class Connector;

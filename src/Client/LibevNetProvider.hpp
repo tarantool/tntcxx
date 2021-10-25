@@ -40,7 +40,6 @@
 
 #include "Connection.hpp"
 #include "NetworkEngine.hpp"
-#include "../Utils/rlist.h"
 #include "ev.h"
 
 template<class BUFFER, class NETWORK>
