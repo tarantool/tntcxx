@@ -63,9 +63,8 @@ public:
 
 	int wait(Connection<BUFFER, NetProvider> &conn, rid_t future,
 		 int timeout = 0, Response<BUFFER> *result = nullptr);
-	int waitAll(Connection<BUFFER, NetProvider> &conn, rid_t *futures,
-		     size_t future_count, //Response<BUFFER> *responses,
-		     int timeout = 0);
+	int waitAll(Connection<BUFFER, NetProvider> &conn,
+		    const std::vector<rid_t > &futures, int timeout = 0);
 	////////////////////////////Service interfaces//////////////////////////
 	std::optional<Connection<BUFFER, NetProvider>> waitAny(int timeout = 0);
 	void readyToDecode(const Connection<BUFFER, NetProvider> &conn);
@@ -183,11 +182,12 @@ Connector<BUFFER, NetProvider>::wait(Connection<BUFFER, NetProvider> &conn,
 template<class BUFFER, class NetProvider>
 int
 Connector<BUFFER, NetProvider>::waitAll(Connection<BUFFER, NetProvider> &conn,
-					rid_t *futures, size_t future_count,
+					const std::vector<rid_t> &futures,
 					int timeout)
 {
 	Timer timer{timeout};
 	timer.start();
+	size_t last_not_ready = 0;
 	while (!timer.isExpired()) {
 		if (m_NetProvider.wait(timeout - timer.elapsed()) != 0) {
 			conn.setError("Failed to poll: " + std::to_string(errno));
@@ -201,9 +201,10 @@ Connector<BUFFER, NetProvider>::waitAll(Connection<BUFFER, NetProvider> &conn,
 				m_ReadyToDecode.erase(conn);
 		}
 		bool finish = true;
-		for (size_t i = 0; i < future_count; ++i) {
+		for (size_t i = last_not_ready; i < futures.size(); ++i) {
 			if (!conn.futureIsReady(futures[i])) {
 				finish = false;
+				last_not_ready = i;
 				break;
 			}
 		}

@@ -143,12 +143,12 @@ single_conn_ping(Connector<BUFFER, NetProvider> &client)
 	fail_unless(response != std::nullopt);
 	fail_unless(response->header.code == 0);
 	/* Many requests at once. */
-	rid_t features[3];
-	features[0] = conn.ping();
-	features[1] = conn.ping();
-	features[2] = conn.ping();
-	client.waitAll(conn, (rid_t *) &features, 3, 1);
-	for (int i = 0; i < 3; ++i) {
+	std::vector<rid_t > features;
+	features.push_back(conn.ping());
+	features.push_back(conn.ping());
+	features.push_back(conn.ping());
+	client.waitAll(conn, features, WAIT_TIMEOUT);
+	for (size_t i = 0; i < features.size(); ++i) {
 		fail_unless(conn.futureIsReady(features[i]));
 		response = conn.getResponse(features[i]);
 		fail_unless(response != std::nullopt);

@@ -203,12 +203,12 @@ main()
 	printResponse<Buf_t>(conn, *response);
 	//doclabel11-2
 	/* Let's wait for both futures at once. */
-	rid_t futures[2];
+	std::vector<rid_t> futures;
 	futures[0] = replace;
 	futures[1] = select;
 	/* No specified timeout means that we poll futures until they are ready.*/
-	client.waitAll(conn, (rid_t *) &futures, 2);
-	for (int i = 0; i < 2; ++i) {
+	client.waitAll(conn, futures);
+	for (size_t i = 0; i < futures.size(); ++i) {
 		assert(conn.futureIsReady(futures[i]));
 		response = conn.getResponse(futures[i]);
 		assert(response != std::nullopt);
