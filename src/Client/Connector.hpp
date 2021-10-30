@@ -65,6 +65,8 @@ public:
 		 int timeout = 0, Response<BUFFER> *result = nullptr);
 	int waitAll(Connection<BUFFER, NetProvider> &conn,
 		    const std::vector<rid_t > &futures, int timeout = 0);
+	int waitCount(Connection<BUFFER, NetProvider> &conn,
+		      size_t feature_count, int timeout = 0);
 	////////////////////////////Service interfaces//////////////////////////
 	std::optional<Connection<BUFFER, NetProvider>> waitAny(int timeout = 0);
 	void readyToDecode(const Connection<BUFFER, NetProvider> &conn);
@@ -215,7 +217,6 @@ Connector<BUFFER, NetProvider>::waitAll(Connection<BUFFER, NetProvider> &conn,
 	return -1;
 }
 
-
 template<class BUFFER, class NetProvider>
 std::optional<Connection<BUFFER, NetProvider>>
 Connector<BUFFER, NetProvider>::waitAny(int timeout)
@@ -235,6 +236,34 @@ Connector<BUFFER, NetProvider>::waitAny(int timeout)
 	if (!hasDataToDecode(conn))
 		m_ReadyToDecode.erase(conn);
 	return conn;
+}
+
+template<class BUFFER, class NetProvider>
+int
+Connector<BUFFER, NetProvider>::waitCount(Connection<BUFFER, NetProvider> &conn,
+					  size_t future_count, int timeout)
+{
+	Timer timer{timeout};
+	timer.start();
+	size_t ready_futures = conn.getFutureCount();
+	while (!timer.isExpired()) {
+		if (m_NetProvider.wait(timeout - timer.elapsed()) != 0) {
+			conn.setError("Failed to poll: " + std::to_string(errno));
+			return -1;
+		}
+		if (hasDataToDecode(conn)) {
+			assert(m_ReadyToDecode.find(conn) != m_ReadyToDecode.end());
+			if (connectionDecodeResponses(conn, static_cast<Response<BUFFER>*>(nullptr)) != 0)
+				return -1;
+			if (!hasDataToDecode(conn))
+				m_ReadyToDecode.erase(conn);
+		}
+		if ((conn.getFutureCount() - ready_futures) >= future_count)
+			return 0;
+	}
+	LOG_ERROR("Connection has been timed out: only ",
+		   conn.getFutureCount() - ready_futures, " are ready");
+	return -1;
 }
 
 template<class BUFFER, class NetProvider>

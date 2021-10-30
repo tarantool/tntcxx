@@ -153,6 +153,7 @@ public:
 	Response<BUFFER> getResponse(rid_t future);
 	bool futureIsReady(rid_t future);
 	void flush();
+	size_t getFutureCount() const;
 
 	template <class T>
 	rid_t call(const std::string &func, const T &args);
@@ -378,6 +379,13 @@ void
 Connection<BUFFER, NetProvider>::flush()
 {
 	impl->futures.clear();
+}
+
+template<class BUFFER, class NetProvider>
+size_t
+Connection<BUFFER, NetProvider>::getFutureCount() const
+{
+	return impl->futures.size();
 }
 
 template<class BUFFER, class NetProvider>

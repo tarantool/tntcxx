@@ -155,6 +155,18 @@ single_conn_ping(Connector<BUFFER, NetProvider> &client)
 		fail_unless(response->header.code == 0);
 		fail_unless(response->body.error_stack == std::nullopt);
 	}
+	features.clear();
+	features.push_back(conn.ping());
+	features.push_back(conn.ping());
+	features.push_back(conn.ping());
+	client.waitCount(conn, features.size(), WAIT_TIMEOUT);
+	for (size_t i = 0; i < features.size(); ++i) {
+		fail_unless(conn.futureIsReady(features[i]));
+		response = conn.getResponse(features[i]);
+		fail_unless(response != std::nullopt);
+		fail_unless(response->header.code == 0);
+		fail_unless(response->body.error_stack == std::nullopt);
+	}
 	client.close(conn);
 }
 
