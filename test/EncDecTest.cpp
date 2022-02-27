@@ -153,33 +153,6 @@ test_bswap()
 	}
 }
 
-template <bool expect_c_string, class T>
-void
-test_static_assert_strings(const T&)
-{
-	static_assert(expect_c_string != mpp::looks_like_str_v<T>);
-	static_assert(expect_c_string == mpp::is_c_str_v<T>);
-}
-
-void
-test_string_traits()
-{
-	TEST_INIT(0);
-	std::string str;
-	std::string_view strv;
-	char arr[20] = "aaa";
-	const char *cstr = "bbb";
-	char *mcstr = arr;
-	test_static_assert_strings<false>(std::string{});
-	test_static_assert_strings<false>(str);
-	test_static_assert_strings<false>(std::string_view{});
-	test_static_assert_strings<false>(strv);
-	test_static_assert_strings<false>(arr);
-	test_static_assert_strings<false>("ccc");
-	test_static_assert_strings<true>(cstr);
-	test_static_assert_strings<true>(mcstr);
-}
-
 void
 test_type_visual()
 {
@@ -328,27 +301,21 @@ test_basic()
 	TEST_INIT(0);
 	using Buf_t = tnt::Buffer<16 * 1024>;
 	Buf_t buf;
-	mpp::Enc<Buf_t> enc(buf);
-	enc.add(0);
-	enc.add(10);
-	enc.add(uint8_t(200));
-	enc.add(short(2000));
-	enc.add(2000000);
-	enc.add(4000000000u);
-	enc.add(FOR_BILLIONS);
-	enc.add(20000000000ull);
-	enc.add(-1);
-	enc.add(MUNUS_ONE_HUNDRED);
-	enc.add(-100);
-	enc.add(-1000);
-	enc.add("aaa");
+	tnt::mpp::encode(buf, 0);
+	tnt::mpp::encode(buf, 10);
+	tnt::mpp::encode(buf, uint8_t(200), short(2000), 2000000, 4000000000u);
+	tnt::mpp::encode(buf, FOR_BILLIONS, 20000000000ull, -1);
+	tnt::mpp::encode(buf, MUNUS_ONE_HUNDRED, -100, -1000);
+	tnt::mpp::encode(buf, "aaa");
 	const char* bbb = "bbb";
-	enc.add(bbb);
+	tnt::mpp::encode(buf, bbb);
 	// Add array.
-	enc.add(std::make_tuple(1., 2.f, "test", nullptr, false));
+	tnt::mpp::encode(buf, std::make_tuple());
+	tnt::mpp::encode(buf, std::make_tuple(1., 2.f, "test", nullptr, false));
 	// Add map.
-	enc.add(mpp::as_map(std::forward_as_tuple(10, true, 11, "val", 12,
-					   std::make_tuple(1, 2, 3))));
+	tnt::mpp::encode(buf, mpp::as_map(
+		std::forward_as_tuple(10, true, 11, "val",
+				      12, std::make_tuple(1, 2, 3))));
 
 	for (auto itr = buf.begin(); itr != buf.end(); ++itr) {
 		char c = buf.get<uint8_t>(itr);
@@ -427,6 +394,14 @@ test_basic()
 		dec.SetReader(false, ArrReader{arr, dec});
 		mpp::ReadResult_t res = dec.Read();
 		fail_if(res != mpp::READ_SUCCESS);
+		fail_if(arr.parsed_arr_size != 0);
+
+	}
+	{
+		TestArrStruct arr = {};
+		dec.SetReader(false, ArrReader{arr, dec});
+		mpp::ReadResult_t res = dec.Read();
+		fail_if(res != mpp::READ_SUCCESS);
 		fail_if(arr.parsed_arr_size != 5);
 		fail_if(arr.dbl != 1.);
 		fail_if(arr.flt != 2.f);
@@ -454,7 +429,6 @@ int main()
 {
 	test_under_ints();
 	test_bswap();
-	test_string_traits();
 	test_type_visual();
 	test_basic();
 }

@@ -58,7 +58,7 @@ using iterator_t = typename BUFFER::iterator;
 template<class BUFFER>
 class RequestEncoder {
 public:
-	RequestEncoder(BUFFER &buf) : m_Buf(buf), m_Enc(buf) {};
+	RequestEncoder(BUFFER &buf) : m_Buf(buf) {};
 	~RequestEncoder() { };
 	RequestEncoder() = delete;
 	RequestEncoder(const RequestEncoder& encoder) = delete;
@@ -91,7 +91,6 @@ public:
 private:
 	void encodeHeader(int request);
 	BUFFER &m_Buf;
-	mpp::Enc<BUFFER> m_Enc;
 	inline static ssize_t sync = -1;
 };
 
@@ -100,7 +99,7 @@ void
 RequestEncoder<BUFFER>::encodeHeader(int request)
 {
 	//TODO: add schema version.
-	m_Enc.add(mpp::as_map(std::forward_as_tuple(
+	tnt::mpp::encode(m_Buf, tnt::mpp::as_map(std::forward_as_tuple(
 		MPP_AS_CONST(Iproto::SYNC), ++RequestEncoder::sync,
 		MPP_AS_CONST(Iproto::REQUEST_TYPE), request)));
 }
@@ -113,7 +112,7 @@ RequestEncoder<BUFFER>::encodePing()
 	m_Buf.addBack('\xce');
 	m_Buf.addBack(uint32_t{0});
 	encodeHeader(Iproto::PING);
-	m_Enc.add(mpp::as_map(std::make_tuple()));
+	tnt::mpp::encode(m_Buf, tnt::mpp::as_map(std::make_tuple()));
 	uint32_t request_size = (m_Buf.end() - request_start) - PREHEADER_SIZE;
 	m_Buf.set(request_start + 1, __builtin_bswap32(request_size));
 	return request_size + PREHEADER_SIZE;
@@ -128,7 +127,7 @@ RequestEncoder<BUFFER>::encodeInsert(const T &tuple, uint32_t space_id)
 	m_Buf.addBack('\xce');
 	m_Buf.addBack(uint32_t{0});
 	encodeHeader(Iproto::INSERT);
-	m_Enc.add(mpp::as_map(std::forward_as_tuple(
+	tnt::mpp::encode(m_Buf, tnt::mpp::as_map(std::forward_as_tuple(
 		MPP_AS_CONST(Iproto::SPACE_ID), space_id,
 		MPP_AS_CONST(Iproto::TUPLE), tuple)));
 	uint32_t request_size = (m_Buf.end() - request_start) - PREHEADER_SIZE;
@@ -145,7 +144,7 @@ RequestEncoder<BUFFER>::encodeReplace(const T &tuple, uint32_t space_id)
 	m_Buf.addBack('\xce');
 	m_Buf.addBack(uint32_t{0});
 	encodeHeader(Iproto::REPLACE);
-	m_Enc.add(mpp::as_map(std::forward_as_tuple(
+	tnt::mpp::encode(m_Buf, tnt::mpp::as_map(std::forward_as_tuple(
 		MPP_AS_CONST(Iproto::SPACE_ID), space_id,
 		MPP_AS_CONST(Iproto::TUPLE), tuple)));
 	uint32_t request_size = (m_Buf.end() - request_start) - PREHEADER_SIZE;
@@ -163,7 +162,7 @@ RequestEncoder<BUFFER>::encodeDelete(const T &key, uint32_t space_id,
 	m_Buf.addBack('\xce');
 	m_Buf.addBack(uint32_t{0});
 	encodeHeader(Iproto::DELETE);
-	m_Enc.add(mpp::as_map(std::forward_as_tuple(
+	tnt::mpp::encode(m_Buf, tnt::mpp::as_map(std::forward_as_tuple(
 		MPP_AS_CONST(Iproto::SPACE_ID), space_id,
 		MPP_AS_CONST(Iproto::INDEX_ID), index_id,
 		MPP_AS_CONST(Iproto::KEY), key)));
@@ -182,7 +181,7 @@ RequestEncoder<BUFFER>::encodeUpdate(const K &key, const T &tuple,
 	m_Buf.addBack('\xce');
 	m_Buf.addBack(uint32_t{0});
 	encodeHeader(Iproto::UPDATE);
-	m_Enc.add(mpp::as_map(std::forward_as_tuple(
+	tnt::mpp::encode(m_Buf, tnt::mpp::as_map(std::forward_as_tuple(
 		MPP_AS_CONST(Iproto::SPACE_ID), space_id,
 		MPP_AS_CONST(Iproto::INDEX_ID), index_id,
 		MPP_AS_CONST(Iproto::KEY), key,
@@ -202,7 +201,7 @@ RequestEncoder<BUFFER>::encodeUpsert(const T &tuple, const O &ops,
 	m_Buf.addBack('\xce');
 	m_Buf.addBack(uint32_t{0});
 	encodeHeader(Iproto::UPSERT);
-	m_Enc.add(mpp::as_map(std::forward_as_tuple(
+	tnt::mpp::encode(m_Buf, tnt::mpp::as_map(std::forward_as_tuple(
 		MPP_AS_CONST(Iproto::SPACE_ID), space_id,
 		MPP_AS_CONST(Iproto::INDEX_BASE), index_base,
 		MPP_AS_CONST(Iproto::OPS), ops,
@@ -224,7 +223,7 @@ RequestEncoder<BUFFER>::encodeSelect(const T &key,
 	m_Buf.addBack('\xce');
 	m_Buf.addBack(uint32_t{0});
 	encodeHeader(Iproto::SELECT);
-	m_Enc.add(mpp::as_map(std::forward_as_tuple(
+	tnt::mpp::encode(m_Buf, tnt::mpp::as_map(std::forward_as_tuple(
 		MPP_AS_CONST(Iproto::SPACE_ID), space_id,
 		MPP_AS_CONST(Iproto::INDEX_ID), index_id,
 		MPP_AS_CONST(Iproto::LIMIT), limit,
@@ -245,7 +244,7 @@ RequestEncoder<BUFFER>::encodeCall(const std::string &func, const T &args)
 	m_Buf.addBack('\xce');
 	m_Buf.addBack(uint32_t{0});
 	encodeHeader(Iproto::CALL);
-	m_Enc.add(mpp::as_map(std::forward_as_tuple(
+	tnt::mpp::encode(m_Buf, tnt::mpp::as_map(std::forward_as_tuple(
 		MPP_AS_CONST(Iproto::FUNCTION_NAME), func,
 		MPP_AS_CONST(Iproto::TUPLE), mpp::as_arr(args))));
 	uint32_t request_size = (m_Buf.end() - request_start) - PREHEADER_SIZE;

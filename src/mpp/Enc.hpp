@@ -38,650 +38,690 @@
 
 #include "BSwap.hpp"
 #include "Constants.hpp"
-#include "Types.hpp"
-#include "Traits.hpp"
+#include "Rules.hpp"
+#include "Spec.hpp"
 #include "../Utils/Common.hpp"
+#include "../Utils/CStr.hpp"
+#include "../Utils/Traits.hpp"
 
-//TODO : add std::variant
 //TODO : add time_t?
 //TODO : rollback in case of fail
+//TODO : error handling + names
+//TODO : min + max
+//TODO : avoid reinterpret_cast
+//TODO : add raw(N)
+//TODO : add std::variant
+//TODO : add std::optional
+//TODO : universal buffer
 
+namespace tnt {
 namespace mpp {
 
-template <class BUFFER>
-class Enc
+using namespace ::mpp;
+
+using std::integral_constant;
+using tnt::CStr;
+
+namespace encode_details {
+
+struct Nothing {};
+
+template <class T>
+constexpr compact::Family detectFamily()
 {
-	using Buffer_t = BUFFER;
-	using iterator_t = typename BUFFER::iterator;
-
-public:
-	using iterator = iterator_t;
-	struct range
-	{
-		iterator_t first, second;
-		range(Buffer_t& buf) : first(buf), second(buf) {}
-		void unlink() { first.unlink(); second.unlink(); }
-	};
-	struct save_iterator
-	{
-		iterator_t &itr;
-	};
-
-	explicit Enc(Buffer_t& buf) : m_Buf(buf) {}
-
-
-	BUFFER& getBuf() { return m_Buf; }
-
-	template <class... T>
-	void add(const T&... t)
-	{
-		add_internal<compact::MP_END, false, void>(CStr<>(), t...);
+	using fixed_t = get_fixed_t<T>;
+	constexpr bool is_type_fixed = !std::is_same_v<fixed_t, void>;
+	using CRU = decltype(unwrap(std::declval<const T&>()));
+	using CRUF = std::conditional_t<is_type_fixed, fixed_t, CRU>;
+	using U = std::remove_cv_t<std::remove_reference_t<CRUF>>;
+	using V = std::remove_cv_t<tnt::uni_integral_base_t<U>>;
+	if constexpr (is_wrapped_family_v<T>) {
+		return T::family;
+	} else if constexpr (std::is_same_v<V, std::nullptr_t>) {
+		return compact::MP_NIL;
+	} else if constexpr (std::is_same_v<V, bool>) {
+		return compact::MP_BOOL;
+	} else if constexpr (tnt::is_signed_integer_v<V>) {
+		return compact::MP_INT;
+	} else if constexpr (tnt::is_unsigned_integer_v<V>) {
+		return compact::MP_UINT;
+	} else if constexpr (std::is_same_v<V, float>) {
+		return compact::MP_FLT;
+	} else if constexpr (std::is_same_v<V, double>) {
+		return compact::MP_DBL;
+	} else if constexpr (tnt::is_string_constant_v<V>) {
+		return compact::MP_STR;
+	} else if constexpr (tnt::is_char_ptr_v<V>) {
+		return compact::MP_STR;
+	} else if constexpr (is_contiguous_char_v<V>) {
+		return compact::MP_STR;
+	} else if constexpr (tnt::is_const_pairs_iterable_v<V>) {
+		return compact::MP_MAP;
+	} else if constexpr (tnt::is_const_iterable_v<V>) {
+		return compact::MP_ARR;
+	} else if constexpr (tnt::is_tuplish_of_pairish_v<V>) {
+		if constexpr(tnt::tuple_size_v<V> == 0)
+			return compact::MP_ARR;
+		else
+			return compact::MP_MAP;
+	} else if constexpr (tnt::is_tuplish_v<V>) {
+		return compact::MP_ARR;
+	} else {
+		static_assert(tnt::always_false_v<V>, "Failed to recognise type");
+		return compact::MP_END;
 	}
+}
 
-private:
-	template <bool V>
-	static constexpr auto conv_const_bool();
-	template <uint64_t V>
-	static constexpr auto conv_const_uint();
-	template <int64_t V>
-	static constexpr auto conv_const_int();
-	template <uint32_t V>
-	static constexpr auto conv_const_str();
-	template <uint32_t V>
-	static constexpr auto conv_const_bin();
-	template <uint32_t V>
-	static constexpr auto conv_const_arr();
-	template <uint32_t V>
-	static constexpr auto conv_const_map();
+template <class T, size_t ...I>
+constexpr auto
+tuplishTotalLength32(std::index_sequence<I...>)
+{
+	constexpr uint32_t total = (0 + ... + sizeof(tnt::tuple_element_t<I, T>));
+	return std::integral_constant<uint32_t, total>{};
+}
 
-	template <char...C, class T>
-	void add_int(CStr<C...> prefix, T t);
-	template <char...C, class T>
-	void add_flt(CStr<C...> prefix, T t);
-	template <char...C, class T>
-	void add_str(CStr<C...> prefix, T size);
-	template <char...C, class T>
-	void add_bin(CStr<C...> prefix, T size);
-	template <char...C, class T>
-	void add_arr(CStr<C...> prefix, T size);
-	template <char...C, class T>
-	void add_map(CStr<C...> prefix, T size);
+template<class U>
+auto uniLength32([[maybe_unused]]const U& u)
+{
+	if constexpr(tnt::is_string_constant_v<U>) {
+		return std::integral_constant<uint32_t, U::size>{};
+	} else if constexpr(tnt::is_tuplish_v<U>) {
+		constexpr size_t s = tnt::tuple_size_v<U>;
+		return tuplishTotalLength32<U>(std::make_index_sequence<s>{});
+	} else {
+		static_assert(tnt::is_contiguous_v<U>);
+		return static_cast<uint32_t>(std::size(u) *
+					     sizeof(*std::data(u)));
+	}
+}
 
-	template <compact::Family TYPE, bool FIXED_SET, class FIXED_TYPE,
-		  char... C, class T, class... MORE>
-	void add_internal(CStr<C...> prefix, const T& t, const MORE&... more);
+template<class U>
+auto uniSize32([[maybe_unused]]const U& u)
+{
+	if constexpr(tnt::is_tuplish_v<U>) {
+		return std::integral_constant<uint32_t, tnt::tuple_size_v<U>>{};
+	} else if constexpr (tnt::is_sizable_v<U>) {
+		static_assert(tnt::is_const_iterable_v<U> ||
+			      tnt::is_contiguous_v<U>);
+		return static_cast<uint32_t>(std::size(u));
+	} else {
+		static_assert(tnt::is_const_iterable_v<U>);
+		return static_cast<uint32_t>(std::distance(std::cbegin(u),
+							   std::cend(u)));
+	}
+}
 
-	template <compact::Family, bool, class, char... C>
-	void add_internal(CStr<C...> suffix);
+template<compact::Family FAMILY, class T, class U>
+auto getValue([[maybe_unused]] const T& t, [[maybe_unused]] const U& u)
+{
+	if constexpr (FAMILY == compact::MP_STR) {
+		static_assert(tnt::is_char_ptr_v<U> ||
+			      tnt::is_string_constant_v<U> ||
+			      is_contiguous_char_v<U>);
+		if constexpr (tnt::is_char_ptr_v<U> ||
+			      tnt::is_bounded_array_v<U>) {
+			/* Note special rule for MP_STR and "" literals. */
+			return static_cast<uint32_t>(strlen(u));
+		} else {
+			static_assert(tnt::is_string_constant_v<U> ||
+				      is_contiguous_char_v<U>);
+			return uniLength32(u);
+		}
+	} else if constexpr (FAMILY == compact::MP_BIN ||
+			     FAMILY == compact::MP_EXT) {
+		if constexpr(tnt::is_string_constant_v<U> ||
+			     tnt::is_contiguous_v<U>) {
+			return uniLength32(u);
+		} else {
+			static_assert(std::is_standard_layout_v<U>);
+			return std::integral_constant<uint32_t, sizeof(U)>{};
+		}
+	} else if constexpr (FAMILY == compact::MP_ARR) {
+		return uniSize32(u);
+	} else if constexpr (FAMILY == compact::MP_MAP) {
+		if constexpr(tnt::is_tuplish_of_pairish_v<U> ||
+			     tnt::is_const_pairs_iterable_v<U>) {
+			return uniSize32(u);
+		} else if constexpr(tnt::is_tuplish_v<U>) {
+			constexpr uint32_t s = tnt::tuple_size_v<U>;
+			static_assert(s % 2 == 0);
+			return std::integral_constant<uint32_t, s / 2>{};
+		} else {
+			uint32_t s = uniSize32(u);
+			assert(s % 2 == 0);
+			return s / 2;
+		}
+	} else {
+		return u;
+	}
+}
 
-	BUFFER& m_Buf;
+template <compact::Family FAMILY, class T, class U>
+auto getExtType([[maybe_unused]] const T& t, [[maybe_unused]] const U& u)
+{
+	if constexpr (FAMILY == compact::MP_EXT) {
+		using E = std::remove_cv_t<decltype(t.ext_type)>;
+		if constexpr(tnt::is_integral_constant_v<E>) {
+			using V = std::remove_cv_t<decltype(t.ext_type.value)>;
+			if constexpr(tnt::is_signed_integer_v<V>)
+				static_assert(t.ext_type.value >= INT8_MIN &&
+					      t.ext_type.value <= INT8_MAX);
+			else
+				static_assert(t.ext_type.value <= INT8_MAX);
+			constexpr int8_t v = t.ext_type.value;
+			return tnt::CStr<v>{};
+		} else {
+			using V = std::remove_cv_t<decltype(t.ext_type)>;
+			if constexpr(tnt::is_signed_integer_v<V>)
+				assert(t.ext_type.value >= INT8_MIN &&
+				       t.ext_type.value <= INT8_MAX);
+			else
+				assert(t.ext_type.value <= INT8_MAX);
+			int8_t v = t.ext_type;
+			return v;
+		}
+	} else {
+		return Nothing{};
+	}
+}
+
+struct ChildrenTag {};
+template <class V> struct Children : ChildrenTag {
+	using type = V;
+	const V& v;
+	explicit Children(const V& u) : v(u) {}
 };
 
-template <class T, T V, size_t... I>
-constexpr auto const_bswap_helper(std::index_sequence<I...>)
+struct ChildrenPairsTag {};
+template <class V> struct ChildrenPairs : ChildrenPairsTag {
+	using type = V;
+	const V& v;
+	explicit ChildrenPairs(const V& u) : v(u) {}
+};
+
+template<compact::Family FAMILY, class T, class U, class V>
+auto getData([[maybe_unused]] const T& t, [[maybe_unused]] const U& u,
+	     [[maybe_unused]] const V& value)
 {
-	return CStr<((V >> (8 * (sizeof...(I) - I - 1))) & 0xff)...>{};
+	if constexpr (FAMILY == compact::MP_STR) {
+		if constexpr (tnt::is_char_ptr_v<U> ||
+			      tnt::is_bounded_array_v<U>) {
+			using check0_t = decltype(u[0]);
+			using check1_t = std::remove_reference_t<check0_t>;
+			using check2_t = std::remove_cv_t<check1_t>;
+			static_assert(std::is_same_v<check2_t, char>);
+			/* Here value is the size of the string/ */
+			return std::string_view{u, value};
+		} else if constexpr(tnt::is_string_constant_v<U>) {
+			return u;
+		} else {
+			static_assert(is_contiguous_char_v<U>);
+			using check0_t = decltype(std::data(u)[0]);
+			using check1_t = std::remove_reference_t<check0_t>;
+			using check2_t = std::remove_cv_t<check1_t>;
+			static_assert(std::is_same_v<check2_t, char>);
+			return std::string_view{std::data(u), std::size(u)};
+		}
+
+	} else if constexpr (FAMILY == compact::MP_BIN ||
+			     FAMILY == compact::MP_EXT) {
+		if constexpr(tnt::is_string_constant_v<U>) {
+			return u;
+		} else if constexpr(tnt::is_contiguous_v<U>) {
+			auto p = reinterpret_cast<const char*>(std::data(u));
+			return std::string_view{p, value};
+		} else {
+			static_assert(std::is_standard_layout_v<U>);
+			auto p = reinterpret_cast<const char*>(&u);
+			return std::string_view{p, value};
+		}
+	} else if constexpr (FAMILY == compact::MP_ARR) {
+		return Children<U>{u};
+	} else if constexpr (FAMILY == compact::MP_MAP) {
+		if constexpr(tnt::is_tuplish_of_pairish_v<U> ||
+			     tnt::is_const_pairs_iterable_v<U>)
+			return ChildrenPairs<U>{u};
+		else
+			return Children<U>{u};
+	} else {
+		return Nothing{};
+	}
+}
+
+template<compact::Family FAMILY, class T, class U>
+auto getIS([[maybe_unused]] const T& t, [[maybe_unused]] const U& u)
+{
+	if constexpr (FAMILY == compact::MP_ARR || FAMILY == compact::MP_MAP) {
+		if constexpr(tnt::is_tuplish_v<U>) {
+			return std::make_index_sequence<tnt::tuple_size_v<U>>{};
+		} else {
+			static_assert(tnt::is_const_iterable_v<U> ||
+				      tnt::is_contiguous_v<U>);
+			return std::index_sequence<>{};
+		}
+	} else {
+		return std::index_sequence<>{};
+	}
+}
+
+template <class T, T V, size_t... I>
+constexpr auto enc_bswap_h(std::integral_constant<T, V>, std::index_sequence<I...>)
+{
+	static_assert(tnt::is_unsigned_integer_v<T>);
+	constexpr union { char bytes[2]; uint16_t value; } host_order = {{0, 1}};
+	static_assert(host_order.value == 0x0100);
+	return tnt::CStr<((V >> (8 * (sizeof...(I) - I - 1))) & 0xff)...>{};
 }
 
 template <class T, T V>
-constexpr auto const_bswap()
+constexpr auto enc_bswap(std::integral_constant<T, V>)
 {
-	return const_bswap_helper<std::make_unsigned_t<T>,
-		static_cast<std::make_unsigned_t<T>>(V)>(
-		std::make_index_sequence<sizeof(T)>{});
+	static_assert(tnt::is_integer_v<T>);
+	using U = std::make_unsigned_t<T>;
+	constexpr U u = static_cast<U>(V);
+	return enc_bswap_h(std::integral_constant<U, u>{},
+			   std::make_index_sequence<sizeof(T)>{});
 }
 
 template <class T>
-under_int_t<T> enc_bswap(T t)
+under_uint_t<T> enc_bswap(T t)
 {
-	under_uint_t<T> tmp;
-	memcpy(&tmp, &t, sizeof(T));
-	return bswap(tmp);
+	return bswap(t);
 }
 
-template <class BUFFER>
-template <bool V>
-constexpr auto
-Enc<BUFFER>::conv_const_bool()
+template <class RULE, bool IS_FIXED, class FIXED_T, class V>
+constexpr bool can_encode_simple()
 {
-	return CStr<V ? 0xc2 : 0xc3>{};
-}
-
-template <class BUFFER>
-template <uint64_t V>
-constexpr auto
-Enc<BUFFER>::conv_const_uint()
-{
-	if constexpr (V <= 127)
-		return CStr<V>{};
-	else if constexpr (V <= UINT8_MAX)
-		return CStr<'\xcc'>{}.join(const_bswap<uint8_t, V>);
-	else if constexpr (V <= UINT16_MAX)
-		return CStr<'\xcd'>{}.join(const_bswap<uint16_t, V>);
-	else if constexpr (V <= UINT32_MAX)
-		return CStr<'\xce'>{}.join(const_bswap<uint32_t, V>);
-	else
-		return CStr<'\xcf'>{}.join(const_bswap<uint64_t, V>);
-}
-
-template <class BUFFER>
-template <int64_t V>
-constexpr auto
-Enc<BUFFER>::conv_const_int()
-{
-	if constexpr (V >= 0)
-		return conv_const_uint<V>();
-	if constexpr (V >= -32)
-		return CStr<V>{};
-	else if constexpr (V >= INT8_MIN)
-		return CStr<'\xd0'>{}.join(const_bswap<int8_t, V>);
-	else if constexpr (V >= INT16_MIN)
-		return CStr<'\xd1'>{}.join(const_bswap<int16_t, V>);
-	else if constexpr (V >= INT32_MIN)
-		return CStr<'\xd2'>{}.join(const_bswap<int32_t, V>);
-	else
-		return CStr<'\xd3'>{}.join(const_bswap<int64_t, V>);
-}
-
-template <class BUFFER>
-template <uint32_t V>
-constexpr auto
-Enc<BUFFER>::conv_const_str()
-{
-	if constexpr (V < 32)
-		return CStr<'\xa0' + V>{};
-	else if constexpr (V < UINT8_MAX)
-		return CStr<'\xd9'>{}.join(const_bswap<uint8_t, V>);
-	else if constexpr (V < UINT16_MAX)
-		return CStr<'\xda'>{}.join(const_bswap<uint16_t, V>);
-	else
-		return CStr<'\xdb'>{}.join(const_bswap<uint32_t, V>);
-}
-
-template <class BUFFER>
-template <uint32_t V>
-constexpr auto
-Enc<BUFFER>::conv_const_bin()
-{
-	if constexpr (V < UINT8_MAX)
-		return CStr<'\xc4'>{}.join(const_bswap<uint8_t, V>);
-	else if constexpr (V < UINT16_MAX)
-		return CStr<'\xc5'>{}.join(const_bswap<uint16_t, V>);
-	else
-		return CStr<'\xc6'>{}.join(const_bswap<uint32_t, V>);
-}
-
-template <class BUFFER>
-template <uint32_t V>
-constexpr auto
-Enc<BUFFER>::conv_const_arr()
-{
-	if constexpr (V < 16)
-		return CStr<'\x90' + V>{};
-	else if constexpr (V < UINT16_MAX)
-		return CStr<'\xdc'>{}.join(const_bswap<uint16_t, V>);
-	else
-		return CStr<'\xdd'>{}.join(const_bswap<uint32_t, V>);
-}
-
-template <class BUFFER>
-template <uint32_t V>
-constexpr auto
-Enc<BUFFER>::conv_const_map()
-{
-	if constexpr (V < 16)
-		return CStr<'\x80' + V>{};
-	else if constexpr (V < UINT16_MAX)
-		return CStr<'\xde'>{}.join(const_bswap<uint16_t, V>);
-	else
-		return CStr<'\xdf'>{}.join(const_bswap<uint32_t, V>);
-}
-
-template <class BUFFER>
-template <char...C, class T>
-void
-Enc<BUFFER>::add_int(CStr<C...> prefix, T t)
-{
-	static_assert(std::is_integral_v<T>);
-
-	if constexpr (std::is_signed_v<T>) if (t < 0) {
-		if (t >= -32) {
-			m_Buf.addBack(prefix);
-			char c = static_cast<char>(t);
-			m_Buf.addBack(c);
-			return;
-		}
-		if constexpr (sizeof(T) > 4) if (t < INT32_MIN) {
-				auto add = CStr<'\xd3'>{};
-				m_Buf.addBack(prefix.join(add));
-				m_Buf.addBack(enc_bswap(static_cast<int64_t>(t)));
-				return;
-			}
-		if constexpr (sizeof(T) > 2) if (t < INT16_MIN) {
-				auto add = CStr<'\xd2'>{};
-				m_Buf.addBack(prefix.join(add));
-				m_Buf.addBack(enc_bswap(static_cast<int32_t>(t)));
-				return;
-			}
-		if constexpr (sizeof(T) > 1) if (t < INT8_MIN) {
-				auto add = CStr<'\xd1'>{};
-				m_Buf.addBack(prefix.join(add));
-				m_Buf.addBack(enc_bswap(static_cast<int16_t>(t)));
-				return;
-			}
-		auto add = CStr<'\xd0'>{};
-		m_Buf.addBack(prefix.join(add));
-		m_Buf.addBack(enc_bswap(static_cast<int8_t>(t)));
-		return;
-	}
-
-	if (t <= 127) {
-		m_Buf.addBack(prefix);
-		char c = static_cast<char>(t);
-		m_Buf.addBack(c);
-		return;
-	}
-	if constexpr (sizeof(T) > 4) if (t > UINT32_MAX) {
-		auto add = CStr<'\xcf'>{};
-		m_Buf.addBack(prefix.join(add));
-		m_Buf.addBack(enc_bswap(static_cast<uint64_t>(t)));
-		return;
-	}
-	if constexpr (sizeof(T) > 2) if (t > UINT16_MAX) {
-		auto add = CStr<'\xce'>{};
-		m_Buf.addBack(prefix.join(add));
-		m_Buf.addBack(enc_bswap(static_cast<uint32_t>(t)));
-		return;
-	}
-	if constexpr (sizeof(T) > 1) if (t > UINT8_MAX) {
-		auto add = CStr<'\xcd'>{};
-		m_Buf.addBack(prefix.join(add));
-		m_Buf.addBack(enc_bswap(static_cast<uint16_t>(t)));
-		return;
-	}
-	auto add = CStr<'\xcc'>{};
-	m_Buf.addBack(prefix.join(add));
-	m_Buf.addBack(enc_bswap(static_cast<uint8_t>(t)));
-}
-
-template <class BUFFER>
-template <char...C, class T>
-void
-Enc<BUFFER>::add_flt(CStr<C...> prefix, T t)
-{
-	static_assert(std::is_floating_point_v<T>);
-	static_assert(sizeof(T) & 12u, "Not a floating point");
-	constexpr char tag = sizeof(T) == 4 ? '\xca' : '\xcb';
-	auto add = CStr<tag>{};
-	m_Buf.addBack(prefix.join(add));
-	under_uint_t<T> tmp;
-	memcpy(&tmp, &t, sizeof(T));
-	m_Buf.addBack(enc_bswap(tmp));
-}
-
-template <class BUFFER>
-template <char...C, class T>
-void
-Enc<BUFFER>::add_str(CStr<C...> prefix, T size)
-{
-	static_assert(std::is_integral_v<T> && std::is_unsigned_v<T>);
-	if constexpr (sizeof(T) > 4)
-		assert(size <= UINT32_MAX);
-	if (size < 32) {
-		m_Buf.addBack(prefix);
-		char c = '\xa0' + size;
-		m_Buf.addBack(c);
-		return;
-	}
-	if constexpr (sizeof(T) > 2) if (size > UINT16_MAX) {
-		auto add = CStr<'\xdb'>{};
-		m_Buf.addBack(prefix.join(add));
-		m_Buf.addBack(enc_bswap(static_cast<uint32_t>(size)));
-		return;
-	}
-	if constexpr (sizeof(T) > 1) if (size > UINT8_MAX) {
-		auto add = CStr<'\xda'>{};
-		m_Buf.addBack(prefix.join(add));
-		m_Buf.addBack(enc_bswap(static_cast<uint16_t>(size)));
-		return;
-	}
-	auto add = CStr<'\xd9'>{};
-	m_Buf.addBack(prefix.join(add));
-	m_Buf.addBack(enc_bswap(static_cast<uint8_t>(size)));
-}
-
-template <class BUFFER>
-template <char...C, class T>
-void
-Enc<BUFFER>::add_bin(CStr<C...> prefix, T size)
-{
-	static_assert(std::is_integral_v<T> && std::is_unsigned_v<T>);
-	if constexpr (sizeof(T) > 4)
-		assert(size <= UINT32_MAX);
-	if constexpr (sizeof(T) > 2) if (size > UINT16_MAX) {
-		auto add = CStr<'\xc6'>{};
-		m_Buf.addBack(prefix.join(add));
-		m_Buf.addBack(enc_bswap(static_cast<uint32_t>(size)));
-		return;
-	}
-	if constexpr (sizeof(T) > 1) if (size > UINT8_MAX) {
-		auto add = CStr<'\xc5'>{};
-		m_Buf.addBack(prefix.join(add));
-		m_Buf.addBack(enc_bswap(static_cast<uint16_t>(size)));
-		return;
-	}
-	auto add = CStr<'\xc4'>{};
-	m_Buf.addBack(prefix.join(add));
-	m_Buf.addBack(enc_bswap(static_cast<uint8_t>(size)));
-}
-
-template <class BUFFER>
-template <char...C, class T>
-void
-Enc<BUFFER>::add_arr(CStr<C...> prefix, T size)
-{
-	static_assert(std::is_integral_v<T> && std::is_unsigned_v<T>);
-	if constexpr (sizeof(T) > 4)
-		assert(size <= UINT32_MAX);
-
-	if (size < 16) {
-		m_Buf.addBack(prefix);
-		char c = '\x90' + size;
-		m_Buf.addBack(c);
-		return;
-	}
-	if constexpr (sizeof(T) > 2) if (size > UINT16_MAX) {
-		auto add = CStr<'\xdd'>{};
-		m_Buf.addBack(prefix.join(add));
-		m_Buf.addBack(enc_bswap(static_cast<uint32_t>(size)));
-		return;
-	}
-	auto add = CStr<'\xdc'>{};
-	m_Buf.addBack(prefix.join(add));
-	m_Buf.addBack(enc_bswap(static_cast<uint16_t>(size)));
-}
-
-template <class BUFFER>
-template <char...C, class T>
-void
-Enc<BUFFER>::add_map(CStr<C...> prefix, T size)
-{
-	static_assert(std::is_integral_v<T> && std::is_unsigned_v<T>);
-	if constexpr (sizeof(T) > 4)
-		assert(size <= UINT32_MAX);
-
-	if (size < 16) {
-		m_Buf.addBack(prefix);
-		char c = '\x80' + size;
-		m_Buf.addBack(c);
-		return;
-	}
-	if constexpr (sizeof(T) > 2) if (size > UINT16_MAX) {
-		auto add = CStr<'\xdf'>{};
-		m_Buf.addBack(prefix.join(add));
-		m_Buf.addBack(enc_bswap(static_cast<uint32_t>(size)));
-		return;
-	}
-	auto add = CStr<'\xde'>{};
-	m_Buf.addBack(prefix.join(add));
-	m_Buf.addBack(enc_bswap(static_cast<uint16_t>(size)));
-}
-
-template <class BUFFER>
-template <compact::Family TYPE, bool FIXED_SET, class FIXED_TYPE, char... C>
-void
-Enc<BUFFER>::add_internal(CStr<C...> suffix)
-{
-	m_Buf.addBack(suffix);
-}
-
-template <class BUFFER>
-template <compact::Family TYPE, bool FIXED_SET, class FIXED_TYPE,
-	  char... C, class T, class... MORE>
-void
-Enc<BUFFER>::add_internal(CStr<C...> prefix, const T& t, const MORE&... more)
-{
-	if constexpr (FIXED_SET && (is_const_v<T> || is_constr_v<T>))
-		static_assert(always_false_v<T>, "Why to fix a const?");
-	if constexpr (is_const_v<T> && TYPE != compact::MP_END)
-		static_assert(always_false_v<T>, "Const arith don't need type");
-
-	if constexpr (is_simple_spec_v<T>) {
-		static_assert(TYPE == compact::MP_END, "Double type spec?");
-		add_internal<get_simple_family<T>(), FIXED_SET, FIXED_TYPE>(
-			prefix, t.value, more...);
-	} else if constexpr (is_fixed_v<T>) {
-		using fix_type = typename T::type;
-		add_internal<TYPE, true, fix_type>(prefix, t.value, more...);
-	} else if constexpr (is_track_v<T>) {
-		m_Buf.addBack(prefix);
-		t.range.first = m_Buf.end();
-		save_iterator save{t.range.second};
-		add_internal<TYPE, FIXED_SET, FIXED_TYPE>(CStr<>{}, t.value,
-							  save, more...);
-	} else if constexpr (std::is_same_v<T, save_iterator>) {
-		m_Buf.addBack(prefix);
-		t.itr = m_Buf.end();
-		add_internal<compact::MP_END, false, void>(CStr<>{}, more...);
-	} else if constexpr (is_const_b<T>) {
-		constexpr auto add = conv_const_bool<T::value>();
-		add_internal<compact::MP_END, false, void>(prefix.join(add), more...);
-	} else if constexpr (is_const_f<T> || is_const_d<T>) {
-		// TODO: invent how to pack floats in compile time.
-		add_internal<TYPE, FIXED_SET, FIXED_TYPE>(prefix, t.value, more...);
-	} else if constexpr (is_const_e<T>) {
-		if constexpr (T::value < 0) {
-			constexpr under_int_t<T> v = static_cast<under_int_t<T>>(T::value);
-			using u = std::integral_constant<under_int_t<T>, v>;
-			add_internal<TYPE, FIXED_SET, FIXED_TYPE>(prefix, u{}, more...);
-		} else {
-			constexpr under_uint_t<T> v = static_cast<under_uint_t<T>>(T::value);
-			using u = std::integral_constant<under_uint_t<T>, v>;
-			add_internal<TYPE, FIXED_SET, FIXED_TYPE>(prefix, u{}, more...);
-		}
-	} else if constexpr (is_const_s<T>) {
-		constexpr auto add = conv_const_int<T::value>();
-		add_internal<compact::MP_END, false, void>(prefix.join(add), more...);
-	} else if constexpr (is_const_u<T>) {
-		constexpr auto add = conv_const_uint<T::value>();
-		add_internal<compact::MP_END, false, void>(prefix.join(add), more...);
-	} else if constexpr (is_const_v<T>) {
-		static_assert(always_false_v<T>, "Unknown const!");
-	} else if constexpr (is_constr_v<T> && TYPE == compact::MP_BIN) {
-		constexpr auto add = conv_const_bin<T::size>().join(t);
-		add_internal<compact::MP_END, false, void>(prefix.join(add), more...);
-	} else if constexpr (is_constr_v<T>) {
-		static_assert(TYPE == compact::MP_END || TYPE == compact::MP_STR,
-			"What else can be packed as string?");
-		constexpr auto add = conv_const_str<T::size>().join(t);
-		add_internal<compact::MP_END, false, void>(prefix.join(add), more...);
-	} else if constexpr (is_raw_v<T>) {
-		m_Buf.addBack(prefix);
-		m_Buf.addBack(std::data(t.value), std::size(t.value));
-		add_internal<compact::MP_END, false, void>(CStr<>{}, more...);
-	} else if constexpr (is_reserve_v<T>) {
-		m_Buf.addBack(prefix);
-		m_Buf.advanceBack(t.value);
-		add_internal<compact::MP_END, false, void>(CStr<>{}, more...);
-	} else if constexpr (std::is_same_v<T, std::nullptr_t>) {
-		constexpr auto add = CStr<'\xc0'>{};
-		add_internal<compact::MP_END, false, void>(prefix.join(add), more...);
-	} else if constexpr (std::is_same_v<T, bool>) {
-		m_Buf.addBack(prefix);
-		char c = '\xc2' + t;
-		m_Buf.addBack(c);
-		add_internal<compact::MP_END, false, void>(CStr<>{}, more...);
-
-	} else if constexpr (std::is_enum_v<T>) {
-		if (t < 0) {
-			under_int_t<T> u = static_cast<under_int_t<T>>(t);
-			add_internal<TYPE, FIXED_SET, FIXED_TYPE>(prefix, u, more...);
-		} else {
-			under_uint_t<T> u = static_cast<under_uint_t<T>>(t);
-			add_internal<TYPE, FIXED_SET, FIXED_TYPE>(prefix, u, more...);
-		}
-	} else if constexpr (std::is_integral_v<T> && FIXED_SET &&
-			     std::is_same_v<FIXED_TYPE, void>) {
-		m_Buf.addBack(prefix);
-		char c = static_cast<char>(t);
-		m_Buf.addBack(c);
-		add_internal<compact::MP_END, false, void>(CStr<>{}, more...);
-	} else if constexpr (std::is_integral_v<T> && FIXED_SET) {
-		constexpr char tag_start = std::is_signed_v<T> ? '\xd0' : '\xcc';
-		auto add = CStr<tag_start + power_v<FIXED_TYPE>()>{};
-		m_Buf.addBack(prefix.join(add));
-		m_Buf.addBack(enc_bswap(static_cast<FIXED_TYPE>(t)));
-		add_internal<compact::MP_END, false, void>(CStr<>{}, more...);
-	} else if constexpr (std::is_integral_v<T>) {
-		add_int(prefix, t);
-		add_internal<compact::MP_END, false, void>(CStr<>{}, more...);
-
-	} else if constexpr (std::is_floating_point_v<T>) {
-		add_flt(prefix, t);
-		add_internal<compact::MP_END, false, void>(CStr<>{}, more...);
-
-	} else if constexpr (TYPE == compact::MP_STR && FIXED_SET &&
-			     std::is_same_v<FIXED_TYPE, void>) {
-		m_Buf.addBack(prefix);
-		size_t sz;
-		if constexpr(is_c_str_v<T>)
-			sz = strlen(t);
-		else
-			sz = std::size(t);
-		char c = '\xa0' + sz;
-		m_Buf.addBack(c);
-		if constexpr(is_c_str_v<T>)
-			m_Buf.addBack(t, sz);
-		else
-			m_Buf.addBack(std::data(t), std::size(t));
-		add_internal<compact::MP_END, false, void>(CStr<>{}, more...);
-	} else if constexpr (TYPE == compact::MP_STR && FIXED_SET) {
-		constexpr char tag_start = '\xd9';
-		auto add = CStr<tag_start + power_v<FIXED_TYPE>()>{};
-		m_Buf.addBack(prefix.join(add));
-		size_t sz;
-		if constexpr(is_c_str_v<T>)
-			sz = strlen(t);
-		else
-			sz = std::size(t);
-		m_Buf.addBack(enc_bswap(static_cast<FIXED_TYPE>(sz)));
-		if constexpr(is_c_str_v<T>)
-			m_Buf.addBack(t, sz);
-		else
-			m_Buf.addBack(std::data(t), sz);
-		add_internal<compact::MP_END, false, void>(CStr<>{}, more...);
-	} else if constexpr (TYPE == compact::MP_STR &&
-			     has_fixed_size_v<T> && !std::is_array_v<T>) {
-		// We excluded C style array of characters because string
-		// literals are also arrays of characters including terminal
-		// null character which is usually not expected to be encoded.
-		auto add = conv_const_str<get_fixed_size_v<T>>();
-		m_Buf.addBack(prefix.join(add));
-		m_Buf.addBack(std::data(t), std::size(t));
-		add_internal<compact::MP_END, false, void>(CStr<>{}, more...);
-	} else if constexpr (TYPE == compact::MP_STR) {
-		if constexpr(is_c_str_v<T> || std::is_array_v<T>) {
-			size_t size = strlen(t);
-			add_str(prefix, size);
-			m_Buf.addBack({t, size});
-		} else {
-			add_str(prefix, t.size());
-			m_Buf.addBack({std::data(t), std::size(t)});
-		}
-		add_internal<compact::MP_END, false, void>(CStr<>{}, more...);
-
-	} else if constexpr (TYPE == compact::MP_BIN && FIXED_SET) {
-		static_assert(!std::is_same_v<FIXED_TYPE, void>,
-			      "MP_BIN doesn't have one-tag encoding!");
-		constexpr char tag_start = '\xc4';
-		auto add = CStr<tag_start + power_v<FIXED_TYPE>()>{};
-		m_Buf.addBack(prefix.join(add));
-		size_t sz;
-		if constexpr(is_c_str_v<T>)
-			sz = strlen(t);
-		else
-			sz = std::size(t);
-		m_Buf.addBack(enc_bswap(static_cast<FIXED_TYPE>(sz)));
-		if constexpr(is_c_str_v<T>)
-			m_Buf.addBack({t, sz});
-		else
-			m_Buf.addBack({std::data(t), sz});
-		add_internal<compact::MP_END, false, void>(CStr<>{}, more...);
-	} else if constexpr (TYPE == compact::MP_BIN && has_fixed_size_v<T>) {
-		auto add = conv_const_bin<get_fixed_size_v<T>>();
-		m_Buf.addBack(prefix.join(add));
-		m_Buf.addBack({std::data(t), std::size(t)});
-		add_internal<compact::MP_END, false, void>(CStr<>{}, more...);
-	} else if constexpr (TYPE == compact::MP_BIN) {
-		if constexpr(is_c_str_v<T>) {
-			static_assert(always_false_v<T>, "C string as BIN?");
-			size_t size = strlen(t);
-			add_bin(prefix, size);
-			m_Buf.addBack({t, size});
-		} else {
-			add_bin(prefix, t.size());
-			m_Buf.addBack({std::data(t), std::size(t)});
-		}
-		add_internal<compact::MP_END, false, void>(CStr<>{}, more...);
-	} else if constexpr (TYPE == compact::MP_ARR) {
-		if constexpr (looks_like_arr_v<T>) {
-			add_arr(prefix, std::size(t));
-			for (const auto& x : t)
-				add_internal<compact::MP_END, false, void>(CStr<>(), x);
-		} else if constexpr (is_tuple_v<T>) {
-			add_arr(prefix, std::tuple_size_v<T>);
-			std::apply([this](const auto& ...x) {
-				(..., this->template add_internal<compact::MP_END, false, void>(CStr<>(), x));
-			}, t);
-		} else {
-			static_assert(always_false_v<T>,
-				      "Wrong thing was passed as array");
-		}
-		add_internal<compact::MP_END, false, void>(CStr<>{}, more...);
-	} else if constexpr (TYPE == compact::MP_MAP) {
-		if constexpr (looks_like_map_v<T>) {
-			add_map(prefix, std::size(t));
-			for (const auto& x : t) {
-				add(x.first);
-				add(x.second);
-			}
-		} else if constexpr (looks_like_arr_v<T>) {
-			assert(std::size(t) % 2 == 0);
-			add_map(prefix, std::size(t) / 2);
-			for (const auto& x : t)
-				add(x);
-		} else if constexpr (is_tuple_v<T>) {
-			static_assert(std::tuple_size_v<T> % 2 == 0,
-				      "Map expects even number of elements");
-			add_map(prefix, std::tuple_size_v<T> / 2);
-			std::apply([this](const auto& ...x) {
-				(..., this->template add_internal<compact::MP_END, false, void>(CStr<>(), x));
-			}, t);
-		} else {
-			static_assert(always_false_v<T>,
-				      "Wrong thing was passed as map");
-		}
-		add_internal<compact::MP_END, false, void>(CStr<>{}, more...);
-	} else if constexpr (is_raw_v<T>) {
-		static_assert(always_false_v<T>, "Not implemented!");
-	} else if constexpr (is_reserve_v<T>) {
-		static_assert(always_false_v<T>, "Not implemented!");
-	} else if constexpr (is_ext_v<T>) {
-		static_assert(always_false_v<T>, "Not implemented!");
-	} else if constexpr (looks_like_str_v<T>) {
-		add_internal<compact::MP_STR, FIXED_SET, FIXED_TYPE>(prefix, t, more...);
-	} else if constexpr (is_c_str_v<T>) {
-		add_internal<compact::MP_STR, FIXED_SET, FIXED_TYPE>(prefix, t, more...);
-	} else if constexpr (looks_like_map_v<T>) {
-		add_internal<compact::MP_MAP, FIXED_SET, FIXED_TYPE>(prefix, t, more...);
-	} else if constexpr (looks_like_arr_v<T>) {
-		add_internal<compact::MP_ARR, FIXED_SET, FIXED_TYPE>(prefix, t, more...);
-	} else if constexpr (is_tuple_v<T>) {
-		add_internal<compact::MP_ARR, FIXED_SET, FIXED_TYPE>(prefix, t, more...);
+	if constexpr(tnt::is_integral_constant_v<V> || IS_FIXED ||
+		     !has_complex_v<RULE>) {
+		return true;
+	} else if constexpr(!has_simplex_v<RULE>) {
+		static_assert(has_complex_v<RULE>);
+		using types = typename RULE::complex_types;
+		return std::tuple_size_v<types> == 1;
 	} else {
-		static_assert(always_false_v<T>, "Unknown type!");
+		return false;
 	}
 }
 
+template <class RULE, bool IS_FIXED, class FIXED_T, class V>
+constexpr auto getTagValSimple([[maybe_unused]] V value)
+{
+	if constexpr(RULE::family == compact::MP_NIL ||
+		     RULE::family == compact::MP_IGNR) {
+		// That type is completely independent on value
+		static_assert(!IS_FIXED || std::is_same_v<FIXED_T, void>);
+		constexpr char t = static_cast<char>(RULE::simplex_tag);
+		return std::make_pair(tnt::CStr<t>{}, Nothing{});
+	} else if constexpr(IS_FIXED && std::is_same_v<FIXED_T, void>) {
+		static_assert(has_simplex_v<RULE>);
 
-} // namespace mpp {
+		// Check value.
+		if constexpr(tnt::is_uni_integer_v<V> &&
+			     tnt::is_integral_constant_v<V>) {
+			static_assert(find_simplex_offset<RULE>(V::value) <
+				      SimplexRange<RULE>::length);
+		} else if constexpr(tnt::is_integer_v<V>) {
+			assert(find_simplex_offset<RULE>(value) <
+			       SimplexRange<RULE>::length);
+		}
+
+		if constexpr(tnt::is_integral_constant_v<V>) {
+			constexpr uint8_t t = RULE::simplex_tag + V::value;
+			return std::make_pair(tnt::CStr<t>{}, Nothing{});
+		} else {
+			uint8_t t = RULE::simplex_tag + value;
+			return std::make_pair(t, Nothing{});
+		}
+	} else if constexpr(IS_FIXED) {
+		static_assert(has_complex_v<RULE>);
+		using types = typename RULE::complex_types;
+		constexpr uint8_t offset = tnt::tuple_find_v<FIXED_T, types>;
+		static_assert(offset < std::tuple_size_v<types>,
+			      "Given fixed type is not in rule");
+		constexpr char t = static_cast<char>(RULE::complex_tag + offset);
+		auto tag = tnt::CStr<t>{};
+
+		// Check value.
+		if constexpr(tnt::is_integer_v<FIXED_T>) {
+			using I = std::conditional_t<tnt::is_signed_integer_v<FIXED_T>,
+						     under_int_t<FIXED_T>,
+						     under_uint_t<FIXED_T>>;
+			using L = std::numeric_limits<I>;
+			if constexpr(tnt::is_integral_constant_v<V>) {
+				constexpr I i = static_cast<I>(V::value);
+				if constexpr(tnt::is_signed_integer_v<FIXED_T>)
+					static_assert(i >= L::min);
+				static_assert(i <= L::max);
+			} else {
+				I i = static_cast<I>(value);
+				if constexpr(tnt::is_signed_integer_v<FIXED_T>)
+					assert(i >= L::min);
+				assert(i <= L::max);
+			}
+		}
+
+		auto enc_val = enc_bswap(value);
+		return std::make_pair(tag, enc_val);
+	} else if constexpr(tnt::is_integral_constant_v<V>) {
+		constexpr auto cv = V::value;
+		if constexpr(RULE::is_negative &&
+			     tnt::is_signed_integer_v<decltype(cv)>) {
+			if constexpr(under_int_t<decltype(cv)>(cv) >= 0) {
+				using rule = typename RULE::positive_rule;
+				return getTagValSimple<rule, false, void>(value);
+			}
+		}
+		constexpr size_t soff = find_simplex_offset<RULE>(V::value);
+		if constexpr(soff < SimplexRange<RULE>::length) {
+			constexpr uint8_t ut = RULE::simplex_tag + soff;
+			constexpr int8_t t = static_cast<uint8_t>(ut);
+			return std::make_pair(tnt::CStr<t>{}, Nothing{});
+		} else {
+			constexpr size_t coff = find_complex_offset<RULE>(cv);
+			constexpr uint8_t ut = RULE::complex_tag + coff;
+			constexpr int8_t t = static_cast<uint8_t>(ut);
+			using types = typename RULE::complex_types;
+			using type = std::tuple_element_t<coff, types>;
+			std::integral_constant<type, cv> val;
+			auto enc_val = enc_bswap(val);
+			return std::make_pair(tnt::CStr<t>{}, enc_val);
+		}
+	} else {
+		static_assert(!has_simplex_v<RULE> || !has_complex_v<RULE>);
+		static_assert(!RULE::is_negative);
+		if constexpr(has_simplex_v<RULE>) {
+			size_t soff = find_simplex_offset<RULE>(value);
+			uint8_t t = RULE::simplex_tag + soff;
+			return std::make_pair(t, Nothing{});
+		} else  {
+			static_assert(has_complex_v<RULE>);
+			using types = typename RULE::complex_types;
+			static_assert(std::tuple_size_v<types> == 1);
+			using type = std::tuple_element_t<0, types>;
+			constexpr char t = static_cast<char>(RULE::complex_tag);
+			auto enc_val = enc_bswap(static_cast<type>(value));
+			return std::make_pair(tnt::CStr<t>{}, enc_val);
+		}
+	}
+}
+
+template <class TYPES, size_t IND, bool IS_SIGNED_NEGATIVE, class V>
+constexpr bool surely_fits()
+{
+	using type = std::tuple_element_t<IND, TYPES>;
+	if constexpr(IND + 1 >= std::tuple_size_v<TYPES>) {
+		return true;
+	} else if constexpr(std::is_signed_v<type>) {
+		if constexpr(tnt::is_signed_integer_v<V>)
+			return sizeof(type) >= sizeof(V);
+		else
+			return sizeof(type) > sizeof(V);
+	} else {
+		return sizeof(type) >= sizeof(V);
+	}
+}
+
+template <class TYPES, size_t IND, bool IS_SIGNED_NEGATIVE, class V>
+bool check_fits([[maybe_unused]] V v)
+{
+	constexpr size_t I = IND < std::tuple_size_v<TYPES> ? IND :
+			     std::tuple_size_v<TYPES> - 1;
+	using type = std::tuple_element_t<I, TYPES>;
+	if constexpr(IND >= std::tuple_size_v<TYPES>) {
+		return true;
+	} else if constexpr(!tnt::is_integer_v<type>) {
+		return true;
+	} else {
+		using lim = std::numeric_limits<type>;
+		if constexpr(std::is_signed_v<type>) {
+			if constexpr(tnt::is_signed_integer_v<V>) {
+				if constexpr(IS_SIGNED_NEGATIVE) {
+					assert(v < 0);
+				} else {
+					if (v > lim::max())
+						return false;
+				}
+				return v >= lim::min();
+			} else {
+				static_assert(!IS_SIGNED_NEGATIVE);
+				using utype = std::make_unsigned_t<type>;
+				auto max = static_cast<utype>(lim::max());
+				return v <= max;
+			}
+		} else {
+			static_assert(!IS_SIGNED_NEGATIVE);
+			if constexpr(tnt::is_signed_integer_v<V>) {
+				assert(v >= 0);
+				auto u = static_cast<under_uint_t<V>>(v);
+				return u <= lim::max();
+
+			} else {
+				return v <= lim::max();
+			}
+		}
+	}
+}
+
+/** Terminal encode. */
+template <class CONT, char... C, size_t...I>
+bool
+encode(CONT &cont, tnt::CStr<C...> prefix, std::index_sequence<I...>)
+{
+	static_assert(sizeof...(I) == 0);
+	cont.addBack(prefix);
+	return true;
+}
+
+template <class CONT, char... C, size_t... I, class T, class... MORE>
+bool
+encode(CONT &cont, tnt::CStr<C...> prefix,
+       [[maybe_unused]] std::index_sequence<I...> ais,
+       const T& t, const MORE&... more)
+{
+	const auto& u = unwrap(t);
+	using U = std::remove_cv_t<std::remove_reference_t<decltype(u)>>;
+	if constexpr(std::is_same_v<U, Nothing>) {
+		return encode(cont, prefix, ais, more...);
+	} else if constexpr(is_wrapped_raw_v<T>) {
+		if constexpr(std::is_base_of_v<ChildrenTag, U>) {
+			using V = typename U::type;
+			const V& v = u.v;
+			if constexpr(tnt::is_tuplish_v<V>) {
+				std::index_sequence<> is;
+				return encode(cont, prefix, is,
+					      tnt::get<I>(v)..., more...);
+			} else if constexpr(tnt::is_const_iterable_v<V>) {
+				auto itr = std::begin(v);
+				auto e = std::end(v);
+				if (itr != e) {
+					if (!encode(cont, prefix, ais, *itr))
+						return false;
+					++itr;
+				}
+				for (; itr != e; ++itr) {
+					if (!encode(cont, CStr<>{}, ais, *itr))
+						return false;
+				}
+				return encode(cont, prefix, ais, more...);
+			} else {
+				static_assert(tnt::is_contiguous_v<V>);
+				auto itr = std::data(v);
+				auto e = itr + std::size(v);
+				if (itr != e) {
+					if (!encode(cont, prefix, ais, *itr))
+						return false;
+					++itr;
+				}
+				for (; itr != e; ++itr) {
+					if (!encode(cont, CStr<>{}, ais, *itr))
+						return false;
+				}
+				return encode(cont, prefix, ais, more...);
+			}
+		} else if constexpr(std::is_base_of_v<ChildrenPairsTag, U>) {
+			using V = typename U::type;
+			const V& v = u.v;
+			if constexpr(tnt::is_tuplish_v<V>) {
+				std::index_sequence<> is;
+				return encode(cont, prefix, is,
+					      tnt::get<I>(v).first...,
+					      tnt::get<I>(v).second...,
+					      more...);
+			} else if constexpr(tnt::is_const_iterable_v<V>) {
+				auto itr = std::begin(v);
+				auto e = std::end(v);
+				if (itr != e) {
+					if (!encode(cont, prefix, ais,
+						itr->first, itr->second))
+						return false;
+					++itr;
+				}
+				for (; itr != e; ++itr) {
+					if (!encode(cont, CStr<>{}, ais,
+						    itr->first, itr->second))
+						return false;
+				}
+				return encode(cont, prefix, ais, more...);
+			} else {
+				static_assert(tnt::is_contiguous_v<V>);
+				auto itr = std::data(v);
+				auto e = itr + std::size(v);
+				if (itr != e) {
+					if (!encode(cont, prefix, ais,
+						    itr->first, itr->second))
+						return false;
+					++itr;
+				}
+				for (; itr != e; ++itr) {
+					if (!encode(cont, CStr<>{}, ais,
+						    itr->first, itr->second))
+						return false;
+				}
+				return encode(cont, prefix, ais, more...);
+			}
+		} else if constexpr(tnt::is_string_constant_v<U>) {
+			return encode(cont, prefix.join(u), ais, more...);
+		} else if constexpr(tnt::is_contiguous_v<U>) {
+			cont.addBack(prefix);
+			cont.addBack({std::data(u), std::size(u)});
+			return encode(cont, tnt::CStr<>{}, ais, more...);
+		} else {
+			static_assert(std::is_standard_layout_v<U>);
+			cont.addBack(prefix);
+			cont.addBack(u);
+			return encode(cont, tnt::CStr<>{}, ais, more...);
+		}
+	} else {
+		constexpr bool is_fixed = is_wrapped_fixed_v<T>;
+		using fixed_t = get_fixed_t<T>;
+		constexpr compact::Family family = detectFamily<T>();
+		using rule_t = RuleByFamily_t<family>;
+		auto value = getValue<family>(t, u);
+		using V = decltype(value);
+		auto ext = getExtType<family>(t, u);
+		auto data = getData<family>(t, u, value);
+		static_assert(ais.size() == 0);
+		auto is = getIS<family>(t, u);
+		if constexpr(can_encode_simple<rule_t, is_fixed, fixed_t, V>()) {
+			auto tag_val = getTagValSimple<rule_t, is_fixed,
+				fixed_t>(value);
+			return encode(cont, prefix, is, as_raw(tag_val.first),
+				      as_raw(tag_val.second), as_raw(ext),
+				      as_raw(data), more...);
+		} else {
+			static_assert(has_complex_v<rule_t>);
+			using types = typename rule_t::complex_types;
+			static_assert(!tnt::is_integral_constant_v<V>);
+			if constexpr(rule_t::is_negative &&
+				     tnt::is_signed_integer_v<V> &&
+				     !is_wrapped_family_v<T>) {
+				if (under_int_t<V>(value) >= 0) {
+					return encode(cont, prefix, is,
+						      under_uint_t<V>(value),
+						      more...);
+				}
+			}
+			if constexpr(!rule_t::is_negative &&
+				     tnt::is_signed_integer_v<V>) {
+				assert(under_int_t<V>(value) >= 0);
+			}
+			if constexpr(has_simplex_v<rule_t>) {
+				size_t soff = find_simplex_offset<rule_t>(value);
+				if (soff < SimplexRange<rule_t>::length) {
+					uint8_t tag = rule_t::simplex_tag + soff;
+					cont.addBack(prefix);
+					cont.addBack(tag);
+					return encode(cont, tnt::CStr<>{}, is,
+						      as_raw(ext), as_raw(data),
+						      more...);
+				}
+			}
+			auto complex = [&](auto IND) -> bool {
+				constexpr size_t i = decltype(IND)::value;
+				if constexpr(i >= std::tuple_size_v<types>) {
+					return true;
+				} else {
+					using type =
+						std::tuple_element_t<i, types>;
+					constexpr uint8_t utag =
+						rule_t::complex_tag + i;
+					constexpr int8_t tag =
+						static_cast<int8_t>(utag);
+					auto tvalue = static_cast<type>(value);
+					auto enc_val = enc_bswap(tvalue);
+					auto new_prefix =
+						prefix.join(tnt::CStr<tag>{});
+					return encode(cont, new_prefix, is,
+						      as_raw(enc_val),
+						      as_raw(ext), as_raw(data),
+						      more...);
+				}
+			};
+			std::integral_constant<size_t, 0> ind0;
+			std::integral_constant<size_t, 1> ind1;
+			std::integral_constant<size_t, 2> ind2;
+			std::integral_constant<size_t, 3> ind3;
+			static_assert(std::tuple_size_v<types> <= 4);
+			constexpr bool is_signed_negative =
+				rule_t::is_negative &&
+				tnt::is_signed_integer_v<V> &&
+				!is_wrapped_family_v<T>;
+
+			if constexpr(surely_fits<types, 0,
+						 is_signed_negative, V>())
+				return complex(ind0);
+			if (check_fits<types, 0, is_signed_negative>(value))
+				return complex(ind0);
+
+			if constexpr(surely_fits<types, 1,
+				is_signed_negative, V>())
+				return complex(ind1);
+			if (check_fits<types, 1, is_signed_negative>(value))
+				return complex(ind1);
+
+			if constexpr(surely_fits<types, 2,
+				is_signed_negative, V>())
+				return complex(ind2);
+			if (check_fits<types, 2, is_signed_negative>(value))
+				return complex(ind2);
+
+			return complex(ind3);
+		}
+	}
+}
+
+} // namespace encode_details
+
+template <class CONT, class... T>
+bool
+encode(CONT &cont, const T&... t)
+{
+	// TODO: Guard
+	std::index_sequence<> is;
+	bool res = encode_details::encode(cont, tnt::CStr<>{}, is, t...);
+	return res;
+}
+
+} // namespace mpp
+} // namespace tnt
