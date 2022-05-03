@@ -44,7 +44,7 @@ typedef size_t rid_t;
 struct ConnectionError {
 	std::string msg;
 	//Saved in case connection fails due to system error.
-	int saved_errno;
+	int saved_errno = 0;
 };
 
 template <class BUFFER, class NetProvider>
@@ -364,7 +364,7 @@ Connection<BUFFER, NetProvider>::getResponse(rid_t future)
 #endif
 	Response<BUFFER> response = std::move(entry->second);
 	impl->futures.erase(future);
-	return std::move(response);
+	return response;
 }
 
 template<class BUFFER, class NetProvider>
@@ -407,7 +407,7 @@ template<class BUFFER, class NetProvider>
 void
 Connection<BUFFER, NetProvider>::reset()
 {
-	std::memset(&impl->error, 0, sizeof(impl->error));
+	impl->error = ConnectionError{};
 }
 
 template<class BUFFER, class NetProvider>
