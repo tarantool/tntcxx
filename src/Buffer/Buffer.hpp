@@ -176,6 +176,36 @@ public:
 		template <bool OTHER_LIGHT>
 		size_t operator - (const iterator_common<OTHER_LIGHT> &a) const;
 		bool has_contiguous(size_t size) const;
+
+		/**
+		 * Copy content of @a buf of size @a size (or object @a t) to
+		 * the position in buffer @a itr pointing to.
+		 */
+		void set(const char *buf, size_t size);
+		template <class T>
+		void set(T&& t);
+
+		/**
+		 * Copy content of data iterator pointing to to the buffer
+		 * @a buf of size @a size.
+		 */
+		void get(char *buf, size_t size);
+		template <class T>
+		void get(T& t);
+		template <class T>
+		T get();
+
+		/**
+		 * Copy content of data iterator pointing to to the buffer
+		 * @a buf of size @a size. Advance the iterator to the end of
+		 * value.
+		 */
+		void read(char *buf, size_t size);
+		template <class T>
+		void read(T& t);
+		template <class T>
+		T read();
+
 	private:
 		/** Adjust iterator_common's position in list of iterators after
 		 * moveForward. */
@@ -261,37 +291,6 @@ public:
 
 	/** Resize memory chunk @a itr pointing to. */
 	void resize(const iterator &itr, size_t old_size, size_t new_size);
-
-	/**
-	 * Copy content of @a buf of size @a size (or object @a t) to the
-	 * position in buffer @a itr pointing to.
-	 */
-	template <bool LIGHT>
-	void set(const iterator_common<LIGHT> &itr, const char *buf, size_t size);
-	template <class T, bool LIGHT>
-	void set(const iterator_common<LIGHT> &itr, T&& t);
-
-	/**
-	 * Copy content of data iterator pointing to to the buffer @a buf of
-	 * size @a size.
-	 */
-	template <bool LIGHT>
-	void get(const iterator_common<LIGHT>& itr, char *buf, size_t size);
-	template <class T, bool LIGHT>
-	void get(const iterator_common<LIGHT>& itr, T& t);
-	template <class T, bool LIGHT>
-	T get(const iterator_common<LIGHT>& itr);
-
-	/**
-	 * Copy content of data iterator pointing to to the buffer @a buf of
-	 * size @a size. Advance the iterator to the end of value.
-	 */
-	template <bool LIGHT>
-	void read(iterator_common<LIGHT>& itr, char *buf, size_t size);
-	template <class T, bool LIGHT>
-	void read(iterator_common<LIGHT>& itr, T& t);
-	template <class T, bool LIGHT>
-	T read(iterator_common<LIGHT>& itr);
 
 	/**
 	 * Determine whether the buffer has @a size bytes after @ itr.
@@ -1028,11 +1027,10 @@ Buffer<N, allocator>::getIOV(const iterator_common<LIGHT1> &start,
 template <size_t N, class allocator>
 template <bool LIGHT>
 void
-Buffer<N, allocator>::set(const iterator_common<LIGHT> &itr,
-			  const char *buf, size_t size)
+Buffer<N, allocator>::iterator_common<LIGHT>::set(const char *buf, size_t size)
 {
 	assert(size > 0);
-	char *pos = itr.m_position;
+	char *pos = m_position;
 	size_t left_in_block = N - (uintptr_t) pos % N;
 	while (TNT_UNLIKELY(size > left_in_block)) {
 		std::memcpy(pos, buf, left_in_block);
@@ -1045,9 +1043,10 @@ Buffer<N, allocator>::set(const iterator_common<LIGHT> &itr,
 }
 
 template <size_t N, class allocator>
-template <class T, bool LIGHT>
+template <bool LIGHT>
+template <class T>
 void
-Buffer<N, allocator>::set(const iterator_common<LIGHT> &itr, T&& t)
+Buffer<N, allocator>::iterator_common<LIGHT>::set(T&& t)
 {
 	/*
 	 * Do not even attempt at copying non-standard classes (such as
@@ -1056,24 +1055,23 @@ Buffer<N, allocator>::set(const iterator_common<LIGHT> &itr, T&& t)
 	static_assert(std::is_standard_layout_v<std::remove_reference_t<T>>,
 		      "T is expected to have standard layout");
 	const char *tc = &reinterpret_cast<const char &>(t);
-	if (TNT_LIKELY(itr.has_contiguous(sizeof(T))))
-		memcpy(itr.m_position, tc, sizeof(T));
+	if (TNT_LIKELY(has_contiguous(sizeof(T))))
+		memcpy(m_position, tc, sizeof(T));
 	else
-		set(itr, tc, sizeof(T));
+		set(tc, sizeof(T));
 }
 
 template <size_t N, class allocator>
 template <bool LIGHT>
 void
-Buffer<N, allocator>::get(const iterator_common<LIGHT>& itr,
-			  char *buf, size_t size)
+Buffer<N, allocator>::iterator_common<LIGHT>::get(char *buf, size_t size)
 {
 	assert(size > 0);
 	/*
 	 * The same implementation as in ::set() method buf vice versa:
 	 * buffer and data sources are swapped.
 	 */
-	char *pos = itr.m_position;
+	char *pos = m_position;
 	size_t left_in_block = N - (uintptr_t) pos % N;
 	while (TNT_UNLIKELY(size > left_in_block)) {
 		memcpy(buf, pos, left_in_block);
@@ -1086,80 +1084,84 @@ Buffer<N, allocator>::get(const iterator_common<LIGHT>& itr,
 }
 
 template <size_t N, class allocator>
-template <class T, bool LIGHT>
+template <bool LIGHT>
+template <class T>
 void
-Buffer<N, allocator>::get(const iterator_common<LIGHT>& itr, T& t)
+Buffer<N, allocator>::iterator_common<LIGHT>::get(T& t)
 {
 	static_assert(std::is_standard_layout_v<std::remove_reference_t<T>>,
 		      "T is expected to have standard layout");
 	char *tc = &reinterpret_cast<char &>(t);
-	if (TNT_LIKELY(itr.has_contiguous(sizeof(T))))
-		memcpy(tc, itr.m_position, sizeof(T));
+	if (TNT_LIKELY(has_contiguous(sizeof(T))))
+		memcpy(tc, m_position, sizeof(T));
 	else
-		get(itr, tc, sizeof(T));
+		get(tc, sizeof(T));
 }
 
 template <size_t N, class allocator>
-template <class T, bool LIGHT>
+template <bool LIGHT>
+template <class T>
 T
-Buffer<N, allocator>::get(const iterator_common<LIGHT>& itr)
+Buffer<N, allocator>::iterator_common<LIGHT>::get()
 {
 	static_assert(std::is_standard_layout_v<std::remove_reference_t<T>>,
 		      "T is expected to have standard layout");
 	T t;
-	get(itr, t);
+	get(t);
 	return t;
 }
 
 template <size_t N, class allocator>
 template <bool LIGHT>
 void
-Buffer<N, allocator>::read(iterator_common<LIGHT>& itr, char *buf, size_t size)
+Buffer<N, allocator>::iterator_common<LIGHT>::read(char *buf, size_t size)
 {
 	assert(size > 0);
 	/*
 	 * The same implementation as in ::set() method buf vice versa:
 	 * buffer and data sources are swapped.
 	 */
-	size_t left_in_block = N - (uintptr_t) itr.m_position % N;
+	size_t left_in_block = N - (uintptr_t) m_position % N;
 	while (TNT_UNLIKELY(size >= left_in_block)) {
-		memcpy(buf, itr.m_position, left_in_block);
+		memcpy(buf, m_position, left_in_block);
 		size -= left_in_block;
 		buf += left_in_block;
-		itr.m_position = Block::byPtr(itr.m_position)->next().data;
+		m_position = Block::byPtr(m_position)->next().data;
 		left_in_block = Block::DATA_SIZE;
 	}
-	memcpy(buf, itr.m_position, size);
-	itr.m_position += size;
-	itr.adjustPositionForward();
+	memcpy(buf, m_position, size);
+	m_position += size;
+	adjustPositionForward();
 }
 
 template <size_t N, class allocator>
-template <class T, bool LIGHT>
+template <bool LIGHT>
+template <class T>
 void
-Buffer<N, allocator>::read(iterator_common<LIGHT>& itr, T& t)
+Buffer<N, allocator>::iterator_common<LIGHT>::read(T& t)
 {
 	static_assert(std::is_standard_layout_v<std::remove_reference_t<T>>,
 		      "T is expected to have standard layout");
 	char *tc = &reinterpret_cast<char &>(t);
-	if (TNT_LIKELY(itr.has_contiguous(sizeof(T) + 1))) {
-		memcpy(tc, itr.m_position, sizeof(T));
-		itr.m_position += sizeof(T);
-		itr.adjustPositionForward();
+	if (TNT_LIKELY(has_contiguous(sizeof(T) + 1))) {
+		memcpy(tc, m_position, sizeof(T));
+		m_position += sizeof(T);
+		adjustPositionForward();
 	} else {
-		read(itr, tc, sizeof(T));
+		read(tc, sizeof(T));
 	}
 }
 
 template <size_t N, class allocator>
-template <class T, bool LIGHT>
+template <bool LIGHT>
+template <class T>
 T
-Buffer<N, allocator>::read(iterator_common<LIGHT>& itr)
+Buffer<N, allocator>::iterator_common<LIGHT>::read()
 {
 	static_assert(std::is_standard_layout_v<std::remove_reference_t<T>>,
 		      "T is expected to have standard layout");
 	T t;
-	read(itr, t);
+	read(t);
 	return t;
 }
 

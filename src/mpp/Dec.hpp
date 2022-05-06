@@ -232,7 +232,7 @@ template <class READER>
 void
 Dec<BUFFER>::ReadNil()
 {
-	assert(m_Buf.template get<uint8_t>(m_Cur) == 0xc0);
+	assert(m_Cur.template get<uint8_t>() == 0xc0);
 	[[maybe_unused]] constexpr compact::Family ctype = compact::MP_NIL;
 	[[maybe_unused]] constexpr Family type = MP_NIL;
 	READER& r = CurState().objHolder.template get<READER>();
@@ -252,7 +252,7 @@ template <class READER>
 void
 Dec<BUFFER>::ReadBad()
 {
-	assert(m_Buf.template get<uint8_t>(m_Cur) == 0xc1);
+	assert(m_Cur.template get<uint8_t>() == 0xc1);
 	AbandonDecoder(READ_BAD_MSGPACK);
 }
 
@@ -261,7 +261,7 @@ template <class READER>
 void
 Dec<BUFFER>::ReadBool()
 {
-	assert((m_Buf.template get<uint8_t>(m_Cur) & 0xfe) == 0xc2);
+	assert((m_Cur.template get<uint8_t>() & 0xfe) == 0xc2);
 	[[maybe_unused]] constexpr compact::Family ctype = compact::MP_BOOL;
 	[[maybe_unused]] constexpr Family type = MP_BOOL;
 	READER& r = CurState().objHolder.template get<READER>();
@@ -271,7 +271,7 @@ Dec<BUFFER>::ReadBool()
 		r.WrongType(READER::VALID_TYPES, type);
 		AbortAndSkipRead(READ_WRONG_TYPE);
 	} else {
-		bool value = m_Buf.template get<uint8_t>(m_Cur) - 0xc2;
+		bool value = m_Cur.template get<uint8_t>() - 0xc2;
 		r.Value(m_Cur, ctype, value);
 	}
 	++m_Cur;
@@ -283,11 +283,11 @@ void
 Dec<BUFFER>::ReadUint()
 {
 	if constexpr (std::is_same_v<T, void>) {
-		assert(m_Buf.template get<uint8_t>(m_Cur) < 0x80);
+		assert(m_Cur.template get<uint8_t>() < 0x80);
 	} else {
-		assert((m_Buf.template get<uint8_t>(m_Cur) & 0xfc) == 0xcc);
+		assert((m_Cur.template get<uint8_t>() & 0xfc) == 0xcc);
 		assert(sizeof(T) ==
-			(1u << (m_Buf.template get<uint8_t>(m_Cur) - 0xcc)));
+			(1u << (m_Cur.template get<uint8_t>() - 0xcc)));
 	}
 	[[maybe_unused]] constexpr compact::Family ctype = compact::MP_UINT;
 	[[maybe_unused]] constexpr Family type = MP_UINT;
@@ -306,11 +306,11 @@ Dec<BUFFER>::ReadUint()
 	} else {
 		uint64_t value;
 		if constexpr (std::is_same_v<T, void>) {
-			value = m_Buf.template get<uint8_t>(m_Cur);
+			value = m_Cur.template get<uint8_t>();
 		} else {
 			BufferIterator_t step = m_Cur;
 			++step;
-			value = bswap(m_Buf.template get<T>(step));
+			value = bswap(step.template get<T>());
 		}
 		r.Value(m_Cur, ctype, value);
 	}
@@ -326,11 +326,11 @@ void
 Dec<BUFFER>::ReadInt()
 {
 	if constexpr (std::is_same_v<T, void>) {
-		assert(m_Buf.template get<uint8_t>(m_Cur) >= 0xe0);
+		assert(m_Cur.template get<uint8_t>() >= 0xe0);
 	} else {
-		assert((m_Buf.template get<uint8_t>(m_Cur) & 0xfc) == 0xd0);
+		assert((m_Cur.template get<uint8_t>() & 0xfc) == 0xd0);
 		assert(sizeof(T) ==
-			(1u << (m_Buf.template get<uint8_t>(m_Cur) - 0xd0)));
+			(1u << (m_Cur.template get<uint8_t>() - 0xd0)));
 	}
 	[[maybe_unused]] constexpr compact::Family ctype = compact::MP_INT;
 	[[maybe_unused]] constexpr Family type = MP_INT;
@@ -349,12 +349,12 @@ Dec<BUFFER>::ReadInt()
 	} else {
 		int64_t value;
 		if constexpr (std::is_same_v<T, void>) {
-			value = m_Buf.template get<int8_t>(m_Cur);
+			value = m_Cur.template get<int8_t>();
 		} else {
 			BufferIterator_t step = m_Cur;
 			++step;
 			using U = under_uint_t<T>;
-			U u = bswap(m_Buf.template get<U>(step));
+			U u = bswap(step.template get<U>());
 			value = static_cast<T>(u);
 		}
 		r.Value(m_Cur, ctype, value);
@@ -370,8 +370,8 @@ template <class READER, class T>
 void
 Dec<BUFFER>::ReadFlt()
 {
-	assert((m_Buf.template get<uint8_t>(m_Cur) & 0xfe) == 0xca);
-	assert(sizeof(T) == (4u << ((m_Buf.template get<uint8_t>(m_Cur))&1)));
+	assert((m_Cur.template get<uint8_t>() & 0xfe) == 0xca);
+	assert(sizeof(T) == (4u << ((m_Cur.template get<uint8_t>())&1)));
 	[[maybe_unused]] constexpr compact::Family ctype =
 		sizeof(T) == 4 ? compact::MP_FLT : compact::MP_DBL;
 	[[maybe_unused]] constexpr Family type = sizeof(T) == 4 ? MP_FLT : MP_DBL;;
@@ -389,8 +389,7 @@ Dec<BUFFER>::ReadFlt()
 		T value;
 		BufferIterator_t step = m_Cur;
 		++step;
-		under_uint_t<T> x;
-		x = bswap(m_Buf.template get<under_uint_t<T>>(step));
+		under_uint_t<T> x = bswap(step.template get<under_uint_t<T>>());
 		memcpy(&value, &x, sizeof(T));
 		r.Value(m_Cur, ctype, value);
 	}
@@ -403,12 +402,12 @@ void
 Dec<BUFFER>::ReadStr()
 {
 	if constexpr (std::is_same_v<T, void>) {
-		assert((m_Buf.template get<uint8_t>(m_Cur) & 0xe0) == 0xa0);
+		assert((m_Cur.template get<uint8_t>() & 0xe0) == 0xa0);
 	} else {
-		assert(m_Buf.template get<uint8_t>(m_Cur) >= 0xd9);
-		assert(m_Buf.template get<uint8_t>(m_Cur) <= 0xdb);
+		assert(m_Cur.template get<uint8_t>() >= 0xd9);
+		assert(m_Cur.template get<uint8_t>() <= 0xdb);
 		assert(sizeof(T) ==
-		       (1 << (m_Buf.template get<uint8_t>(m_Cur) - 0xd9)));
+		       (1 << (m_Cur.template get<uint8_t>() - 0xd9)));
 	}
 	[[maybe_unused]] constexpr compact::Family ctype = compact::MP_STR;
 	[[maybe_unused]] constexpr Family type = MP_STR;
@@ -422,11 +421,11 @@ Dec<BUFFER>::ReadStr()
 	}
 	uint32_t str_size;
 	if constexpr (std::is_same_v<T, void>) {
-		str_size = m_Buf.template get<uint8_t>(m_Cur) - 0xa0;
+		str_size = m_Cur.template get<uint8_t>() - 0xa0;
 	} else {
 		BufferIterator_t step = m_Cur;
 		++step;
-		str_size = bswap(m_Buf.template get<T>(step));
+		str_size = bswap(step.template get<T>());
 	}
 	if (!m_Buf.has(m_Cur, header_size<T> + str_size)) {
 		m_Result = m_Result | READ_NEED_MORE;
@@ -448,7 +447,7 @@ template <class READER>
 void
 Dec<BUFFER>::ReadZeroStr()
 {
-	assert((m_Buf.template get<uint8_t>(m_Cur) & 0xe0) == 0xa0);
+	assert((m_Cur.template get<uint8_t>() & 0xe0) == 0xa0);
 	[[maybe_unused]] constexpr compact::Family ctype = compact::MP_STR;
 	[[maybe_unused]] constexpr Family type = MP_STR;
 	READER& r = CurState().objHolder.template get<READER>();
@@ -468,9 +467,9 @@ template <class READER, class T>
 void
 Dec<BUFFER>::ReadBin()
 {
-	assert(m_Buf.template get<uint8_t>(m_Cur) >= 0xc4);
-	assert(m_Buf.template get<uint8_t>(m_Cur) <= 0xc6);
-	assert(sizeof(T) == (1 << (m_Buf.template get<uint8_t>(m_Cur) - 0xc4)));
+	assert(m_Cur.template get<uint8_t>() >= 0xc4);
+	assert(m_Cur.template get<uint8_t>() <= 0xc6);
+	assert(sizeof(T) == (1 << (m_Cur.template get<uint8_t>() - 0xc4)));
 	[[maybe_unused]] constexpr compact::Family ctype = compact::MP_BIN;
 	[[maybe_unused]] constexpr Family type = MP_BIN;
 	READER& r = CurState().objHolder.template get<READER>();
@@ -484,7 +483,7 @@ Dec<BUFFER>::ReadBin()
 	uint32_t bin_size;
 	BufferIterator_t step = m_Cur;
 	++step;
-	bin_size = bswap(m_Buf.template get<T>(step));
+	bin_size = bswap(step.template get<T>());
 	if (!m_Buf.has(m_Cur, header_size<T> + bin_size)) {
 		m_Result = m_Result | READ_NEED_MORE;
 		return;
@@ -506,11 +505,11 @@ void
 Dec<BUFFER>::ReadArr()
 {
 	if constexpr (std::is_same_v<T, void>) {
-		assert((m_Buf.template get<uint8_t>(m_Cur) & 0xf0) == 0x90);
+		assert((m_Cur.template get<uint8_t>() & 0xf0) == 0x90);
 	} else {
-		assert((m_Buf.template get<uint8_t>(m_Cur) & 0xfe) == 0xdc);
+		assert((m_Cur.template get<uint8_t>() & 0xfe) == 0xdc);
 		assert(sizeof(T) ==
-		       (2 << (m_Buf.template get<uint8_t>(m_Cur) - 0xdc)));
+		       (2 << (m_Cur.template get<uint8_t>() - 0xdc)));
 	}
 	[[maybe_unused]] constexpr compact::Family ctype = compact::MP_ARR;
 	[[maybe_unused]] constexpr Family type = MP_ARR;
@@ -525,11 +524,11 @@ Dec<BUFFER>::ReadArr()
 
 	uint32_t arr_size;
 	if constexpr (std::is_same_v<T, void>) {
-		arr_size = m_Buf.template get<uint8_t>(m_Cur) - 0x90;
+		arr_size = m_Cur.template get<uint8_t>() - 0x90;
 	} else {
 		BufferIterator_t step = m_Cur;
 		++step;
-		arr_size = bswap(m_Buf.template get<T>(step));
+		arr_size = bswap(step.template get<T>());
 	}
 
 	--m_CurLevel->countdown;
@@ -562,11 +561,11 @@ void
 Dec<BUFFER>::ReadMap()
 {
 	if constexpr (std::is_same_v<T, void>) {
-		assert((m_Buf.template get<uint8_t>(m_Cur) & 0xf0) == 0x80);
+		assert((m_Cur.template get<uint8_t>() & 0xf0) == 0x80);
 	} else {
-		assert((m_Buf.template get<uint8_t>(m_Cur) & 0xfe) == 0xde);
+		assert((m_Cur.template get<uint8_t>() & 0xfe) == 0xde);
 		assert(sizeof(T) ==
-		       (2 << (m_Buf.template get<uint8_t>(m_Cur) - 0xde)));
+		       (2 << (m_Cur.template get<uint8_t>() - 0xde)));
 	}
 	[[maybe_unused]] constexpr compact::Family ctype = compact::MP_MAP;
 	[[maybe_unused]] constexpr Family type = MP_MAP;
@@ -581,11 +580,11 @@ Dec<BUFFER>::ReadMap()
 
 	uint32_t map_size;
 	if constexpr (std::is_same_v<T, void>) {
-		map_size = m_Buf.template get<uint8_t>(m_Cur) - 0x80;
+		map_size = m_Cur.template get<uint8_t>() - 0x80;
 	} else {
 		BufferIterator_t step = m_Cur;
 		++step;
-		map_size = bswap(m_Buf.template get<T>(step));
+		map_size = bswap(step.template get<T>());
 	}
 
 	--m_CurLevel->countdown;
@@ -617,9 +616,9 @@ template <class READER, class T>
 void
 Dec<BUFFER>::ReadExt()
 {
-	assert(m_Buf.template get<uint8_t>(m_Cur) >= 0xc7);
-	assert(m_Buf.template get<uint8_t>(m_Cur) <= 0xc9);
-	assert(sizeof(T) == (1 << (m_Buf.template get<uint8_t>(m_Cur) - 0xc7)));
+	assert(m_Cur.template get<uint8_t>() >= 0xc7);
+	assert(m_Cur.template get<uint8_t>() <= 0xc9);
+	assert(sizeof(T) == (1 << (m_Cur.template get<uint8_t>() - 0xc7)));
 	[[maybe_unused]] constexpr compact::Family ctype = compact::MP_EXT;
 	[[maybe_unused]] constexpr Family type = MP_EXT;
 	READER& r = CurState().objHolder.template get<READER>();
@@ -631,7 +630,7 @@ Dec<BUFFER>::ReadExt()
 	}
 	BufferIterator_t step = m_Cur;
 	++step;
-	uint32_t ext_size = bswap(m_Buf.template get<T>(step));
+	uint32_t ext_size = bswap(step.template get<T>());
 	if (!m_Buf.has(m_Cur, header_size + ext_size)) {
 		m_Result = m_Result | READ_NEED_MORE;
 		return;
@@ -643,7 +642,7 @@ Dec<BUFFER>::ReadExt()
 		r.WrongType(READER::VALID_TYPES, type);
 		AbortAndSkipRead(READ_WRONG_TYPE);
 	} else {
-		int8_t ext_type = m_Buf.template get<int8_t>(step);
+		int8_t ext_type = step.template get<int8_t>();
 		r.Value(m_Cur, ctype,
 			ExtValue{ext_type, header_size, ext_size});
 	}
@@ -655,9 +654,9 @@ template <class READER, uint32_t SIZE>
 void
 Dec<BUFFER>::ReadFixedExt()
 {
-	assert(m_Buf.template get<uint8_t>(m_Cur) >= 0xd4);
-	assert(m_Buf.template get<uint8_t>(m_Cur) <= 0xd8);
-	assert(SIZE == (1 << (m_Buf.template get<uint8_t>(m_Cur) - 0xd4)));
+	assert(m_Cur.template get<uint8_t>() >= 0xd4);
+	assert(m_Cur.template get<uint8_t>() <= 0xd8);
+	assert(SIZE == (1 << (m_Cur.template get<uint8_t>() - 0xd4)));
 	[[maybe_unused]] constexpr compact::Family ctype = compact::MP_EXT;
 	[[maybe_unused]] constexpr Family type = MP_EXT;
 	READER& r = CurState().objHolder.template get<READER>();
@@ -675,7 +674,7 @@ Dec<BUFFER>::ReadFixedExt()
 		AbortAndSkipRead(READ_WRONG_TYPE);
 	} else {
 		++step;
-		int8_t ext_type = m_Buf.template get<int8_t>(step);
+		int8_t ext_type = step.template get<int8_t>();
 		r.Value(m_Cur, ctype,
 			ExtValue{ext_type, header_size, SIZE});
 	}
@@ -755,7 +754,7 @@ template <class BUFFER>
 void
 Dec<BUFFER>::SkipCommon()
 {
-	uint8_t tag = m_Buf.template get<uint8_t>(m_Cur);
+	uint8_t tag = m_Cur.template get<uint8_t>();
 	if (tag == 0xc1) {
 		AbandonDecoder(READ_BAD_MSGPACK);
 		return;
@@ -769,13 +768,13 @@ Dec<BUFFER>::SkipCommon()
 	switch (info.read_value_size) {
 		case 0: value = 0; break;
 		case 1:
-			value = bswap(m_Buf.template get<uint8_t>(m_Cur + 1));
+			value = bswap((m_Cur + 1).template get<uint8_t>());
 			break;
 		case 2:
-			value = bswap(m_Buf.template get<uint16_t>(m_Cur + 1));
+			value = bswap((m_Cur + 1).template get<uint16_t>());
 			break;
 		case 3:
-			value = bswap(m_Buf.template get<uint32_t>(m_Cur + 1));
+			value = bswap((m_Cur + 1).template get<uint32_t>());
 			break;
 		default:
 			tnt::unreachable();
@@ -969,7 +968,7 @@ Dec<BUFFER>::Read()
 			m_Result = m_Result | READ_NEED_MORE;
 			return m_Result;
 		}
-		uint8_t tag = m_Buf.template get<uint8_t>(m_Cur);
+		uint8_t tag = m_Cur.template get<uint8_t>();
 		(this->*(CurState().transitions[tag]))();
 		if (m_IsDeadStream || (m_Result & READ_NEED_MORE))
 			return m_Result;

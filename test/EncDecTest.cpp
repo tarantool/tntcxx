@@ -318,7 +318,7 @@ test_basic()
 				      12, std::make_tuple(1, 2, 3))));
 
 	for (auto itr = buf.begin(); itr != buf.end(); ++itr) {
-		char c = buf.get<uint8_t>(itr);
+		char c = itr.get<uint8_t>();
 		uint8_t u = c;
 		const char *h = "0123456789ABCDEF";
 		if (c >= 'a' && c <= 'z')

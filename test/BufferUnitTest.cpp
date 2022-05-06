@@ -130,7 +130,7 @@ buffer_basic()
 	fail_if(buf.debugSelfCheck());
 	auto itr = buf.begin();
 	int int_res = -1;
-	buf.get(itr, int_res);
+	itr.get(int_res);
 	fail_unless(int_res == int_sample);
 	fail_if(buf.debugSelfCheck());
 	itr.unlink();
@@ -143,7 +143,7 @@ buffer_basic()
 	fail_if(buf.debugSelfCheck());
 	char char_res[SAMPLES_CNT];
 	itr = buf.begin();
-	buf.get(itr, (char *)&char_res, SAMPLES_CNT);
+	itr.get((char *)&char_res, SAMPLES_CNT);
 	for (int i = 0; i < SAMPLES_CNT; ++i)
 		fail_unless(char_samples[i] == char_res[i]);
 	itr.unlink();
@@ -153,9 +153,9 @@ buffer_basic()
 	/* Add double value in buffer. */
 	itr = buf.end();
 	buf.addBack(tnt::Advance{sizeof(double)});
-	buf.set(itr, double_sample);
+	itr.set(double_sample);
 	double double_res = 0;
-	buf.get(itr, double_res);
+	itr.get(double_res);
 	fail_unless(double_res == double_sample);
 	fail_if(buf.debugSelfCheck());
 	itr.unlink();
@@ -165,9 +165,9 @@ buffer_basic()
 	/* Add struct value in buffer. */
 	itr = buf.end();
 	buf.addBack(tnt::Advance{sizeof(struct_sample)});
-	buf.set(itr, struct_sample);
+	itr.set(struct_sample);
 	struct struct_sample struct_res = { };
-	buf.get(itr, struct_res);
+	itr.get(struct_res);
 	fail_unless(struct_res.c == struct_sample.c);
 	fail_unless(struct_res.i == struct_sample.i);
 	fail_unless(struct_res.d == struct_sample.d);
@@ -255,19 +255,19 @@ buffer_add_read()
 		int r = rand();
 		switch (r % 5) {
 		case 0:
-			fail_unless(buf.template read<uint8_t>(itr1) ==
+			fail_unless(itr1.template read<uint8_t>() ==
 				    static_cast<uint8_t>(r));
 			break;
 		case 1:
-			fail_unless(buf.template read<uint16_t>(itr1) ==
+			fail_unless(itr1.template read<uint16_t>() ==
 				    static_cast<uint16_t>(r));
 			break;
 		case 2:
-			fail_unless(buf.template read<uint32_t>(itr1) ==
+			fail_unless(itr1.template read<uint32_t>() ==
 				    static_cast<uint32_t>(r));
 			break;
 		case 3:
-			fail_unless(buf.template read<uint64_t>(itr1) ==
+			fail_unless(itr1.template read<uint64_t>() ==
 				    static_cast<uint64_t>(r));
 			break;
 		default: {
@@ -276,7 +276,7 @@ buffer_add_read()
 			for (size_t j = 0; j < sz; j++)
 				data1[j] = rand();
 			char data2[16];
-			buf.read(itr1, data2, sz);
+			itr1.read(data2, sz);
 			fail_unless(memcmp(data1, data2, sz) == 0);
 		}
 		}
@@ -289,19 +289,19 @@ buffer_add_read()
 		int r = rand();
 		switch (r % 5) {
 		case 0:
-			fail_unless(buf.template read<uint8_t>(itr2) ==
+			fail_unless(itr2.template read<uint8_t>() ==
 				    static_cast<uint8_t>(r));
 			break;
 		case 1:
-			fail_unless(buf.template read<uint16_t>(itr2) ==
+			fail_unless(itr2.template read<uint16_t>() ==
 				    static_cast<uint16_t>(r));
 			break;
 		case 2:
-			fail_unless(buf.template read<uint32_t>(itr2) ==
+			fail_unless(itr2.template read<uint32_t>() ==
 				    static_cast<uint32_t>(r));
 			break;
 		case 3:
-			fail_unless(buf.template read<uint64_t>(itr2) ==
+			fail_unless(itr2.template read<uint64_t>() ==
 				    static_cast<uint64_t>(r));
 			break;
 		default: {
@@ -310,7 +310,7 @@ buffer_add_read()
 			for (size_t j = 0; j < sz; j++)
 				data1[j] = rand();
 			char data2[16];
-			buf.read(itr2, data2, sz);
+			itr2.read(data2, sz);
 			fail_unless(memcmp(data1, data2, sz) == 0);
 		}
 		}
@@ -330,17 +330,17 @@ buffer_iterator()
 	char res = 'x';
 	/* Iterator to the start of buffer should not change. */
 	for (int i = 0; i < SAMPLES_CNT; ++i) {
-		buf.get(itr, res);
+		itr.get(res);
 		fail_unless(res == char_samples[i]);
 		++itr;
 	}
-	buf.get(itr, res);
+	itr.get(res);
 	fail_unless(res == end_marker);
 	auto begin = buf.begin();
 	while (begin != itr)
 		begin += 1;
 	res = 'x';
-	buf.get(begin, res);
+	begin.get(res);
 	fail_unless(res == end_marker);
 	buf.dropFront(SAMPLES_CNT);
 	fail_if(buf.debugSelfCheck());
@@ -398,14 +398,14 @@ buffer_insert()
 	char res = 'x';
 	mid_itr += SMALL_BLOCK_SZ / 2;
 	for (int i = 0; i < SAMPLES_CNT / 2; ++i) {
-		buf.get(mid_itr, res);
+		mid_itr.get(res);
 		fail_unless(res == char_samples[i]);
 		fail_if(buf.debugSelfCheck());
 		++mid_itr;
 	}
 	mid_itr2 += SMALL_BLOCK_SZ / 2;
 	for (int i = 0; i < SAMPLES_CNT / 2; ++i) {
-		buf.get(mid_itr2, res);
+		mid_itr2.get(res);
 		fail_unless(res == char_samples[i]);
 		fail_if(buf.debugSelfCheck());
 		++mid_itr2;
@@ -428,9 +428,9 @@ buffer_insert()
 	fillBuffer(buf, SAMPLES_CNT * 2);
 	buf.addBack(end_marker);
 	buf.insert(mid_itr, SAMPLES_CNT * 3);
-	buf.get(end_itr, res);
+	end_itr.get(res);
 	fail_unless(res == end_marker);
-	buf.get(mid_itr2, res);
+	mid_itr2.get(res);
 	fail_unless(res == end_marker);
 	/*
 	 * Buffer content prior to the iterator used to process insertion
@@ -438,7 +438,7 @@ buffer_insert()
 	 */
 	int i = 0;
 	for (auto tmp = buf.begin(); tmp < mid_itr; ++tmp) {
-		buf.get(tmp, res);
+		tmp.get(res);
 		fail_unless(res == char_samples[i++ % SAMPLES_CNT]);
 	}
 }
@@ -471,12 +471,12 @@ buffer_release()
 	 */
 	char res = 'x';
 	for (int i = 0; i < SAMPLES_CNT / 2; ++i) {
-		buf.get(mid_itr, res);
+		mid_itr.get(res);
 		fail_unless(res == char_samples[i + SAMPLES_CNT / 2]);
 		++mid_itr;
 	}
 	for (int i = 0; i < SAMPLES_CNT / 2; ++i) {
-		buf.get(mid_itr2, res);
+		mid_itr2.get(res);
 		fail_unless(res == char_samples[i + SAMPLES_CNT / 2]);
 		++mid_itr2;
 	}
@@ -506,9 +506,9 @@ buffer_release()
 	dumpBuffer(buf, tmp);
 	std::cout << tmp << std::endl;
 	fail_if(buf.debugSelfCheck());
-	buf.get(end_itr, res);
+	end_itr.get(res);
 	fail_unless(res == end_marker);
-	buf.get(mid_itr2, res);
+	mid_itr2.get(res);
 	fail_unless(res == end_marker);
 	/*
 	 * Buffer content prior to the iterator used to process insertion
@@ -516,7 +516,7 @@ buffer_release()
 	 */
 	int i = 0;
 	for (auto tmp = buf.begin(); tmp < mid_itr; ++tmp) {
-		buf.get(tmp, res);
+		tmp.get(res);
 		fail_unless(res == char_samples[i++ % SAMPLES_CNT]);
 	}
 }
@@ -545,7 +545,7 @@ buffer_out()
 	buf.addBack(0x20); // IPROTO_KEY
 	buf.addBack(0x90); // empty array key
 	size_t total = buf.end() - save;
-	buf.set(save, __builtin_bswap32(total)); // set calculated size
+	save.set(__builtin_bswap32(total)); // set calculated size
 	fail_if(buf.debugSelfCheck());
 	save.unlink();
 	do {
@@ -573,7 +573,7 @@ buffer_iterator_get()
 	char char_res[DATA_SIZE];
 	memset(char_res, '0', DATA_SIZE);
 	auto itr = buf.begin();
-	buf.get(itr, (char *)&char_res, DATA_SIZE);
+	itr.get((char *)&char_res, DATA_SIZE);
 	for (size_t i = 0; i < DATA_SIZE; ++i)
 		fail_unless(char_samples[i % SAMPLES_CNT] == char_res[i]);
 	fail_if(buf.debugSelfCheck());

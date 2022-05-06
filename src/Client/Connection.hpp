@@ -556,8 +556,7 @@ decodeGreeting(Connection<BUFFER, NetProvider> &conn)
 {
 	//TODO: that's not zero-copy, should be rewritten in that pattern.
 	char greeting_buf[Iproto::GREETING_SIZE];
-	conn.impl->inBuf.get(conn.impl->endDecoded, greeting_buf, sizeof(greeting_buf));
-	conn.impl->endDecoded += sizeof(greeting_buf);
+	conn.impl->endDecoded.read(greeting_buf, sizeof(greeting_buf));
 	assert(conn.impl->endDecoded == conn.impl->inBuf.end());
 	conn.impl->dec.reset(conn.impl->endDecoded);
 	if (parseGreeting(std::string_view{greeting_buf, Iproto::GREETING_SIZE},
