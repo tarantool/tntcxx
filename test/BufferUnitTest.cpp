@@ -62,7 +62,7 @@ static void
 fillBuffer(tnt::Buffer<N> &buffer, size_t size)
 {
 	for (size_t i = 0; i < size; ++i) {
-		buffer.addBack(char_samples[i % SAMPLES_CNT]);
+		buffer.write(char_samples[i % SAMPLES_CNT]);
 		fail_if(buffer.debugSelfCheck());
 	}
 }
@@ -125,7 +125,7 @@ buffer_basic()
 	TEST_INIT(1, N);
 	tnt::Buffer<N> buf;
 	fail_unless(buf.empty());
-	buf.addBack(int_sample);
+	buf.write(int_sample);
 	fail_unless(! buf.empty());
 	fail_if(buf.debugSelfCheck());
 	auto itr = buf.begin();
@@ -137,13 +137,13 @@ buffer_basic()
 	buf.dropBack(sizeof(int_sample));
 	fail_unless(buf.empty());
 	fail_if(buf.debugSelfCheck());
-	/* Test non-template ::addBack() method. */
-	buf.addBack(tnt::Data{char_samples, SAMPLES_CNT});
+	/* Test non-template ::write() method. */
+	buf.write({char_samples, SAMPLES_CNT});
 	fail_unless(! buf.empty());
 	fail_if(buf.debugSelfCheck());
 	char char_res[SAMPLES_CNT];
 	itr = buf.begin();
-	itr.get((char *)&char_res, SAMPLES_CNT);
+	itr.get({char_res, SAMPLES_CNT});
 	for (int i = 0; i < SAMPLES_CNT; ++i)
 		fail_unless(char_samples[i] == char_res[i]);
 	itr.unlink();
@@ -152,7 +152,7 @@ buffer_basic()
 	fail_if(buf.debugSelfCheck());
 	/* Add double value in buffer. */
 	itr = buf.end();
-	buf.addBack(tnt::Advance{sizeof(double)});
+	buf.write({sizeof(double)});
 	itr.set(double_sample);
 	double double_res = 0;
 	itr.get(double_res);
@@ -164,7 +164,7 @@ buffer_basic()
 	fail_if(buf.debugSelfCheck());
 	/* Add struct value in buffer. */
 	itr = buf.end();
-	buf.addBack(tnt::Advance{sizeof(struct_sample)});
+	buf.write({sizeof(struct_sample)});
 	itr.set(struct_sample);
 	struct struct_sample struct_res = { };
 	itr.get(struct_res);
@@ -182,7 +182,7 @@ buffer_basic()
 		tnt::Buffer<N> buf2;
 		char c = '!';
 		for (size_t j = 0; j < i; j++) // Add i bytes.
-			buf2.addBack(c);
+			buf2.write(c);
 		buf2.dropFront(i);
 		fail_unless(buf2.empty());
 	}
@@ -191,7 +191,7 @@ buffer_basic()
 		tnt::Buffer<N> buf2;
 		char c = '!';
 		for (size_t j = 0; j <= i; j++) // Add i+1 bytes (notice '<=').
-			buf2.addBack(c);
+			buf2.write(c);
 		buf2.dropFront(i);
 		fail_unless(*buf2.begin() == c);
 	}
@@ -201,7 +201,7 @@ buffer_basic()
 		tnt::Buffer<N> buf2;
 		char c = '!';
 		for (size_t j = 0; j < i; j++) // Add i bytes.
-			buf2.addBack(c);
+			buf2.write(c);
 		buf2.dropBack(i);
 		fail_unless(buf2.empty());
 	}
@@ -210,7 +210,7 @@ buffer_basic()
 		tnt::Buffer<N> buf2;
 		char c = '!';
 		for (size_t j = 0; j <= i; j++) // Add i+1 bytes (notice '<=').
-			buf2.addBack(c);
+			buf2.write(c);
 		buf2.dropBack(i);
 		fail_unless(*buf2.begin() == c);
 	}
@@ -232,19 +232,19 @@ buffer_add_read()
 		int r = rand();
 		switch (r % 5) {
 		case 0:
-			buf.addBack(static_cast<uint8_t>(r)); break;
+			buf.write(static_cast<uint8_t>(r)); break;
 		case 1:
-			buf.addBack(static_cast<uint16_t>(r)); break;
+			buf.write(static_cast<uint16_t>(r)); break;
 		case 2:
-			buf.addBack(static_cast<uint32_t>(r)); break;
+			buf.write(static_cast<uint32_t>(r)); break;
 		case 3:
-			buf.addBack(static_cast<uint64_t>(r)); break;
+			buf.write(static_cast<uint64_t>(r)); break;
 		default: {
 			size_t sz = r % 13 + 1;
 			char data[16];
 			for (size_t j = 0; j < sz; j++)
 				data[j] = rand();
-			buf.addBack(tnt::Data{data, sz});
+			buf.write({data, sz});
 		}
 		}
 	}
@@ -276,7 +276,7 @@ buffer_add_read()
 			for (size_t j = 0; j < sz; j++)
 				data1[j] = rand();
 			char data2[16];
-			itr1.read(data2, sz);
+			itr1.read({data2, sz});
 			fail_unless(memcmp(data1, data2, sz) == 0);
 		}
 		}
@@ -310,7 +310,7 @@ buffer_add_read()
 			for (size_t j = 0; j < sz; j++)
 				data1[j] = rand();
 			char data2[16];
-			itr2.read(data2, sz);
+			itr2.read({data2, sz});
 			fail_unless(memcmp(data1, data2, sz) == 0);
 		}
 		}
@@ -324,7 +324,7 @@ buffer_iterator()
 	TEST_INIT(1, N);
 	tnt::Buffer<N> buf;
 	fillBuffer(buf, SAMPLES_CNT);
-	buf.addBack(end_marker);
+	buf.write(end_marker);
 	fail_if(buf.debugSelfCheck());
 	auto itr = buf.begin();
 	char res = 'x';
@@ -379,14 +379,14 @@ buffer_insert()
 	tnt::Buffer<N> buf;
 	fillBuffer(buf, SAMPLES_CNT);
 	fail_if(buf.debugSelfCheck());
-	buf.addBack(end_marker);
+	buf.write(end_marker);
 	fail_if(buf.debugSelfCheck());
 	auto begin = buf.begin();
 	auto mid_itr = buf.end();
 	auto mid_itr2 = buf.end();
 	fillBuffer(buf, SAMPLES_CNT);
 	fail_if(buf.debugSelfCheck());
-	buf.addBack(end_marker);
+	buf.write(end_marker);
 	fail_if(buf.debugSelfCheck());
 	auto end_itr = buf.end();
 	/* For SMALL_BLOCK_SZ = 32
@@ -417,16 +417,16 @@ buffer_insert()
 	eraseBuffer(buf);
 	/* Try the same but with more elements in buffer (i.e. more blocks). */
 	fillBuffer(buf, SAMPLES_CNT * 2);
-	//buf.addBack(end_marker);
+	//buf.write(end_marker);
 	mid_itr = buf.end();
 	fillBuffer(buf, SAMPLES_CNT * 4);
 	mid_itr2 = buf.end();
-	buf.addBack(end_marker);
+	buf.write(end_marker);
 	fillBuffer(buf, SAMPLES_CNT * 4);
 	end_itr = buf.end();
-	buf.addBack(end_marker);
+	buf.write(end_marker);
 	fillBuffer(buf, SAMPLES_CNT * 2);
-	buf.addBack(end_marker);
+	buf.write(end_marker);
 	buf.insert(mid_itr, SAMPLES_CNT * 3);
 	end_itr.get(res);
 	fail_unless(res == end_marker);
@@ -450,13 +450,13 @@ buffer_release()
 	TEST_INIT(1, N);
 	tnt::Buffer<N> buf;
 	fillBuffer(buf, SAMPLES_CNT);
-	buf.addBack(end_marker);
+	buf.write(end_marker);
 	auto begin = buf.begin();
 	auto mid_itr = buf.end();
 	auto mid_itr2 = buf.end();
 	fillBuffer(buf, SAMPLES_CNT);
 	fail_if(buf.debugSelfCheck());
-	buf.addBack(end_marker);
+	buf.write(end_marker);
 	fail_if(buf.debugSelfCheck());
 	auto end_itr = buf.end();
 	/* For SMALL_BLOCK_SZ = 32
@@ -491,12 +491,12 @@ buffer_release()
 	mid_itr = buf.end();
 	fillBuffer(buf, SAMPLES_CNT * 4);
 	mid_itr2 = buf.end();
-	buf.addBack(end_marker);
+	buf.write(end_marker);
 	fillBuffer(buf, SAMPLES_CNT * 4);
 	end_itr = buf.end();
-	buf.addBack(end_marker);
+	buf.write(end_marker);
 	fillBuffer(buf, SAMPLES_CNT * 2);
-	buf.addBack(end_marker);
+	buf.write(end_marker);
 	fail_if(buf.debugSelfCheck());
 	std::string tmp;
 	dumpBuffer(buf, tmp);
@@ -530,20 +530,20 @@ buffer_out()
 {
 	TEST_INIT(1, N);
 	tnt::Buffer<N> buf;
-	buf.addBack(0xce); // uin32 tag
+	buf.write(0xce); // uin32 tag
 	auto save = buf.end();
-	buf.addBack(tnt::Advance{4}); // uint32, will be set later
-	buf.addBack(0x82); // map(2) - header
-	buf.addBack(0x00); // IPROTO_REQUEST_TYPE
-	buf.addBack(0x01); // IPROTO_SELECT
-	buf.addBack(0x01); // IPROTO_SYNC
-	buf.addBack(0x00); // sync = 0
-	buf.addBack(0x82); // map(2) - body
-	buf.addBack(0x10); // IPROTO_SPACE_ID
-	buf.addBack(0xcd); // uint16 tag
-	buf.addBack(__builtin_bswap16(512)); // space_id = 512
-	buf.addBack(0x20); // IPROTO_KEY
-	buf.addBack(0x90); // empty array key
+	buf.write({4}); // uint32, will be set later
+	buf.write(0x82); // map(2) - header
+	buf.write(0x00); // IPROTO_REQUEST_TYPE
+	buf.write(0x01); // IPROTO_SELECT
+	buf.write(0x01); // IPROTO_SYNC
+	buf.write(0x00); // sync = 0
+	buf.write(0x82); // map(2) - body
+	buf.write(0x10); // IPROTO_SPACE_ID
+	buf.write(0xcd); // uint16 tag
+	buf.write(__builtin_bswap16(512)); // space_id = 512
+	buf.write(0x20); // IPROTO_KEY
+	buf.write(0x90); // empty array key
 	size_t total = buf.end() - save;
 	save.set(__builtin_bswap32(total)); // set calculated size
 	fail_if(buf.debugSelfCheck());
@@ -568,12 +568,12 @@ buffer_iterator_get()
 	tnt::Buffer<N> buf;
 	size_t DATA_SIZE = SAMPLES_CNT * 10;
 	fillBuffer(buf, DATA_SIZE);
-	buf.addBack(end_marker);
+	buf.write(end_marker);
 	fail_if(buf.debugSelfCheck());
 	char char_res[DATA_SIZE];
 	memset(char_res, '0', DATA_SIZE);
 	auto itr = buf.begin();
-	itr.get((char *)&char_res, DATA_SIZE);
+	itr.get({char_res, DATA_SIZE});
 	for (size_t i = 0; i < DATA_SIZE; ++i)
 		fail_unless(char_samples[i % SAMPLES_CNT] == char_res[i]);
 	fail_if(buf.debugSelfCheck());

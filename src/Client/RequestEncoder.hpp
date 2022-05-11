@@ -109,8 +109,8 @@ size_t
 RequestEncoder<BUFFER>::encodePing()
 {
 	iterator_t<BUFFER> request_start = m_Buf.end();
-	m_Buf.addBack('\xce');
-	m_Buf.addBack(uint32_t{0});
+	m_Buf.write('\xce');
+	m_Buf.write(uint32_t{0});
 	encodeHeader(Iproto::PING);
 	tnt::mpp::encode(m_Buf, tnt::mpp::as_map(std::make_tuple()));
 	uint32_t request_size = (m_Buf.end() - request_start) - PREHEADER_SIZE;
@@ -125,8 +125,8 @@ size_t
 RequestEncoder<BUFFER>::encodeInsert(const T &tuple, uint32_t space_id)
 {
 	iterator_t<BUFFER> request_start = m_Buf.end();
-	m_Buf.addBack('\xce');
-	m_Buf.addBack(uint32_t{0});
+	m_Buf.write('\xce');
+	m_Buf.write(uint32_t{0});
 	encodeHeader(Iproto::INSERT);
 	tnt::mpp::encode(m_Buf, tnt::mpp::as_map(std::forward_as_tuple(
 		MPP_AS_CONST(Iproto::SPACE_ID), space_id,
@@ -143,8 +143,8 @@ size_t
 RequestEncoder<BUFFER>::encodeReplace(const T &tuple, uint32_t space_id)
 {
 	iterator_t<BUFFER> request_start = m_Buf.end();
-	m_Buf.addBack('\xce');
-	m_Buf.addBack(uint32_t{0});
+	m_Buf.write('\xce');
+	m_Buf.write(uint32_t{0});
 	encodeHeader(Iproto::REPLACE);
 	tnt::mpp::encode(m_Buf, tnt::mpp::as_map(std::forward_as_tuple(
 		MPP_AS_CONST(Iproto::SPACE_ID), space_id,
@@ -162,8 +162,8 @@ RequestEncoder<BUFFER>::encodeDelete(const T &key, uint32_t space_id,
 				     uint32_t index_id)
 {
 	iterator_t<BUFFER> request_start = m_Buf.end();
-	m_Buf.addBack('\xce');
-	m_Buf.addBack(uint32_t{0});
+	m_Buf.write('\xce');
+	m_Buf.write(uint32_t{0});
 	encodeHeader(Iproto::DELETE);
 	tnt::mpp::encode(m_Buf, tnt::mpp::as_map(std::forward_as_tuple(
 		MPP_AS_CONST(Iproto::SPACE_ID), space_id,
@@ -182,8 +182,8 @@ RequestEncoder<BUFFER>::encodeUpdate(const K &key, const T &tuple,
 				     uint32_t space_id, uint32_t index_id)
 {
 	iterator_t<BUFFER> request_start = m_Buf.end();
-	m_Buf.addBack('\xce');
-	m_Buf.addBack(uint32_t{0});
+	m_Buf.write('\xce');
+	m_Buf.write(uint32_t{0});
 	encodeHeader(Iproto::UPDATE);
 	tnt::mpp::encode(m_Buf, tnt::mpp::as_map(std::forward_as_tuple(
 		MPP_AS_CONST(Iproto::SPACE_ID), space_id,
@@ -203,8 +203,8 @@ RequestEncoder<BUFFER>::encodeUpsert(const T &tuple, const O &ops,
 				     uint32_t space_id, uint32_t index_base)
 {
 	iterator_t<BUFFER> request_start = m_Buf.end();
-	m_Buf.addBack('\xce');
-	m_Buf.addBack(uint32_t{0});
+	m_Buf.write('\xce');
+	m_Buf.write(uint32_t{0});
 	encodeHeader(Iproto::UPSERT);
 	tnt::mpp::encode(m_Buf, tnt::mpp::as_map(std::forward_as_tuple(
 		MPP_AS_CONST(Iproto::SPACE_ID), space_id,
@@ -226,8 +226,8 @@ RequestEncoder<BUFFER>::encodeSelect(const T &key,
 				     IteratorType iterator)
 {
 	iterator_t<BUFFER> request_start = m_Buf.end();
-	m_Buf.addBack('\xce');
-	m_Buf.addBack(uint32_t{0});
+	m_Buf.write('\xce');
+	m_Buf.write(uint32_t{0});
 	encodeHeader(Iproto::SELECT);
 	tnt::mpp::encode(m_Buf, tnt::mpp::as_map(std::forward_as_tuple(
 		MPP_AS_CONST(Iproto::SPACE_ID), space_id,
@@ -248,8 +248,8 @@ size_t
 RequestEncoder<BUFFER>::encodeCall(const std::string &func, const T &args)
 {
 	iterator_t<BUFFER> request_start = m_Buf.end();
-	m_Buf.addBack('\xce');
-	m_Buf.addBack(uint32_t{0});
+	m_Buf.write('\xce');
+	m_Buf.write(uint32_t{0});
 	encodeHeader(Iproto::CALL);
 	tnt::mpp::encode(m_Buf, tnt::mpp::as_map(std::forward_as_tuple(
 		MPP_AS_CONST(Iproto::FUNCTION_NAME), func,

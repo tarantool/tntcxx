@@ -509,7 +509,7 @@ bool
 encode(CONT &cont, tnt::CStr<C...> prefix, std::index_sequence<I...>)
 {
 	static_assert(sizeof...(I) == 0);
-	cont.addBack(prefix);
+	cont.write(prefix);
 	return true;
 }
 
@@ -603,13 +603,13 @@ encode(CONT &cont, tnt::CStr<C...> prefix,
 		} else if constexpr(tnt::is_string_constant_v<U>) {
 			return encode(cont, prefix.join(u), ais, more...);
 		} else if constexpr(tnt::is_contiguous_v<U>) {
-			cont.addBack(prefix);
-			cont.addBack({std::data(u), std::size(u)});
+			cont.write(prefix);
+			cont.write({std::data(u), std::size(u)});
 			return encode(cont, tnt::CStr<>{}, ais, more...);
 		} else {
 			static_assert(std::is_standard_layout_v<U>);
-			cont.addBack(prefix);
-			cont.addBack(u);
+			cont.write(prefix);
+			cont.write(u);
 			return encode(cont, tnt::CStr<>{}, ais, more...);
 		}
 	} else {
@@ -650,8 +650,8 @@ encode(CONT &cont, tnt::CStr<C...> prefix,
 				size_t soff = find_simplex_offset<rule_t>(value);
 				if (soff < SimplexRange<rule_t>::length) {
 					uint8_t tag = rule_t::simplex_tag + soff;
-					cont.addBack(prefix);
-					cont.addBack(tag);
+					cont.write(prefix);
+					cont.write(tag);
 					return encode(cont, tnt::CStr<>{}, is,
 						      as_raw(ext), as_raw(data),
 						      more...);

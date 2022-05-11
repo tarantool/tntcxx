@@ -439,7 +439,7 @@ inBufferToIOV(Connection<BUFFER, NetProvider> &conn, size_t size, size_t *iov_le
 	BUFFER &buf = conn.impl->inBuf;
 	struct iovec *vecs = conn.impl->m_IOVecs;
 	typename BUFFER::iterator itr = buf.end();
-	buf.advance(size);
+	buf.write({size});
 	*iov_len = buf.getIOV(itr, vecs,
 			      ConnectionImpl<BUFFER, NetProvider>::AVAILABLE_IOVEC_COUNT);
 	return vecs;
@@ -556,7 +556,7 @@ decodeGreeting(Connection<BUFFER, NetProvider> &conn)
 {
 	//TODO: that's not zero-copy, should be rewritten in that pattern.
 	char greeting_buf[Iproto::GREETING_SIZE];
-	conn.impl->endDecoded.read(greeting_buf, sizeof(greeting_buf));
+	conn.impl->endDecoded.read({greeting_buf, sizeof(greeting_buf)});
 	assert(conn.impl->endDecoded == conn.impl->inBuf.end());
 	conn.impl->dec.reset(conn.impl->endDecoded);
 	if (parseGreeting(std::string_view{greeting_buf, Iproto::GREETING_SIZE},

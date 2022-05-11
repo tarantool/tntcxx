@@ -34,17 +34,24 @@ char staticBuffer[N * MAX_SIZE];
 struct StaticBuffer {
 	char *p = staticBuffer;
 
+	struct WData {
+		const char* data;
+		size_t size;
+
+		WData(const char *adata, size_t asize) : data(adata), size(asize) {}
+	};
+
 	template <bool>
 	char *begin() const { return staticBuffer; }
 	template <bool>
 	char *end() const { return p; }
 	template <class T>
-	void addBack(T&& t)
+	void write(T&& t)
 	{
 		mempcpy(p, &t, sizeof(t));
 		p += sizeof(t);
 	}
-	void addBack(tnt::Data d)
+	void write(WData d)
 	{
 		mempcpy(p, d.data, d.size);
 		p += d.size;
@@ -170,7 +177,7 @@ dataName(const T&)
 template <class CONT, size_t... I, class... T>
 void write_helper(CONT& c, std::index_sequence<I...>, const std::tuple<T...>& t)
 {
-	(c.addBack(std::get<I>(t)), ...);
+	(c.write(std::get<I>(t)), ...);
 }
 
 template <class CONT, class... T>
@@ -182,8 +189,8 @@ void write(CONT &c, const std::tuple<T...>& t)
 template <class CONT>
 void write(CONT &c, VariadicData_t& t)
 {
-	c.addBack(t.size);
-	c.addBack({t.data, t.size});
+	c.write(t.size);
+	c.write({t.data, t.size});
 }
 
 template <class T>
@@ -217,14 +224,14 @@ template <size_t N, class ALL>
 void read_one(tnt::Buffer<N, ALL> &, typename tnt::Buffer<N, ALL>::iterator &itr, VariadicData_t &t)
 {
 	itr.read(t.size);
-	itr.read(t.data, t.size);
+	itr.read({t.data, t.size});
 }
 
 template <size_t N, class ALL>
 void read_one(tnt::Buffer<N, ALL> &, typename tnt::Buffer<N, ALL>::light_iterator &itr, VariadicData_t &t)
 {
 	itr.read(t.size);
-	itr.read(t.data, t.size);
+	itr.read({t.data, t.size});
 }
 
 template <class CONT, class ITR, size_t... I, class... T>

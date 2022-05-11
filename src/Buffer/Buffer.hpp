@@ -45,23 +45,6 @@
 namespace tnt {
 
 /**
- * A pair data+size for convenient append to a buffer.
- */
-struct Data {
-	const char* data;
-	size_t size;
-
-	Data(const char *adata, size_t asize) : data(adata), size(asize) {}
-};
-
-/**
- * Special wrapper of size_t for advancing buffer's end.
- */
-struct Advance {
-	size_t size;
-};
-
-/**
  * Exception safe C++ IO buffer.
  *
  * Allocator requirements (API):
@@ -134,6 +117,38 @@ private:
 	bool isEndOfBlock(const char *ptr);
 
 public:
+	/** =============== Convenient wrappers =============== */
+
+	/**
+	 * A pair data+size for convenient write to a buffer.
+	 */
+	struct WData {
+		const char* data;
+		size_t size;
+	};
+
+	/**
+	 * A pair data+size for convenient read from a buffer.
+	 */
+	struct RData {
+		char* data;
+		size_t size;
+	};
+
+	/**
+	* Special wrapper for reserving a place for an object of given size.
+	*/
+	struct Reserve {
+		size_t size;
+	};
+
+	/**
+	* Special wrapper for skipping an object of given size.
+	*/
+	struct Skip {
+		size_t size;
+	};
+
 	/** =============== Iterator definition =============== */
 	// Dummy class to be a base of light_iterator.
 	struct light_base {
@@ -181,15 +196,29 @@ public:
 		 * Copy content of @a buf of size @a size (or object @a t) to
 		 * the position in buffer @a itr pointing to.
 		 */
-		void set(const char *buf, size_t size);
+		void set(WData data);
 		template <class T>
 		void set(T&& t);
+		template <char... C>
+		void set(CStr<C...>);
+
+		/**
+		 * Copy content of @a buf of size @a size (or object @a t) to
+		 * the position in buffer @a itr pointing to. Advance the
+		 * iterator to the end of value.
+		 */
+		void write(WData data);
+		template <class T>
+		void write(T&& t);
+		template <char... C>
+		void write(CStr<C...>);
+		void write(Reserve data) { operator+=(data.size); }
 
 		/**
 		 * Copy content of data iterator pointing to to the buffer
 		 * @a buf of size @a size.
 		 */
-		void get(char *buf, size_t size);
+		void get(RData data);
 		template <class T>
 		void get(T& t);
 		template <class T>
@@ -200,11 +229,12 @@ public:
 		 * @a buf of size @a size. Advance the iterator to the end of
 		 * value.
 		 */
-		void read(char *buf, size_t size);
+		void read(RData data);
 		template <class T>
 		void read(T& t);
 		template <class T>
 		T read();
+		void read(Skip data) { operator+=(data.size); }
 
 	private:
 		/** Adjust iterator_common's position in list of iterators after
@@ -238,17 +268,17 @@ public:
 	iterator_common<LIGHT> end() { return iterator_common<LIGHT>(this, m_end, false); }
 	iterator begin() { return iterator(this, m_begin, true); }
 	iterator end() { return iterator(this, m_end, false); }
+
 	/**
-	 * Copy content of @a buf (or object @a t) to the buffer's tail
-	 * (append data). Can cause reallocation that may throw.
+	 * Copy content of an object to the buffer's tail (append data).
+	 * Can cause reallocation that may throw.
 	 */
-	void addBack(Data data);
+	void write(WData data);
 	template <class T>
-	void addBack(const T& t);
+	void write(const T& t);
 	template <char... C>
-	void addBack(CStr<C...>);
-	void addBack(Advance advance);
-	void advance(size_t s) { addBack(Advance{s}); } //TODO: use addBack^^.
+	void write(CStr<C...>);
+	void write(Reserve reserve);
 
 	void dropBack(size_t size);
 	void dropFront(size_t size);
@@ -625,7 +655,7 @@ Buffer<N, allocator>::~Buffer()
 
 template <size_t N, class allocator>
 void
-Buffer<N, allocator>::addBack(Data data)
+Buffer<N, allocator>::write(WData data)
 {
 	assert(data.size != 0);
 
@@ -660,11 +690,11 @@ Buffer<N, allocator>::addBack(Data data)
 
 template <size_t N, class allocator>
 void
-Buffer<N, allocator>::addBack(Advance advance)
+Buffer<N, allocator>::write(Reserve reserve)
 {
-	assert(advance.size != 0);
+	assert(reserve.size != 0);
 
-	char *new_end = m_end + advance.size;
+	char *new_end = m_end + reserve.size;
 	if (TNT_LIKELY(isSameBlock(m_end, new_end))) {
 		// new_addr is still in block. just advance.
 		m_end = new_end;
@@ -674,14 +704,14 @@ Buffer<N, allocator>::addBack(Advance advance)
 	EndGuard guard(*this);
 
 	// Flipped out-of-block bit, go to the next block.
-	advance.size -= leftInBlock(m_end);
+	reserve.size -= leftInBlock(m_end);
 
 	m_end = newBlock()->begin();
-	while (TNT_UNLIKELY(advance.size >= Block::DATA_SIZE)) {
-		advance.size -= Block::DATA_SIZE;
+	while (TNT_UNLIKELY(reserve.size >= Block::DATA_SIZE)) {
+		reserve.size -= Block::DATA_SIZE;
 		m_end = newBlock()->begin();
 	}
-	m_end = m_end + advance.size;
+	m_end = m_end + reserve.size;
 
 	guard.disarm();
 }
@@ -689,10 +719,10 @@ Buffer<N, allocator>::addBack(Advance advance)
 template <size_t N, class allocator>
 template <class T>
 void
-Buffer<N, allocator>::addBack(const T& t)
+Buffer<N, allocator>::write(const T& t)
 {
 	static_assert(sizeof(T) <= Block::DATA_SIZE,
-		"Please use struct Data for big objects");
+		"Please use struct WData for big objects");
 	if constexpr (sizeof(T) == 1) {
 		memcpy(m_end, &t, sizeof(T));
 		++m_end;
@@ -724,7 +754,7 @@ Buffer<N, allocator>::addBack(const T& t)
 template <size_t N, class allocator>
 template <char... C>
 void
-Buffer<N, allocator>::addBack(CStr<C...>)
+Buffer<N, allocator>::write(CStr<C...>)
 {
 	if constexpr (CStr<C...>::size == 0) {
 	} else if constexpr (CStr<C...>::size == 1) {
@@ -740,7 +770,7 @@ Buffer<N, allocator>::addBack(CStr<C...>)
 			memcpy(m_end, CStr<C...>::data, CStr<C...>::rnd_size);
 			m_end += CStr<C...>::size;
 		} else {
-			addBack(Data{CStr<C...>::data, CStr<C...>::size});
+			write({CStr<C...>::data, CStr<C...>::size});
 		}
 	}
 }
@@ -859,7 +889,7 @@ Buffer<N, allocator>::insert(const iterator &itr, size_t size)
 	/* Remember last block before extending the buffer. */
 	Block *src_block = &m_blocks.last();
 	char *src_block_end = m_end;
-	addBack(Advance{size});
+	write(Reserve{size});
 	Block *dst_block = &m_blocks.last();
 	char *src = nullptr;
 	char *dst = nullptr;
@@ -1027,19 +1057,19 @@ Buffer<N, allocator>::getIOV(const iterator_common<LIGHT1> &start,
 template <size_t N, class allocator>
 template <bool LIGHT>
 void
-Buffer<N, allocator>::iterator_common<LIGHT>::set(const char *buf, size_t size)
+Buffer<N, allocator>::iterator_common<LIGHT>::set(WData data)
 {
-	assert(size > 0);
+	assert(data.size > 0);
 	char *pos = m_position;
 	size_t left_in_block = N - (uintptr_t) pos % N;
-	while (TNT_UNLIKELY(size > left_in_block)) {
-		std::memcpy(pos, buf, left_in_block);
-		size -= left_in_block;
-		buf += left_in_block;
+	while (TNT_UNLIKELY(data.size > left_in_block)) {
+		std::memcpy(pos, data.data, left_in_block);
+		data.size -= left_in_block;
+		data.data += left_in_block;
 		pos = Block::byPtr(pos)->next().data;
 		left_in_block = Block::DATA_SIZE;
 	}
-	memcpy(pos, buf, size);
+	memcpy(pos, data.data, data.size);
 }
 
 template <size_t N, class allocator>
@@ -1058,29 +1088,103 @@ Buffer<N, allocator>::iterator_common<LIGHT>::set(T&& t)
 	if (TNT_LIKELY(has_contiguous(sizeof(T))))
 		memcpy(m_position, tc, sizeof(T));
 	else
-		set(tc, sizeof(T));
+		set({tc, sizeof(T)});
+}
+
+template <size_t N, class allocator>
+template <bool LIGHT>
+template <char... C>
+void
+Buffer<N, allocator>::iterator_common<LIGHT>::set(CStr<C...>)
+{
+	if constexpr (CStr<C...>::size == 0) {
+	} else if constexpr (CStr<C...>::size == 1) {
+		*m_position = CStr<C...>::data[0];
+	} else {
+		if (TNT_LIKELY(has_contiguous(CStr<C...>::rnd_size))) {
+			memcpy(m_position, CStr<C...>::data, CStr<C...>::rnd_size);
+		} else {
+			set({CStr<C...>::data, CStr<C...>::size});
+		}
+	}
 }
 
 template <size_t N, class allocator>
 template <bool LIGHT>
 void
-Buffer<N, allocator>::iterator_common<LIGHT>::get(char *buf, size_t size)
+Buffer<N, allocator>::iterator_common<LIGHT>::write(WData data)
 {
-	assert(size > 0);
+	assert(data.size > 0);
+	size_t left_in_block = N - (uintptr_t) m_position % N;
+	while (TNT_UNLIKELY(data.size >= left_in_block)) {
+		std::memcpy(m_position, data.data, left_in_block);
+		data.size -= left_in_block;
+		data.data += left_in_block;
+		m_position = Block::byPtr(m_position)->next().data;
+		left_in_block = Block::DATA_SIZE;
+	}
+	memcpy(m_position, data.data, data.size);
+	m_position += data.size;
+	adjustPositionForward();
+}
+
+template <size_t N, class allocator>
+template <bool LIGHT>
+template <class T>
+void
+Buffer<N, allocator>::iterator_common<LIGHT>::write(T&& t)
+{
+	/*
+	 * Do not even attempt at copying non-standard classes (such as
+	 * containing vtabs).
+	 */
+	static_assert(std::is_standard_layout_v<std::remove_reference_t<T>>,
+		      "T is expected to have standard layout");
+	const char *tc = &reinterpret_cast<const char &>(t);
+	if (TNT_LIKELY(has_contiguous(sizeof(T)))) {
+		memcpy(m_position, tc, sizeof(T));
+		m_position += sizeof(T);
+	} else {
+		write({tc, sizeof(T)});
+	}
+}
+
+template <size_t N, class allocator>
+template <bool LIGHT>
+template <char... C>
+void
+Buffer<N, allocator>::iterator_common<LIGHT>::write(CStr<C...>)
+{
+	if constexpr (CStr<C...>::size != 0) {
+		if (TNT_LIKELY(has_contiguous(CStr<C...>::rnd_size) + 1)) {
+			memcpy(m_position, CStr<C...>::data, CStr<C...>::rnd_size);
+			m_position += CStr<C...>::size;
+		} else {
+			write({CStr<C...>::data, CStr<C...>::size});
+		}
+	}
+}
+
+template <size_t N, class allocator>
+template <bool LIGHT>
+void
+Buffer<N, allocator>::iterator_common<LIGHT>::get(RData data)
+{
+	assert(data.size > 0);
 	/*
 	 * The same implementation as in ::set() method buf vice versa:
 	 * buffer and data sources are swapped.
 	 */
 	char *pos = m_position;
 	size_t left_in_block = N - (uintptr_t) pos % N;
-	while (TNT_UNLIKELY(size > left_in_block)) {
-		memcpy(buf, pos, left_in_block);
-		size -= left_in_block;
-		buf += left_in_block;
+	while (TNT_UNLIKELY(data.size > left_in_block)) {
+		memcpy(data.data, pos, left_in_block);
+		data.size -= left_in_block;
+		data.data += left_in_block;
 		pos = Block::byPtr(pos)->next().data;
 		left_in_block = Block::DATA_SIZE;
 	}
-	memcpy(buf, pos, size);
+	memcpy(data.data, pos, data.size);
 }
 
 template <size_t N, class allocator>
@@ -1095,7 +1199,7 @@ Buffer<N, allocator>::iterator_common<LIGHT>::get(T& t)
 	if (TNT_LIKELY(has_contiguous(sizeof(T))))
 		memcpy(tc, m_position, sizeof(T));
 	else
-		get(tc, sizeof(T));
+		get({tc, sizeof(T)});
 }
 
 template <size_t N, class allocator>
@@ -1114,23 +1218,23 @@ Buffer<N, allocator>::iterator_common<LIGHT>::get()
 template <size_t N, class allocator>
 template <bool LIGHT>
 void
-Buffer<N, allocator>::iterator_common<LIGHT>::read(char *buf, size_t size)
+Buffer<N, allocator>::iterator_common<LIGHT>::read(RData data)
 {
-	assert(size > 0);
+	assert(data.size > 0);
 	/*
 	 * The same implementation as in ::set() method buf vice versa:
 	 * buffer and data sources are swapped.
 	 */
 	size_t left_in_block = N - (uintptr_t) m_position % N;
-	while (TNT_UNLIKELY(size >= left_in_block)) {
-		memcpy(buf, m_position, left_in_block);
-		size -= left_in_block;
-		buf += left_in_block;
+	while (TNT_UNLIKELY(data.size >= left_in_block)) {
+		memcpy(data.data, m_position, left_in_block);
+		data.size -= left_in_block;
+		data.data += left_in_block;
 		m_position = Block::byPtr(m_position)->next().data;
 		left_in_block = Block::DATA_SIZE;
 	}
-	memcpy(buf, m_position, size);
-	m_position += size;
+	memcpy(data.data, m_position, data.size);
+	m_position += data.size;
 	adjustPositionForward();
 }
 
@@ -1148,7 +1252,7 @@ Buffer<N, allocator>::iterator_common<LIGHT>::read(T& t)
 		m_position += sizeof(T);
 		adjustPositionForward();
 	} else {
-		read(tc, sizeof(T));
+		read({tc, sizeof(T)});
 	}
 }
 
