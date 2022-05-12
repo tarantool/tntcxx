@@ -35,6 +35,7 @@
 #include <map>
 
 #include "Utils/Helpers.hpp"
+#include "Utils/RefVector.hpp"
 
 // Test mpp::under_uint_t and mpp::under_int_t
 void
@@ -358,13 +359,14 @@ struct IntMapReader : mpp::SimpleReaderBase<tnt::Buffer<16 * 1024>, mpp::MP_MAP>
 	mpp::Dec<Buffer_t>& dec;
 };
 
-enum {
-	MUNUS_ONE_HUNDRED = -100,
+enum E1 {
+	ZERO1 = 0,
+	FOR_BILLIONS = 4000000000u,
 };
 
-
-enum {
-	FOR_BILLIONS = 4000000000u,
+enum E2 {
+	ZERO2 = 0,
+	MUNUS_ONE_HUNDRED = -100,
 };
 
 void
@@ -373,12 +375,14 @@ test_basic()
 	TEST_INIT(0);
 	using Buf_t = tnt::Buffer<16 * 1024>;
 	Buf_t buf;
+	// Numbers.
 	mpp::encode(buf, 0);
 	mpp::encode(buf, 10);
 	mpp::encode(buf, uint8_t(200), short(2000), 2000000, 4000000000u);
 	mpp::encode(buf, FOR_BILLIONS, 20000000000ull, -1);
 	mpp::encode(buf, MUNUS_ONE_HUNDRED, -100, -1000);
-	// Add integral constants.
+	mpp::encode(buf, 1.f, 2.);
+	// Integral constants.
 	mpp::encode(buf, std::integral_constant<int, 11>{});
 	mpp::encode(buf, std::integral_constant<unsigned, 12>{});
 	mpp::encode(buf, std::integral_constant<int, -13>{});
@@ -386,14 +390,14 @@ test_basic()
 	mpp::encode(buf, std::integral_constant<unsigned, 100501>{});
 	mpp::encode(buf, std::integral_constant<bool, false>{});
 	mpp::encode(buf, std::integral_constant<bool, true>{});
-	// Add strings.
-	mpp::encode(buf, "aaa");
-	const char* bbb = "bbb";
+	// Strings.
+	mpp::encode(buf, "abc");
+	const char* bbb = "defg";
 	mpp::encode(buf, bbb);
-	// Add array.
+	// Array.
 	mpp::encode(buf, std::make_tuple());
 	mpp::encode(buf, std::make_tuple(1., 2.f, "test", nullptr, false));
-	// Add map.
+	// Map.
 	mpp::encode(buf, mpp::as_map(
 		std::forward_as_tuple(10, true, 11, "val",
 				      12, std::make_tuple(1, 2, 3))));
@@ -422,6 +426,73 @@ test_basic()
 			std::cout << h[u / 16] << h[u % 16];
 	}
 	std::cout << std::endl;
+
+	auto run = buf.begin<true>();
+	// Numbers.
+	uint64_t u0 = 999;
+	int i10 = 0;
+	mpp::decode(run, u0, i10);
+	fail_if(u0 != 0);
+	fail_if(i10 != 10);
+	uint8_t u200 = 0;
+	short i2k = 0;
+	double d2M = 0;
+	uint64_t u4G = 0;
+	mpp::decode(run, u200, i2k, d2M, u4G);
+	fail_if(u200 != 200);
+	fail_if(i2k != 2000);
+	fail_if(d2M != 2000000);
+	fail_if(u4G != 4000000000u);
+	E1 e1 = ZERO1;
+	size_t i2M = 0;
+	int8_t i_minus_one = 0;
+	E2 e2 = ZERO2;
+	int im100 = 0, im1000 = 0;
+	mpp::decode(run, e1, i2M, i_minus_one, e2, im100, im1000);
+	fail_if(e1 != FOR_BILLIONS);
+	fail_if(i2M != 20000000000ull);
+	fail_if(i_minus_one != -1);
+	fail_if(e2 != MUNUS_ONE_HUNDRED);
+	fail_if(im100 != -100);
+	fail_if(im1000 != -1000);
+	double d1 = 0, d2 = 0;
+	mpp::decode(run, d1, d2);
+	fail_if(d1 != 1.);
+	fail_if(d2 != 2.);
+
+	// Integral constants.
+	int i11 = 0, i13 = 0, i100500 = 0;
+	unsigned u12 = 0, u100501 = 0;
+	mpp::decode(run, i11, u12, i13, i100500, u100501);
+	fail_if(i11 != 11);
+	fail_if(u12 != 12);
+	fail_if(i13 != -13);
+	fail_if(i100500 != 100500);
+	fail_if(u100501 != 100501);
+	bool bf = true, bt = false;
+	mpp::decode(run, bf, bt);
+	fail_if(bf != false);
+	fail_if(bt != true);
+
+	// Strings.
+	std::string a;
+	char b_data[10];
+	size_t b_size = 0;
+	auto b = tnt::make_ref_vector(b_data, b_size);
+	mpp::decode(run, a, b);
+	fail_if(a != "abc");
+	fail_if(b.size() != 4);
+	fail_if(memcmp(b_data, "defg", 4) != 0);
+
+	// Array.
+	std::tuple<> arr1;
+	mpp::decode(run, arr1);
+	std::tuple<double, double, std::string, std::nullptr_t, bool> arr2;
+	mpp::decode(run, arr2);
+	fail_if(std::get<0>(arr2) != 1.);
+	fail_if(std::get<1>(arr2) != 2.);
+	fail_if(std::get<2>(arr2) != "test");
+	fail_if(std::get<4>(arr2) != false);
 
 	mpp::Dec<Buf_t> dec(buf);
 	{
@@ -462,6 +533,14 @@ test_basic()
 		fail_if(res != mpp::READ_SUCCESS);
 		fail_if(val != exp);
 	}
+	for (double exp : {1., 2.})
+	{
+		double val = 15478;
+		dec.SetReader(false, mpp::SimpleReader<Buf_t, mpp::MP_AFLT, double>{val});
+		mpp::ReadResult_t res = dec.Read();
+		fail_if(res != mpp::READ_SUCCESS);
+		fail_if(val != exp);
+	}
 	for (int32_t exp : {11, 12, -13, 100500, 100501})
 	{
 		int32_t val = 15478;
@@ -487,7 +566,7 @@ test_basic()
 		str[size] = 0;
 		fail_if(res != mpp::READ_SUCCESS);
 		fail_if(size != 3);
-		fail_if(strcmp(str, "aaa") != 0);
+		fail_if(strcmp(str, "abc") != 0);
 	}
 	{
 		constexpr size_t S = 16;
@@ -497,8 +576,8 @@ test_basic()
 		mpp::ReadResult_t res = dec.Read();
 		str[size] = 0;
 		fail_if(res != mpp::READ_SUCCESS);
-		fail_if(size != 3);
-		fail_if(strcmp(str, "bbb") != 0);
+		fail_if(size != 4);
+		fail_if(strcmp(str, "defg") != 0);
 	}
 	{
 		TestArrStruct arr = {};

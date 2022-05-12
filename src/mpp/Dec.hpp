@@ -32,10 +32,367 @@
 
 #include <cassert>
 #include <cstdint>
+#include <utility>
 
-#include "../Utils/Mempool.hpp"
-#include "../Utils/ObjHolder.hpp"
 #include "Constants.hpp"
+#include "Rules.hpp"
+#include "Spec.hpp"
+
+namespace mpp {
+
+using std::integral_constant;
+using tnt::CStr;
+#ifndef TNT_DISABLE_STR_LITERAL
+namespace literal = tnt::literal;
+#endif
+
+namespace decode_details {
+
+template <compact::Family ...sequence>
+using family_sequence = std::integer_sequence<compact::Family, sequence...>;
+
+template <class T>
+constexpr auto detectFamily()
+{
+	using CRU = decltype(unwrap(std::declval<const T&>()));
+	using U = std::remove_cv_t<std::remove_reference_t<CRU>>;
+	if constexpr (is_wrapped_family_v<T>) {
+		return std::integer_sequence<compact::Family, T::family>{};
+	} else if constexpr (std::is_same_v<U, std::nullptr_t>) {
+		return family_sequence<compact::MP_NIL>{};
+	} else if constexpr (std::is_same_v<U, bool>) {
+		return family_sequence<compact::MP_BOOL>{};
+	} else if constexpr (tnt::is_signed_integer_v<U>) {
+		return family_sequence<compact::MP_UINT, compact::MP_INT>{};
+	} else if constexpr (tnt::is_unsigned_integer_v<U>) {
+		return family_sequence<compact::MP_UINT>{};
+	} else if constexpr (std::is_same_v<U, float>) {
+		return family_sequence<compact::MP_UINT, compact::MP_INT,
+				       compact::MP_FLT, compact::MP_DBL>{};
+	} else if constexpr (std::is_same_v<U, double>) {
+		return family_sequence<compact::MP_UINT, compact::MP_INT,
+				       compact::MP_FLT, compact::MP_DBL>{};
+	} else if constexpr (tnt::is_contiguous_char_v<U> &&
+			     tnt::is_resizable_v<U>) {
+		return family_sequence<compact::MP_STR>{};
+//	} else if constexpr (tnt::is_const_pairs_iterable_v<U>) {
+//		return compact::MP_MAP;
+//	} else if constexpr (tnt::is_const_iterable_v<U>) {
+//		return compact::MP_ARR;
+	} else if constexpr (tnt::is_tuplish_of_pairish_v<U>) {
+		return family_sequence<compact::MP_MAP>{};
+	} else if constexpr (tnt::is_tuplish_v<U>) {
+		return family_sequence<compact::MP_ARR>{};
+	} else {
+		static_assert(tnt::always_false_v<U>,
+			      "Failed to recognise type");
+		return family_sequence<>{};
+	}
+}
+
+constexpr auto is256 = std::make_index_sequence<256>{};
+
+template <class CONT>
+bool
+decode(CONT& cont);
+
+template <class CONT, class T, class ...MORE>
+bool
+decode(CONT& cont, T& t, MORE&... more);
+
+template <class RULE, size_t ...I>
+constexpr uint8_t lowerRangesSumLength(std::index_sequence<I...>)
+{
+	return ((RULE::simplex_ranges[I].second -
+		 RULE::simplex_ranges[I].first) + ... + 0);
+}
+
+struct SubRule {
+	compact::Family family;
+	bool is_simplex;
+	// index in RULE::simplex_ranges or RULE::complex_types.
+	uint8_t i;
+	// The first and last tags, valid for ftag <= tag <= ltag.
+	uint8_t ftag, ltag;
+	constexpr bool overlaps(const SubRule& a) const
+	{
+		return !(ltag < a.ftag || ftag > a.ltag);
+	}
+};
+
+template <size_t TN>
+struct SubRules {
+	static constexpr size_t N = TN;
+	SubRule arr[N ? N : 1];
+	template <size_t M, size_t ...I, size_t ...J>
+	constexpr SubRules<M + N> join(SubRules<M> a,
+				       std::index_sequence<I...>,
+				       std::index_sequence<J...>)
+	{
+		return {arr[I]..., a.arr[J]...};
+	}
+
+	// Check that the subrules don't overlap in terms of tags.
+	template <size_t ...I, size_t ...J>
+	constexpr bool check(std::index_sequence<I...>,
+			     std::index_sequence<J...>) const
+	{
+		auto checkX = [&](size_t X){ return (true && ... && (X == I || !arr[X].overlaps(arr[I]))); };
+		return (checkX(J) && ...);
+	}
+	constexpr bool check() const
+	{
+		return check(std::make_index_sequence<N>{}, std::make_index_sequence<N>{});
+	}
+
+	// Find index of subrule by tag.
+	template <size_t TAG, size_t I = 0>
+	constexpr size_t by_tag() const
+	{
+		if constexpr (I == N)
+			return N;
+		else
+			return TAG >= arr[I].ftag && TAG <= arr[I].ltag ? I :
+			       by_tag<TAG, I + 1>();
+	}
+};
+
+template <size_t X, size_t Y>
+constexpr SubRules<X + Y> operator+(SubRules<X> a, SubRules<Y> b)
+{
+	return a.join(b, std::make_index_sequence<X>{},
+		      std::make_index_sequence<Y>{});
+}
+
+template <class RULE, size_t I>
+constexpr uint8_t simplex_tag_count_v =
+	RULE::simplex_ranges[I].second - RULE::simplex_ranges[I].first;
+
+template <class RULE, size_t I>
+constexpr uint8_t simplex_tag_first_v =
+	RULE::simplex_tag +
+	lowerRangesSumLength<RULE>(std::make_index_sequence<I>{});
+
+template <class RULE, size_t I>
+constexpr uint8_t simplex_tag_last_v =
+	simplex_tag_first_v<RULE, I> + (simplex_tag_count_v<RULE, I> - 1);
+
+template <compact::Family FAMILY, class RULE, size_t ...I>
+constexpr auto getSimplexSubRules(std::index_sequence<I...>)
+{
+	constexpr size_t simplex_count =
+		sizeof(RULE::simplex_ranges) / sizeof(RULE::simplex_ranges[0]);
+	return SubRules<simplex_count>{{
+		{
+			FAMILY, true, I,
+			simplex_tag_first_v<RULE, I>,
+			simplex_tag_last_v<RULE, I>
+		} ...
+	}};
+}
+
+template <compact::Family FAMILY>
+constexpr auto getSimplexSubRules()
+{
+	using Rule_t = RuleByFamily_t<FAMILY>;
+	if constexpr (has_simplex_v<Rule_t>) {
+		constexpr size_t simplex_count =
+			sizeof(Rule_t::simplex_ranges) /
+			sizeof(Rule_t::simplex_ranges[0]);
+		constexpr auto is = std::make_index_sequence<simplex_count>{};
+		return getSimplexSubRules<FAMILY, Rule_t>(is);
+	} else {
+		return SubRules<0>{};
+	}
+}
+
+template <compact::Family FAMILY, class RULE, size_t ...I>
+constexpr auto getComplexSubRules(std::index_sequence<I...>)
+{
+	using types = typename RULE::complex_types;
+	constexpr size_t complex_count = std::tuple_size_v<types>;
+	return SubRules<complex_count>{{
+		{
+			FAMILY, false, I,
+			RULE::complex_tag + I,
+			RULE::complex_tag + I
+		} ...
+	}};
+}
+
+template <compact::Family FAMILY>
+constexpr auto getComplexSubRules()
+{
+	using Rule_t = RuleByFamily_t<FAMILY>;
+	if constexpr (has_complex_v<Rule_t>) {
+		using types = typename Rule_t::complex_types;
+		constexpr size_t complex_count = std::tuple_size_v<types>;
+		constexpr auto is = std::make_index_sequence<complex_count>{};
+		return getComplexSubRules<FAMILY, Rule_t>(is);
+	} else {
+		return SubRules<0>{};
+	}
+}
+
+template <compact::Family FAMILY>
+constexpr auto getFamilySubRules()
+{
+	return getSimplexSubRules<FAMILY>() + getComplexSubRules<FAMILY>();
+}
+
+template <compact::Family ...FAMILY>
+constexpr auto getSubRules(std::integer_sequence<compact::Family, FAMILY...>)
+{
+	return (getFamilySubRules<FAMILY>() + ...);
+}
+
+template <class CONT, class T, size_t ...I>
+bool decodeElems(CONT &cont, T &t, std::index_sequence<I...>)
+{
+	return decode(cont, tnt::get<I>(t)...);
+}
+
+template <class RULE, class CONT, class V, class T>
+bool finishReading([[maybe_unused]] CONT &cont, [[maybe_unused]] V val, T &t)
+{
+	static_assert(!RULE::has_ext);
+	if constexpr (RULE::has_data) {
+		size_t size = val;
+		t.resize(size);
+		cont.read({t.data(), size});
+	} else if constexpr (RULE::family == compact::MP_ARR) {
+		size_t size = val;
+		if (size != tnt::tuple_size_v<T>)
+			return false;
+		return decodeElems(cont, t,
+				   std::make_index_sequence<tnt::tuple_size_v<T>>{});
+	} else if constexpr (RULE::family == compact::MP_MAP) {
+		size_t size = val;
+		if (size * 2 != tnt::tuple_size_v<T>)
+			return false;
+		return decodeElems(cont, t,
+				   std::make_index_sequence<2 * tnt::tuple_size_v<T>>{});
+	} else if constexpr (RULE::family == compact::MP_NIL) {
+		return true;
+	} else {
+		t = static_cast<T>(val);
+	}
+	return true;
+}
+
+template <class RULE, size_t I, class CONT, class T>
+bool readSimplexObject(CONT& cont, uint8_t tag, T& t)
+{
+	assert(tag >= SimplexRange<RULE>::first);
+	assert(tag < SimplexRange<RULE>::second);
+	constexpr uint8_t tag0 = RULE::simplex_tag;
+	constexpr uint8_t lower_ranges_length =
+		lowerRangesSumLength<RULE>(std::make_index_sequence<I>{});
+	decltype(RULE::simplex_ranges[0].first) val =
+		tag - tag0 - lower_ranges_length + RULE::simplex_ranges[I].first;
+	return finishReading<RULE>(cont, val, t);
+}
+
+template <class RULE, size_t I, class CONT, class T>
+bool readComplexObject(CONT& cont, [[maybe_unused]] uint8_t tag, T& t)
+{
+	assert(tag >= ComplexRange<RULE>::first);
+	assert(tag < ComplexRange<RULE>::second);
+	using V = std::tuple_element_t<I, typename RULE::complex_types>;
+	under_uint_t<V> u;
+	cont.read(u);
+	V val = bswap<V>(u);
+	return finishReading<RULE>(cont, val, t);
+}
+
+template <class RULE, bool IS_SIMPLEX, size_t I, class CONT, class T, class ...MORE>
+bool readObject(CONT& cont, uint8_t tag, T& t, MORE&... more)
+{
+	if constexpr (IS_SIMPLEX) {
+		if (!readSimplexObject<RULE, I>(cont, tag, t))
+			return false;
+	} else {
+		if (!readComplexObject<RULE, I>(cont, tag, t))
+			return false;
+	}
+	return decode(cont, more...);
+}
+
+template <class CONT, class T, class ...MORE>
+bool readFail(CONT&, uint8_t, T&, MORE&...)
+{
+	return false;
+}
+
+template <class CONT, class T, class ...MORE>
+using jump_t = bool (*)(CONT&, uint8_t, T& t, MORE&...);
+
+template <class CONT, class T, class ...MORE>
+using jumps_t = std::array<jump_t<CONT, T, MORE...>, 256>;
+
+template <class CONT, class T, class ...MORE, compact::Family ...FAMILY,
+        size_t... I, size_t... K>
+constexpr jumps_t<CONT, T, MORE...>
+build_jumps(std::integer_sequence<compact::Family, FAMILY...> family_seq,
+	    std::index_sequence<I...>, std::index_sequence<K...>)
+{
+	constexpr auto sub_rules = getSubRules(family_seq);
+	static_assert(sub_rules.check());
+	constexpr size_t N = sub_rules.N;
+	using j_t = jump_t<CONT, T, MORE...>;
+	using js_t = jumps_t<CONT, T, MORE...>;
+	constexpr j_t def_jump = &readFail<CONT, T, MORE...>;
+	constexpr j_t subrule_jumps[sub_rules.N] = {
+		&readObject<RuleByFamily_t<sub_rules.arr[I].family>,
+			sub_rules.arr[I].is_simplex, sub_rules.arr[I].i,
+			CONT, T, MORE...> ...};
+	constexpr js_t arr = {
+		(sub_rules.template by_tag<K>() == N ? def_jump :
+		 subrule_jumps[sub_rules.template by_tag<K>()])...
+	};
+	return arr;
+}
+
+/** Terminal decode. */
+template <class CONT>
+bool
+decode(CONT&)
+{
+	return true;
+}
+
+template <class CONT, class T, class ...MORE>
+bool
+decode(CONT& cont, T& t, MORE&... more)
+{
+	constexpr auto family_seq = detectFamily<T>();
+	constexpr auto sub_rules = getSubRules(family_seq);
+	constexpr auto is = std::make_index_sequence<sub_rules.N>{};
+
+	auto& u = unwrap(t);
+	using U = std::remove_reference_t<decltype(u)>;
+	uint8_t tag = cont.template read<uint8_t>();
+
+	using jump_t = bool(*)(CONT&, uint8_t, U&, MORE&...);
+	static constexpr std::array<jump_t, 256> jumps =
+		build_jumps<CONT, U, MORE...>(family_seq, is, is256);
+	return jumps[tag](cont, tag, u, more...);
+}
+
+} // namespace decode_details
+
+template <class CONT, class... T>
+bool
+decode(CONT& cont, T&... t)
+{
+	// TODO: Guard
+	bool res = decode_details::decode(cont, t...);
+	return res;
+}
+
+} // namespace mpp
+
+#include "../Utils/ObjHolder.hpp"
 
 namespace mpp {
 

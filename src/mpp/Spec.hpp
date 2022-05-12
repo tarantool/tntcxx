@@ -87,6 +87,15 @@ constexpr const auto& unwrap(const T& t)
 }
 
 template <class T>
+constexpr auto& unwrap(T& t)
+{
+	if constexpr (is_wrapped_v<T>)
+		return t.object;
+	else
+		return t;
+}
+
+template <class T>
 struct wrapped : wrapped_tag
 {
 	using object_t = std::remove_reference_t<T>;
