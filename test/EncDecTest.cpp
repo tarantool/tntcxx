@@ -32,6 +32,7 @@
 #include "../src/Buffer/Buffer.hpp"
 
 #include <set>
+#include <map>
 
 #include "Utils/Helpers.hpp"
 
@@ -320,6 +321,43 @@ struct IntVectorReader : mpp::SimpleReaderBase<tnt::Buffer<16 * 1024>, mpp::MP_A
 	mpp::Dec<Buffer_t>& dec;
 };
 
+template <class T, class U>
+struct IntMapValueReader : mpp::DefaultErrorHandler {
+	using Buffer_t = tnt::Buffer<16 * 1024>;
+	using BufferIterator_t = typename Buffer_t::iterator;
+	IntMapValueReader(std::map<T, U>& m, mpp::Dec<Buffer_t>& d) : map(m), dec(d) {}
+	static constexpr mpp::Family VALID_TYPES = std::is_signed_v<T> ?
+						   mpp::MP_UINT | mpp::MP_INT : mpp::MP_UINT;
+	template <class V>
+	void Value(const BufferIterator_t&, mpp::compact::Family, V v)
+	{
+		auto res = map.template emplace(v, 0);
+		static constexpr mpp::Family VALID_TYPES = std::is_signed_v<U> ?
+			mpp::MP_UINT | mpp::MP_INT : mpp::MP_UINT;
+		using ValueReader_t = mpp::SimpleReader<Buffer_t, VALID_TYPES, U>;
+		dec.SetReader(true, ValueReader_t{res.first->second});
+	}
+
+	BufferIterator_t* StoreEndIterator() { return nullptr; }
+	std::map<T, U>& map;
+	mpp::Dec<Buffer_t>& dec;
+};
+
+template <class T, class U>
+struct IntMapReader : mpp::SimpleReaderBase<tnt::Buffer<16 * 1024>, mpp::MP_MAP> {
+	static_assert(tnt::is_integer_v<T>);
+	static_assert(tnt::is_integer_v<U>);
+	using Buffer_t = tnt::Buffer<16 * 1024>;
+	using BufferIterator_t = typename Buffer_t::iterator;
+	IntMapReader(std::map<T, U>& m, mpp::Dec<Buffer_t>& d) : map(m), dec(d) {}
+	void Value(const BufferIterator_t&, mpp::compact::Family, mpp::MapValue)
+	{
+		dec.SetReader(false, IntMapValueReader{map, dec});
+	}
+	std::map<T, U>& map;
+	mpp::Dec<Buffer_t>& dec;
+};
+
 enum {
 	MUNUS_ONE_HUNDRED = -100,
 };
@@ -359,6 +397,11 @@ test_basic()
 	// std::set
 	std::set<uint8_t> add_set = {7, 8};
 	tnt::mpp::encode(buf, add_set);
+	// std::map
+	std::map<int, int> add_map;
+	add_map[1] = 2;
+	add_map[3] = 4;
+	tnt::mpp::encode(buf, add_map);
 
 	for (auto itr = buf.begin(); itr != buf.end(); ++itr) {
 		char c = itr.get<uint8_t>();
@@ -494,6 +537,15 @@ test_basic()
 		fail_unless(vec.size() == 2);
 		fail_unless(vec[0] == 7);
 		fail_unless(vec[1] == 8);
+	}
+	{
+		std::map<int, int> map;
+		dec.SetReader(false, IntMapReader{map, dec});
+		mpp::ReadResult_t res = dec.Read();
+		fail_unless(res == mpp::READ_SUCCESS);
+		fail_unless(map.size() == 2);
+		fail_unless(map[1] == 2);
+		fail_unless(map[3] == 4);
 	}
 }
 
