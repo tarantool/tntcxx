@@ -449,7 +449,9 @@ constexpr auto getTagValSimple([[maybe_unused]] V value)
 template <class TYPES, size_t IND, bool IS_SIGNED_NEGATIVE, class V>
 constexpr bool surely_fits()
 {
-	using type = std::tuple_element_t<IND, TYPES>;
+	constexpr size_t I = IND < std::tuple_size_v<TYPES> ? IND :
+			     std::tuple_size_v<TYPES> - 1;
+	using type = std::tuple_element_t<I, TYPES>;
 	if constexpr(IND + 1 >= std::tuple_size_v<TYPES>) {
 		return true;
 	} else if constexpr(std::is_signed_v<type>) {
