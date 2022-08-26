@@ -32,6 +32,7 @@
 
 #include "RequestEncoder.hpp"
 #include "ResponseDecoder.hpp"
+#include "Stream.hpp"
 #include "../Utils/Logger.hpp"
 
 #include <sys/uio.h> //iovec
@@ -80,7 +81,8 @@ public:
 	ResponseDecoder<BUFFER> dec;
 	/* Iterator separating decoded and raw data in input buffer. */
 	iterator endDecoded;
-	int socket;
+	/* Network layer of the connection. */
+	typename NetProvider::Stream_t strm;
 	//Several connection wrappers may point to the same implementation.
 	//It is useful to store connection objects in stl containers for example.
 	ssize_t refs;
@@ -94,7 +96,7 @@ public:
 template<class BUFFER, class NetProvider>
 ConnectionImpl<BUFFER, NetProvider>::ConnectionImpl(Connector<BUFFER, NetProvider> &conn) :
 	connector(conn), inBuf(), outBuf(), enc(outBuf), dec(inBuf),
-	endDecoded(inBuf.begin()), socket(-1), refs(0)
+	endDecoded(inBuf.begin()), refs(0)
 {
 }
 
@@ -102,10 +104,9 @@ template<class BUFFER, class NetProvider>
 ConnectionImpl<BUFFER, NetProvider>::~ConnectionImpl()
 {
 	assert(refs == 0);
-	if (socket >= 0) {
+	if (!strm.has_status(SS_DEAD)) {
 		Connection<BUFFER, NetProvider> conn(this);
 		connector.close(conn);
-		socket = -1;
 	}
 }
 
@@ -143,6 +144,9 @@ public:
 
 	Impl_t *getImpl() { return impl; }
 
+	typename NetProvider::Stream_t &get_strm() { return impl->strm; }
+	const typename NetProvider::Stream_t &get_strm() const { return impl->strm; }
+
 	//Required for storing Connections in hash tables (std::unordered_map)
 	friend bool operator == (const Connection<BUFFER, NetProvider>& lhs,
 				 const Connection<BUFFER, NetProvider>& rhs)
@@ -154,7 +158,8 @@ public:
 	friend bool operator < (const Connection<BUFFER, NetProvider>& lhs,
 				const Connection<BUFFER, NetProvider>& rhs)
 	{
-		return lhs.impl->socket < rhs.impl->socket;
+		// TODO: remove dependency on socket.
+		return lhs.get_strm().get_fd() < rhs.get_strm().get_fd();
 	}
 
 	Response<BUFFER> getResponse(rid_t future);
@@ -169,8 +174,6 @@ public:
 	void setError(const std::string &msg, int errno_ = 0);
 	ConnectionError& getError();
 	void reset();
-	int getSocket() const;
-	void setSocket(int socket);
 	BUFFER& getInBuf();
 	BUFFER& getOutBuf();
 
@@ -414,20 +417,6 @@ void
 Connection<BUFFER, NetProvider>::reset()
 {
 	impl->error = ConnectionError{};
-}
-
-template<class BUFFER, class NetProvider>
-int
-Connection<BUFFER, NetProvider>::getSocket() const
-{
-	return impl->socket;
-}
-
-template<class BUFFER, class NetProvider>
-void
-Connection<BUFFER, NetProvider>::setSocket(int socket)
-{
-	impl->socket = socket;
 }
 
 template<class BUFFER, class NetProvider>

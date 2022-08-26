@@ -30,10 +30,12 @@
  * SUCH DAMAGE.
  */
 #include "Connection.hpp"
-#include "NetworkEngine.hpp"
+#include "UnixPlainStream.hpp"
 #include "../Utils/Timer.hpp"
 
 #include <set>
+
+using DefaultStream = UnixPlainStream;
 
 /**
  * MacOS does not have epoll so let's use Libev as default network provider.
@@ -41,11 +43,11 @@
 #ifdef __linux__
 #include "EpollNetProvider.hpp"
 template<class BUFFER>
-using DefaultNetProvider = EpollNetProvider<BUFFER, NetworkEngine>;
+using DefaultNetProvider = EpollNetProvider<BUFFER, DefaultStream>;
 #else
 #include "LibevNetProvider.hpp"
 template<class BUFFER>
-using DefaultNetProvider = LibevNetProvider<BUFFER, NetworkEngine>;
+using DefaultNetProvider = LibevNetProvider<BUFFER, DefaultStream>;
 #endif
 
 template<class BUFFER, class NetProvider = DefaultNetProvider<BUFFER>>
@@ -58,8 +60,7 @@ public:
 	Connector& operator = (const Connector& connector) = delete;
 	//////////////////////////////Main API//////////////////////////////////
 	int connect(Connection<BUFFER, NetProvider> &conn,
-		    const std::string_view& addr, unsigned port,
-		    size_t timeout = DEFAULT_CONNECT_TIMEOUT);
+		    const std::string& addr, unsigned port);
 
 	int wait(Connection<BUFFER, NetProvider> &conn, rid_t future,
 		 int timeout = 0, Response<BUFFER> *result = nullptr);
@@ -76,8 +77,6 @@ public:
 	std::set<Connection<BUFFER, NetProvider>> m_ReadyToSend;
 	void close(Connection<BUFFER, NetProvider> &conn);
 private:
-	//Timeout of Connector::connect() method.
-	constexpr static size_t DEFAULT_CONNECT_TIMEOUT = 2;
 	NetProvider m_NetProvider;
 	std::set<Connection<BUFFER, NetProvider>> m_ReadyToDecode;
 };
@@ -95,12 +94,12 @@ Connector<BUFFER, NetProvider>::~Connector()
 template<class BUFFER, class NetProvider>
 int
 Connector<BUFFER, NetProvider>::connect(Connection<BUFFER, NetProvider> &conn,
-					const std::string_view& addr,
-					unsigned port, size_t timeout)
+					const std::string& addr,
+					unsigned port)
 {
 	//Make sure that connection is not yet established.
-	assert(conn.getSocket() < 0);
-	if (m_NetProvider.connect(conn, addr, port, timeout) != 0) {
+	assert(conn.get_strm().has_status(SS_DEAD));
+	if (m_NetProvider.connect(conn, addr, port) != 0) {
 		LOG_ERROR("Failed to connect to ", addr, ':', port);
 		return -1;
 	}
@@ -112,9 +111,8 @@ template<class BUFFER, class NetProvider>
 void
 Connector<BUFFER, NetProvider>::close(Connection<BUFFER, NetProvider> &conn)
 {
-	assert(conn.getSocket() >= 0);
+	assert(!conn.get_strm().has_status(SS_DEAD));
 	m_NetProvider.close(conn);
-	conn.setSocket(-1);
 }
 
 template<class BUFFER, class NetProvider>
