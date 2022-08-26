@@ -217,13 +217,13 @@ testEngines()
 	std::cout << "              TEST SUITE #" << suite_numb++ << std::endl;
 	std::cout << "              BUFFER SIZE=" << BUFFER::blockSize() << std::endl;
 #ifdef __linux__
-	using DefaultNet_t = EpollNetProvider<BUFFER, NetworkEngine >;
+	using DefaultNet_t = EpollNetProvider<BUFFER, DefaultStream >;
 	std::cout << "===================================================" << std::endl;
 	std::cout << "        STARTING TEST EPOLL" << std::endl;
 	std::cout << "===================================================" << std::endl;
 	testRequestTypes<BUFFER, DefaultNet_t >();
 #endif
-	using LibEvNet_t = LibevNetProvider<BUFFER, NetworkEngine >;
+	using LibEvNet_t = LibevNetProvider<BUFFER, DefaultStream >;
 	std::cout << "===================================================" << std::endl;
 	std::cout << "        STARTING TEST LibEV" << std::endl;
 	std::cout << "===================================================" << std::endl;

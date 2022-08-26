@@ -37,6 +37,7 @@
 
 const char *localhost = "127.0.0.1";
 int port = 3301;
+const char *unixsocket = "./tnt.sock";
 int WAIT_TIMEOUT = 1000; //milliseconds
 
 enum ResultFormat {
@@ -113,7 +114,7 @@ trivial(Connector<BUFFER, NetProvider> &client)
 	rc = client.connect(conn, localhost, -666);
 	fail_unless(rc != 0);
 	TEST_CASE("Connect timeout");
-	rc = client.connect(conn, "8.8.8.8", port, 0);
+	rc = client.connect(conn, "8.8.8.8", port);
 	fail_unless(rc != 0);
 }
 
@@ -565,6 +566,33 @@ single_conn_call(Connector<BUFFER, NetProvider> &client)
 	client.close(conn);
 }
 
+/** Single connection, call procedure with arguments */
+template <class BUFFER, class NetProvider>
+void
+replace_unix_socket(Connector<BUFFER, NetProvider> &client)
+{
+	TEST_INIT(0);
+
+	Connection<Buf_t, NetProvider> conn(client);
+	int rc = client.connect(conn, unixsocket, 0);
+	fail_unless(rc == 0);
+
+	TEST_CASE("select from unix socket");
+
+	auto s = conn.space[512];
+
+	rid_t f = s.replace(std::make_tuple(666, "111", 1.01));
+	client.wait(conn, f, WAIT_TIMEOUT);
+	fail_unless(conn.futureIsReady(f));
+	std::optional<Response<Buf_t>> response = conn.getResponse(f);
+	fail_unless(response != std::nullopt);
+	fail_unless(response->body.data != std::nullopt);
+	fail_unless(response->body.error_stack == std::nullopt);
+	printResponse<BUFFER, NetProvider>(conn, *response);
+
+	client.close(conn);
+}
+
 int main()
 {
 	if (cleanDir() != 0)
@@ -573,7 +601,7 @@ int main()
 		return -1;
 	sleep(1);
 #ifdef __linux__
-	using NetEpoll_t = EpollNetProvider<Buf_t, NetworkEngine>;
+	using NetEpoll_t = EpollNetProvider<Buf_t, DefaultStream>;
 	Connector<Buf_t, NetEpoll_t> client;
 	trivial<Buf_t, NetEpoll_t>(client);
 	single_conn_ping<Buf_t, NetEpoll_t>(client);
@@ -586,9 +614,10 @@ int main()
 	single_conn_upsert<Buf_t, NetEpoll_t>(client);
 	single_conn_select<Buf_t, NetEpoll_t>(client);
 	single_conn_call<Buf_t, NetEpoll_t>(client);
+	replace_unix_socket(client);
 #endif
 	/* LibEv network provide */
-	using NetLibEv_t = LibevNetProvider<Buf_t, NetworkEngine>;
+	using NetLibEv_t = LibevNetProvider<Buf_t, DefaultStream>;
 	Connector<Buf_t, NetLibEv_t > another_client;
 	trivial<Buf_t, NetLibEv_t >(another_client);
 	single_conn_ping<Buf_t, NetLibEv_t>(another_client);
@@ -601,5 +630,6 @@ int main()
 	single_conn_upsert<Buf_t, NetLibEv_t>(another_client);
 	single_conn_select<Buf_t, NetLibEv_t>(another_client);
 	single_conn_call<Buf_t, NetLibEv_t>(another_client);
+	replace_unix_socket(client);
 	return 0;
 }

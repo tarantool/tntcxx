@@ -55,7 +55,7 @@ int WAIT_TIMEOUT = 1000; //milliseconds
 //doclabel02-1
 using Buf_t = tnt::Buffer<16 * 1024>;
 #include "../src/Client/LibevNetProvider.hpp"
-using Net_t = LibevNetProvider<Buf_t, NetworkEngine>;
+using Net_t = LibevNetProvider<Buf_t, DefaultStream>;
 //doclabel02-2
 
 //doclabel16-1

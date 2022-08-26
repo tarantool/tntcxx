@@ -29,41 +29,43 @@
  * THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
+
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+
 #include <assert.h>
 #include <chrono>
 #include <errno.h>
-#include <unistd.h>
-#include <stdexcept>
 #include <cstring>
 #include <string>
 #include <string_view>
 
 #include "Connection.hpp"
-#include "NetworkEngine.hpp"
 #include "ev.h"
 
-template<class BUFFER, class NETWORK>
+template<class BUFFER, class Stream>
 class Connector;
 
-template<class BUFFER, class NETWORK>
+template<class BUFFER, class Stream>
 class LibevNetProvider;
 
-template<class BUFFER, class NETWORK>
+template<class BUFFER, class Stream>
 struct WaitWatcher {
-	WaitWatcher(Connector<BUFFER, LibevNetProvider<BUFFER, NETWORK>> *client,
-		    Connection<BUFFER, LibevNetProvider<BUFFER, NETWORK>> conn,
+	WaitWatcher(Connector<BUFFER, LibevNetProvider<BUFFER, Stream>> *client,
+		    Connection<BUFFER, LibevNetProvider<BUFFER, Stream>> conn,
 		    struct ev_timer *t);
 
 	struct ev_io in;
 	struct ev_io out;
-	Connector<BUFFER, LibevNetProvider<BUFFER, NETWORK>> *connector;
-	Connection<BUFFER, LibevNetProvider<BUFFER, NETWORK>> connection;
+	Connector<BUFFER, LibevNetProvider<BUFFER, Stream>> *connector;
+	Connection<BUFFER, LibevNetProvider<BUFFER, Stream>> connection;
 	struct ev_timer *timer;
 };
 
-template<class BUFFER, class NETWORK>
-WaitWatcher<BUFFER, NETWORK>::WaitWatcher(Connector<BUFFER, LibevNetProvider<BUFFER, NETWORK>> *client,
-					  Connection<BUFFER, LibevNetProvider<BUFFER, NETWORK>> conn,
+template<class BUFFER, class Stream>
+WaitWatcher<BUFFER, Stream>::WaitWatcher(Connector<BUFFER, LibevNetProvider<BUFFER, Stream>> *client,
+					  Connection<BUFFER, LibevNetProvider<BUFFER, Stream>> conn,
 					  struct ev_timer *t) : connector(client), connection(conn),
 							        timer(t)
 {
@@ -78,19 +80,19 @@ timerDisable(struct ev_loop *loop, struct ev_timer *timer)
 		ev_timer_stop(loop, timer);
 }
 
-template<class BUFFER, class NETWORK>
+template<class BUFFER, class Stream>
 class LibevNetProvider {
 public:
-	using NetProvider_t = LibevNetProvider<BUFFER, NETWORK>;
+	using Buffer_t = BUFFER;
+	using Stream_t = Stream;
+	using NetProvider_t = LibevNetProvider<BUFFER, Stream>;
 	using Conn_t = Connection<BUFFER, NetProvider_t >;
 	using Connector_t = Connector<BUFFER, NetProvider_t >;
 
 	LibevNetProvider(Connector_t &connector, struct ev_loop *loop = nullptr);
-	int connect(Conn_t &conn, const std::string_view& addr, unsigned port,
-		    size_t timeout);
+	int connect(Conn_t &conn, const std::string& addr, uint16_t port);
 	void close(Conn_t &conn);
 	int wait(int timeout);
-	bool check(Conn_t &conn);
 
 	~LibevNetProvider();
 
@@ -98,27 +100,27 @@ private:
 	static constexpr float MILLISECONDS = 1000.f;
 
 	void registerWatchers(Conn_t &conn, int fd);
-	void stopWatchers(WaitWatcher<BUFFER, NETWORK> *watcher);
+	void stopWatchers(WaitWatcher<BUFFER, Stream> *watcher);
 
 	Connector_t &m_Connector;
-	std::map<int, WaitWatcher<BUFFER, NETWORK> *> m_Watchers;
+	std::map<int, WaitWatcher<BUFFER, Stream> *> m_Watchers;
 	struct ev_loop *m_Loop;
 	struct ev_timer m_TimeoutWatcher;
 
 	bool m_IsOwnLoop;
 };
 
-template<class BUFFER, class NETWORK>
+template<class BUFFER, class Stream>
 void
-LibevNetProvider<BUFFER, NETWORK>::stopWatchers(struct WaitWatcher<BUFFER, NETWORK> *watcher)
+LibevNetProvider<BUFFER, Stream>::stopWatchers(struct WaitWatcher<BUFFER, Stream> *watcher)
 {
 	ev_io_stop(m_Loop, &watcher->in);
 	ev_io_stop(m_Loop, &watcher->out);
 }
 
-template<class BUFFER, class NETWORK>
+template<class BUFFER, class Stream>
 static inline int
-connectionReceive(Connection<BUFFER,  LibevNetProvider<BUFFER, NETWORK>> &conn)
+connectionReceive(Connection<BUFFER,  LibevNetProvider<BUFFER, Stream>> &conn)
 {
 	auto &buf = conn.getInBuf();
 	auto itr = buf.template end<true>();
@@ -126,12 +128,9 @@ connectionReceive(Connection<BUFFER,  LibevNetProvider<BUFFER, NETWORK>> &conn)
 	struct iovec iov[IOVEC_MAX_SIZE];
 	size_t iov_cnt = buf.getIOV(itr, iov, IOVEC_MAX_SIZE);
 
-	ssize_t rcvd = NETWORK::recvall(conn.getSocket(), iov, iov_cnt, true);
+	ssize_t rcvd = conn.get_strm().recv(iov, iov_cnt);
 	hasNotRecvBytes(conn, CONN_READAHEAD - (rcvd < 0 ? 0 : rcvd));
 	if (rcvd < 0) {
-		if (netWouldBlock(errno)) {
-			return 0;
-		}
 		conn.setError(std::string("Failed to receive response: ") +
 			       strerror(errno));
 		return -1;
@@ -153,18 +152,18 @@ connectionReceive(Connection<BUFFER,  LibevNetProvider<BUFFER, NETWORK>> &conn)
 	return 0;
 }
 
-template<class BUFFER, class NETWORK>
+template<class BUFFER, class Stream>
 static void
 recv_cb(struct ev_loop *loop, struct ev_io *watcher, int /* revents */)
 {
-	using NetProvider_t = LibevNetProvider<BUFFER, NETWORK>;
-	using Connector_t = Connector<BUFFER, LibevNetProvider<BUFFER, NETWORK>>;
+	using NetProvider_t = LibevNetProvider<BUFFER, Stream>;
+	using Connector_t = Connector<BUFFER, LibevNetProvider<BUFFER, Stream>>;
 
-	struct WaitWatcher<BUFFER, NETWORK> *waitWatcher =
-		reinterpret_cast<WaitWatcher<BUFFER, NETWORK> *>(watcher->data);
+	struct WaitWatcher<BUFFER, Stream> *waitWatcher =
+		reinterpret_cast<WaitWatcher<BUFFER, Stream> *>(watcher->data);
 	assert(&waitWatcher->in == watcher);
 	Connection<BUFFER, NetProvider_t> conn = waitWatcher->connection;
-	assert(waitWatcher->in.fd == conn.getSocket());
+	assert(waitWatcher->in.fd == conn.get_strm().get_fd());
 
 	timerDisable(loop, waitWatcher->timer);
 	int rc = connectionReceive(conn);
@@ -175,24 +174,19 @@ recv_cb(struct ev_loop *loop, struct ev_io *watcher, int /* revents */)
 		connector->readyToDecode(conn);
 }
 
-template<class BUFFER, class NETWORK>
+template<class BUFFER, class Stream>
 static inline int
-connectionSend(Connection<BUFFER,  LibevNetProvider<BUFFER, NETWORK>> &conn)
+connectionSend(Connection<BUFFER,  LibevNetProvider<BUFFER, Stream>> &conn)
 {
 	while (hasDataToSend(conn)) {
-		size_t sent_bytes = 0;
-
 		struct iovec iov[IOVEC_MAX_SIZE];
 		auto &buf = conn.getOutBuf();
 		size_t iov_cnt = buf.getIOV(buf.template begin<true>(),
 					    iov, IOVEC_MAX_SIZE);
 
-		int rc = NETWORK::sendall(conn.getSocket(), iov, iov_cnt,
-					  &sent_bytes);
-		hasSentBytes(conn, sent_bytes);
-		if (rc != 0) {
-			if (netWouldBlock(errno))
-				return 1;
+		ssize_t sent = conn.get_strm().send(iov, iov_cnt);
+		hasSentBytes(conn, (sent < 0 ? 0 : sent));
+		if (sent < 0) {
 			conn.setError(std::string("Failed to send request: ") +
 				      strerror(errno));
 			return -1;
@@ -202,19 +196,19 @@ connectionSend(Connection<BUFFER,  LibevNetProvider<BUFFER, NETWORK>> &conn)
 	return 0;
 }
 
-template<class BUFFER, class NETWORK>
+template<class BUFFER, class Stream>
 static void
 send_cb(struct ev_loop *loop, struct ev_io *watcher, int /* revents */)
 {
-	using NetProvider_t = LibevNetProvider<BUFFER, NETWORK>;
-	using Connector_t = Connector<BUFFER, LibevNetProvider<BUFFER, NETWORK>>;
+	using NetProvider_t = LibevNetProvider<BUFFER, Stream>;
+	using Connector_t = Connector<BUFFER, LibevNetProvider<BUFFER, Stream>>;
 
-	struct WaitWatcher<BUFFER, NETWORK> *waitWatcher =
-		reinterpret_cast<struct WaitWatcher<BUFFER, NETWORK> *>(watcher->data);
+	struct WaitWatcher<BUFFER, Stream> *waitWatcher =
+		reinterpret_cast<struct WaitWatcher<BUFFER, Stream> *>(watcher->data);
 	assert(&waitWatcher->out == watcher);
 	Connector_t *connector = waitWatcher->connector;
 	Connection<BUFFER, NetProvider_t> &conn = waitWatcher->connection;
-	assert(watcher->fd == conn.getSocket());
+	assert(watcher->fd == conn.get_strm().get_fd());
 
 	timerDisable(loop, waitWatcher->timer);
 	int rc = connectionSend(conn);
@@ -239,8 +233,8 @@ send_cb(struct ev_loop *loop, struct ev_io *watcher, int /* revents */)
 		ev_io_stop(loop, watcher);
 }
 
-template<class BUFFER, class NETWORK>
-LibevNetProvider<BUFFER, NETWORK>::LibevNetProvider(Connector_t &connector,
+template<class BUFFER, class Stream>
+LibevNetProvider<BUFFER, Stream>::LibevNetProvider(Connector_t &connector,
 						    struct ev_loop *loop) :
 	m_Connector(connector), m_Loop(loop), m_IsOwnLoop(false)
 {
@@ -252,13 +246,13 @@ LibevNetProvider<BUFFER, NETWORK>::LibevNetProvider(Connector_t &connector,
 	memset(&m_TimeoutWatcher, 0, sizeof(m_TimeoutWatcher));
 }
 
-template<class BUFFER, class NETWORK>
-LibevNetProvider<BUFFER, NETWORK>::~LibevNetProvider()
+template<class BUFFER, class Stream>
+LibevNetProvider<BUFFER, Stream>::~LibevNetProvider()
 {
 	for (auto w = m_Watchers.begin(); w != m_Watchers.end();) {
-		WaitWatcher<BUFFER, NETWORK> *to_delete = w->second;
+		WaitWatcher<BUFFER, Stream> *to_delete = w->second;
 		stopWatchers(to_delete);
-		assert(to_delete->connection.getSocket() == w->first);
+		assert(to_delete->connection.get_strm().get_fd() == w->first);
 		w = m_Watchers.erase(w);
 		delete to_delete;
 	}
@@ -269,64 +263,63 @@ LibevNetProvider<BUFFER, NETWORK>::~LibevNetProvider()
 	m_Loop = nullptr;
 }
 
-template<class BUFFER, class NETWORK>
+template<class BUFFER, class Stream>
 void
-LibevNetProvider<BUFFER, NETWORK>::registerWatchers(Conn_t &conn, int fd)
+LibevNetProvider<BUFFER, Stream>::registerWatchers(Conn_t &conn, int fd)
 {
-	WaitWatcher<BUFFER, NETWORK> *watcher =
-		new (std::nothrow) WaitWatcher<BUFFER, NETWORK>(&m_Connector,
+	WaitWatcher<BUFFER, Stream> *watcher =
+		new (std::nothrow) WaitWatcher<BUFFER, Stream>(&m_Connector,
 								conn, &m_TimeoutWatcher);
 	if (watcher == nullptr) {
 		LOG_ERROR("Failed to allocate memory for WaitWatcher");
 		abort();
 	}
 
-	ev_io_init(&watcher->in, (&recv_cb<BUFFER, NETWORK>), fd, EV_READ);
-	ev_io_init(&watcher->out, (&send_cb<BUFFER, NETWORK>), fd, EV_WRITE);
+	ev_io_init(&watcher->in, (&recv_cb<BUFFER, Stream>), fd, EV_READ);
+	ev_io_init(&watcher->out, (&send_cb<BUFFER, Stream>), fd, EV_WRITE);
 
 	m_Watchers.insert({fd, watcher});
 	ev_io_start(m_Loop, &watcher->in);
 	ev_io_start(m_Loop ,&watcher->out);
 }
 
-template<class BUFFER, class NETWORK>
+template<class BUFFER, class Stream>
 int
-LibevNetProvider<BUFFER, NETWORK>::connect(Conn_t &conn,
-					   const std::string_view& addr,
-					   unsigned port, size_t timeout)
+LibevNetProvider<BUFFER, Stream>::connect(Conn_t &conn, const std::string &addr,
+					  uint16_t port)
 {
-	int socket = -1;
-	socket = port == 0 ? NETWORK::connectUNIX(addr) :
-		 NETWORK::connectINET(addr, port, timeout);
-	if (socket < 0) {
-		conn.setError(std::string("Failed to establish connection to ") +
-			      std::string(addr));
+	auto &strm = conn.get_strm();
+	std::string service = port == 0 ? std::string{} : std::to_string(port);
+	if (strm.connect({
+				 .address = addr,
+				 .service = service,
+			 }) < 0) {
+		conn.setError(
+			std::string("Failed to establish connection to ") +
+			std::string(addr));
 		return -1;
 	}
-	LOG_DEBUG("Connected to ", addr, ", socket is ", socket);
+	LOG_DEBUG("Connected to ", addr, ", socket is ", strm.get_fd());
 	conn.getImpl()->is_greeting_received = false;
 
-	registerWatchers(conn, socket);
-
-	conn.setSocket(socket);
+	registerWatchers(conn, strm.get_fd());
 	return 0;
 }
 
-template<class BUFFER, class NETWORK>
+template<class BUFFER, class Stream>
 void
-LibevNetProvider<BUFFER, NETWORK>::close(Conn_t &conn)
+LibevNetProvider<BUFFER, Stream>::close(Conn_t &conn)
 {
-	int socket = conn.getSocket();
-	NETWORK::close(socket);
+	int was_fd = conn.get_strm().get_fd();
+	conn.get_strm().close();
 	//close can be called during libev provider destruction. In this case
 	//all connections staying alive only due to the presence in m_Watchers
 	//map. While cleaning up m_Watchers destructors of connections will be
 	//called. So to avoid double-free presence check in m_Watchers is required.
-	if (m_Watchers.find(socket) != m_Watchers.end()) {
-		WaitWatcher<BUFFER, NETWORK> *w = m_Watchers[socket];
-		assert(w->connection.getSocket() == socket);
+	if (m_Watchers.find(was_fd) != m_Watchers.end()) {
+		WaitWatcher<BUFFER, Stream> *w = m_Watchers[was_fd];
 		stopWatchers(w);
-		m_Watchers.erase(socket);
+		m_Watchers.erase(was_fd);
 		delete w;
 	}
 }
@@ -340,9 +333,9 @@ timeout_cb(EV_P_ ev_timer *w, int /* revents */)
 	ev_break(EV_A_ EVBREAK_ONE);
 }
 
-template<class BUFFER, class NETWORK>
+template<class BUFFER, class Stream>
 int
-LibevNetProvider<BUFFER, NETWORK>::wait(int timeout)
+LibevNetProvider<BUFFER, Stream>::wait(int timeout)
 {
 	assert(timeout >= 0);
 	ev_timer_init(&m_TimeoutWatcher, &timeout_cb, timeout / MILLISECONDS, 0 /* repeat */);
@@ -350,7 +343,7 @@ LibevNetProvider<BUFFER, NETWORK>::wait(int timeout)
 	/* Queue pending connections to be send. */
 	for (auto conn = m_Connector.m_ReadyToSend.begin();
 	     conn != m_Connector.m_ReadyToSend.end();) {
-		auto w = m_Watchers.find(conn->getSocket());
+		auto w = m_Watchers.find(conn->get_strm().get_fd());
 		if (w != m_Watchers.end()) {
 			if (!ev_is_active(&w->second->out))
 				ev_feed_event(m_Loop, &w->second->out, EV_WRITE);
@@ -362,22 +355,4 @@ LibevNetProvider<BUFFER, NETWORK>::wait(int timeout)
 	}
 	ev_run(m_Loop, EVRUN_ONCE);
 	return 0;
-}
-
-template<class BUFFER, class NETWORK>
-bool
-LibevNetProvider<BUFFER, NETWORK>::check(Conn_t &connection)
-{
-	int error = 0;
-	socklen_t len = sizeof(error);
-	int rc = getsockopt(connection.getSocket(), SOL_SOCKET, SO_ERROR, &error, &len);
-	if (rc != 0) {
-		connection.setError(strerror(rc));
-		return false;
-	}
-	if (error != 0) {
-		connection.setError(strerror(error));
-		return false;
-	}
-	return true;
 }
