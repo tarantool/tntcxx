@@ -37,8 +37,9 @@
 
 enum LogLevel {
 	DEBUG = 0,
-	WARNING = 1,
-	ERROR = 2
+	INFO = 1,
+	WARNING = 2,
+	ERROR = 3
 };
 
 static inline const char*
@@ -46,8 +47,10 @@ logLevelToStr(LogLevel lvl)
 {
 	switch (lvl) {
 		case DEBUG   : return "DEBUG";
-		case WARNING : return "WARNING";
+		case INFO    : return "INFO ";
+		case WARNING : return "WARN ";
 		case ERROR   : return "ERROR";
+		default      : return "UNDEF";
 	}
 	assert(0 && "Unknown log level");
 	return "Unknown log level";
@@ -99,6 +102,15 @@ inline Logger gLogger(DEBUG);
 inline Logger gLogger(ERROR);
 #endif
 
-#define LOG_DEBUG(...) gLogger.log(std::cout, DEBUG, __FILE__, __LINE__,  __VA_ARGS__)
-#define LOG_WARNING(...) gLogger.log(std::cout, WARNING, __FILE__, __LINE__, __VA_ARGS__)
-#define LOG_ERROR(...) gLogger.log(std::cerr, ERROR, __FILE__, __LINE__, __VA_ARGS__)
+template <class... ARGS>
+void
+log(LogLevel level, const char *file, int line, ARGS&& ...args)
+{
+	gLogger.log(level == ERROR ? std::cerr : std::cout,
+		    level, file, line, std::forward<ARGS>(args)...);
+}
+
+#define LOG_DEBUG(...) log(DEBUG, __FILE__, __LINE__,  __VA_ARGS__)
+#define LOG_INFO(...) log(INFO, __FILE__, __LINE__,  __VA_ARGS__)
+#define LOG_WARNING(...) log(WARNING, __FILE__, __LINE__, __VA_ARGS__)
+#define LOG_ERROR(...) log(ERROR, __FILE__, __LINE__, __VA_ARGS__)
