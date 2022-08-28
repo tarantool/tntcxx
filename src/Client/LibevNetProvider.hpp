@@ -129,17 +129,17 @@ connectionReceive(Connection<BUFFER,  LibevNetProvider<BUFFER, NETWORK>> &conn)
 	size_t iov_cnt = 0;
 	struct iovec *iov =
 		inBufferToIOV(conn, total, &iov_cnt);
-	int read_bytes = NETWORK::recvall(conn.getSocket(), iov, iov_cnt, true);
-	hasNotRecvBytes(conn, total - read_bytes);
-	if (read_bytes < 0) {
+	ssize_t rcvd = NETWORK::recvall(conn.getSocket(), iov, iov_cnt, true);
+	hasNotRecvBytes(conn, total - (rcvd < 0 ? 0 : rcvd));
+	if (rcvd < 0) {
 		if (netWouldBlock(errno)) {
-			return 1;
+			return 0;
 		}
 		conn.setError(std::string("Failed to receive response: ") +
 			       strerror(errno));
 		return -1;
 	}
-	return total - read_bytes;
+	return 0;
 }
 
 template<class BUFFER, class NETWORK>
@@ -158,9 +158,9 @@ recv_cb(struct ev_loop *loop, struct ev_io *watcher, int /* revents */)
 	timerDisable(loop, waitWatcher->timer);
 	int rc = connectionReceive(conn);
 	Connector_t *connector = waitWatcher->connector;
-	if (rc < 0)
+	if (rc != 0)
 		return;
-	if (rc == 0)
+	if (hasDataToDecode(conn))
 		connector->readyToDecode(conn);
 }
 
