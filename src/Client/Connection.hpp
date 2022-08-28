@@ -84,6 +84,7 @@ public:
 	//Members below can be default-initialized.
 	ConnectionError error;
 	Greeting greeting;
+	bool is_greeting_received;
 	std::unordered_map<rid_t, Response<BUFFER>> futures;
 
 	static constexpr size_t AVAILABLE_IOVEC_COUNT = 32;
@@ -568,13 +569,14 @@ int
 decodeGreeting(Connection<BUFFER, NetProvider> &conn)
 {
 	//TODO: that's not zero-copy, should be rewritten in that pattern.
+	assert(conn.getInBuf().has(conn.impl->endDecoded, Iproto::GREETING_SIZE));
 	char greeting_buf[Iproto::GREETING_SIZE];
 	conn.impl->endDecoded.read({greeting_buf, sizeof(greeting_buf)});
-	assert(conn.impl->endDecoded == conn.impl->inBuf.end());
 	conn.impl->dec.reset(conn.impl->endDecoded);
 	if (parseGreeting(std::string_view{greeting_buf, Iproto::GREETING_SIZE},
 			  conn.impl->greeting) != 0)
 		return -1;
+	conn.impl->is_greeting_received = true;
 	LOG_DEBUG("Version: ", conn.impl->greeting.version_id);
 
 #ifndef NDEBUG
