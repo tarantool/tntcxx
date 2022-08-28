@@ -787,16 +787,16 @@ Buffer<N, allocator>::dropBack(size_t size)
 
 	/* Do not delete the block if it is empty after drop. */
 	while (TNT_UNLIKELY(size > left_in_block)) {
-		assert(!m_blocks.isEmpty());
-		delBlock(block);
-		block = &m_blocks.last();
-
 		/*
 		 * Make sure there's no iterators pointing to the block
 		 * to be dropped.
 		 */
 		assert(m_iterators.isEmpty() ||
 		       m_iterators.last().getBlock() != block);
+
+		assert(!m_blocks.isEmpty());
+		delBlock(block);
+		block = &m_blocks.last();
 
 		m_end = block->end();
 		size -= left_in_block;

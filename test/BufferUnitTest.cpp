@@ -214,6 +214,19 @@ buffer_basic()
 		buf2.dropBack(i);
 		fail_unless(*buf2.begin() == c);
 	}
+
+	// Check when there a heavy iterators.
+	for (size_t i = 0; i < N; i++) {
+		tnt::Buffer<N> buf2;
+		if (i != 0)
+			buf2.write({i});
+		itr = buf2.end();
+		for (size_t j = 1; j < N; j++) {
+			buf2.write({j});
+			buf2.dropBack(j);
+		}
+		fail_unless(buf2.end() == itr);
+	}
 }
 
 /**
