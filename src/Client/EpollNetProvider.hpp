@@ -222,8 +222,9 @@ EpollNetProvider<BUFFER, NETWORK>::recv(Conn_t &conn)
 	size_t iov_cnt = 0;
 	/* Get IO vectors array pointing to the input buffer. */
 	struct iovec *iov = inBufferToIOV(conn, total, &iov_cnt);
-	int has_read_bytes = NETWORK::recvall(conn.getSocket(), iov, iov_cnt, true);
-	if (has_read_bytes < 0) {
+	ssize_t rcvd = NETWORK::recvall(conn.getSocket(), iov, iov_cnt, true);
+	hasNotRecvBytes(conn, total - (rcvd < 0 ? 0 : rcvd));
+	if (rcvd < 0) {
 		//Don't consider EWOULDBLOCK to be an error.
 		if (netWouldBlock(errno))
 			return 0;
@@ -231,8 +232,7 @@ EpollNetProvider<BUFFER, NETWORK>::recv(Conn_t &conn)
 					  strerror(errno), errno);
 		return -1;
 	}
-	hasNotRecvBytes(conn, total - has_read_bytes);
-	return total - has_read_bytes;
+	return 0;
 }
 
 template<class BUFFER, class NETWORK>
@@ -296,9 +296,9 @@ EpollNetProvider<BUFFER, NETWORK>::wait(int timeout)
 			 * becomes ready to decode.
 			 */
 			int rc = recv(conn);
-			if (rc < 0)
+			if (rc != 0)
 				return -1;
-			if (rc == 0)
+			if (hasDataToDecode(conn))
 				m_Connector.readyToDecode(conn);
 		}
 
