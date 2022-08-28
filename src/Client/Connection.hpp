@@ -66,9 +66,10 @@ private:
 	ConnectionImpl& operator = (const ConnectionImpl& impl) = delete;
 	~ConnectionImpl();
 
+public:
 	void ref();
 	void unref();
-public:
+
 	Connector<BUFFER, NetProvider> &connector;
 	BUFFER inBuf;
 	BUFFER outBuf;
@@ -101,7 +102,8 @@ ConnectionImpl<BUFFER, NetProvider>::~ConnectionImpl()
 {
 	assert(refs == 0);
 	if (socket >= 0) {
-		connector.close(socket);
+		Connection<BUFFER, NetProvider> conn(this);
+		connector.close(conn);
 		socket = -1;
 	}
 }
@@ -130,11 +132,15 @@ class Connection
 public:
 	class Space;
 	Space space;
+	using Impl_t = ConnectionImpl<BUFFER, NetProvider>;
 
 	Connection(Connector<BUFFER, NetProvider> &connector);
+	Connection(Impl_t *a);
 	~Connection();
 	Connection(const Connection& connection);
 	Connection& operator = (const Connection& connection);
+
+	Impl_t *getImpl() { return impl; }
 
 	//Required for storing Connections in hash tables (std::unordered_map)
 	friend bool operator == (const Connection<BUFFER, NetProvider>& lhs,
@@ -321,6 +327,13 @@ private:
 template<class BUFFER, class NetProvider>
 Connection<BUFFER, NetProvider>::Connection(Connector<BUFFER, NetProvider> &connector) :
 				   space(*this), impl(new ConnectionImpl(connector))
+{
+	impl->ref();
+}
+
+template<class BUFFER, class NetProvider>
+Connection<BUFFER, NetProvider>::Connection(ConnectionImpl<BUFFER, NetProvider> *a) :
+	space(*this), impl(a)
 {
 	impl->ref();
 }

@@ -74,7 +74,6 @@ public:
 	void finishSend(const Connection<BUFFER, NetProvider> &conn);
 
 	std::set<Connection<BUFFER, NetProvider>> m_ReadyToSend;
-	void close(int socket);
 	void close(Connection<BUFFER, NetProvider> &conn);
 private:
 	//Timeout of Connector::connect() method.
@@ -111,17 +110,10 @@ Connector<BUFFER, NetProvider>::connect(Connection<BUFFER, NetProvider> &conn,
 
 template<class BUFFER, class NetProvider>
 void
-Connector<BUFFER, NetProvider>::close(int socket)
-{
-	m_NetProvider.close(socket);
-}
-
-template<class BUFFER, class NetProvider>
-void
 Connector<BUFFER, NetProvider>::close(Connection<BUFFER, NetProvider> &conn)
 {
 	assert(conn.getSocket() >= 0);
-	m_NetProvider.close(conn.getSocket());
+	m_NetProvider.close(conn);
 	conn.setSocket(-1);
 }
 
