@@ -145,27 +145,7 @@ EpollNetProvider<BUFFER, NETWORK>::connect(Conn_t &conn,
 		return -1;
 	}
 	LOG_DEBUG("Connected to ", addr, ", socket is ", socket);
-	/* Receive and decode greetings. */
-	size_t iov_cnt = 0;
-	struct iovec *iov =
-		inBufferToIOV(conn, Iproto::GREETING_SIZE, &iov_cnt);
-	LOG_DEBUG("Receiving greetings...");
-	int read_bytes = NETWORK::recvall(socket, iov, iov_cnt, false);
-	if (read_bytes < 0) {
-		conn.setError(std::string("Failed to receive greetings: ") +
-			      strerror(errno));
-		::close(socket);
-		return -1;
-	}
-	LOG_DEBUG("Greetings are received, read bytes ", read_bytes);
-	if (decodeGreeting(conn) != 0) {
-		conn.setError(std::string("Failed to decode greetings"));
-		::close(socket);
-		return -1;
-	}
-	LOG_DEBUG("Greetings are decoded");
-	LOG_DEBUG("Authentication processing...");
-	//TODO: add authentication step.
+	conn.getImpl()->is_greeting_received = false;
 	conn.setSocket(socket);
 	registerEpoll(conn);
 	return 0;
@@ -232,6 +212,20 @@ EpollNetProvider<BUFFER, NETWORK>::recv(Conn_t &conn)
 					  strerror(errno), errno);
 		return -1;
 	}
+
+	if (!conn.getImpl()->is_greeting_received) {
+		if ((size_t) rcvd < Iproto::GREETING_SIZE)
+			return 0;
+		/* Receive and decode greetings. */
+		LOG_DEBUG("Greetings are received, read bytes ", rcvd);
+		if (decodeGreeting(conn) != 0) {
+			conn.setError("Failed to decode greetings");
+			return -1;
+		}
+		LOG_DEBUG("Greetings are decoded");
+		rcvd -= Iproto::GREETING_SIZE;
+	}
+
 	return 0;
 }
 
