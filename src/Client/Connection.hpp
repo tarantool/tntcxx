@@ -41,6 +41,9 @@
 /** rid == request id */
 typedef size_t rid_t;
 
+static constexpr size_t CONN_READAHEAD = 64 * 1024;
+static constexpr size_t IOVEC_MAX_SIZE = 32;
+
 struct ConnectionError {
 	std::string msg;
 	//Saved in case connection fails due to system error.
@@ -86,9 +89,6 @@ public:
 	Greeting greeting;
 	bool is_greeting_received;
 	std::unordered_map<rid_t, Response<BUFFER>> futures;
-
-	static constexpr size_t AVAILABLE_IOVEC_COUNT = 32;
-	struct iovec m_IOVecs[AVAILABLE_IOVEC_COUNT];
 };
 
 template<class BUFFER, class NetProvider>
@@ -172,15 +172,7 @@ public:
 	int getSocket() const;
 	void setSocket(int socket);
 	BUFFER& getInBuf();
-
-	template<class B, class N>
-	friend
-	struct iovec * outBufferToIOV(Connection<B, N> &conn, size_t *iov_len);
-
-	template<class B, class N>
-	friend
-	struct iovec * inBufferToIOV(Connection<B, N> &conn, size_t size,
-				     size_t *iov_len);
+	BUFFER& getOutBuf();
 
 	template<class B, class N>
 	friend
@@ -446,29 +438,10 @@ Connection<BUFFER, NetProvider>::getInBuf()
 }
 
 template<class BUFFER, class NetProvider>
-struct iovec *
-inBufferToIOV(Connection<BUFFER, NetProvider> &conn, size_t size, size_t *iov_len)
+BUFFER&
+Connection<BUFFER, NetProvider>::getOutBuf()
 {
-	assert(iov_len != NULL);
-	BUFFER &buf = conn.impl->inBuf;
-	struct iovec *vecs = conn.impl->m_IOVecs;
-	typename BUFFER::iterator itr = buf.end();
-	buf.write({size});
-	*iov_len = buf.getIOV(itr, vecs,
-			      ConnectionImpl<BUFFER, NetProvider>::AVAILABLE_IOVEC_COUNT);
-	return vecs;
-}
-
-template<class BUFFER, class NetProvider>
-struct iovec *
-outBufferToIOV(Connection<BUFFER, NetProvider> &conn, size_t *iov_len)
-{
-	assert(iov_len != NULL);
-	BUFFER &buf = conn.impl->outBuf;
-	struct iovec *vecs = conn.impl->m_IOVecs;
-	*iov_len = buf.getIOV(buf.begin(), buf.end(), vecs,
-			      ConnectionImpl<BUFFER, NetProvider>::AVAILABLE_IOVEC_COUNT);
-	return vecs;
+	return impl->outBuf;
 }
 
 template<class BUFFER, class NetProvider>
