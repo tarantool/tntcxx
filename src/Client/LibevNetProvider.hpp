@@ -88,7 +88,7 @@ public:
 	LibevNetProvider(Connector_t &connector, struct ev_loop *loop = nullptr);
 	int connect(Conn_t &conn, const std::string_view& addr, unsigned port,
 		    size_t timeout);
-	void close(int socket);
+	void close(Conn_t &conn);
 	int wait(int timeout);
 	bool check(Conn_t &conn);
 
@@ -316,8 +316,9 @@ LibevNetProvider<BUFFER, NETWORK>::connect(Conn_t &conn,
 
 template<class BUFFER, class NETWORK>
 void
-LibevNetProvider<BUFFER, NETWORK>::close(int socket)
+LibevNetProvider<BUFFER, NETWORK>::close(Conn_t &conn)
 {
+	int socket = conn.getSocket();
 	NETWORK::close(socket);
 	//close can be called during libev provider destruction. In this case
 	//all connections staying alive only due to the presence in m_Watchers
