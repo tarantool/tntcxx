@@ -120,17 +120,14 @@ template<class BUFFER, class NETWORK>
 static inline int
 connectionReceive(Connection<BUFFER,  LibevNetProvider<BUFFER, NETWORK>> &conn)
 {
-	size_t total = NETWORK::readyToRecv(conn.getSocket());
-	if (total < 0) {
-		LOG_ERROR("Failed to check socket: ioctl returned errno ",
-			  strerror(errno));
-		return -1;
-	}
-	size_t iov_cnt = 0;
-	struct iovec *iov =
-		inBufferToIOV(conn, total, &iov_cnt);
+	auto &buf = conn.getInBuf();
+	auto itr = buf.template end<true>();
+	buf.write({CONN_READAHEAD});
+	struct iovec iov[IOVEC_MAX_SIZE];
+	size_t iov_cnt = buf.getIOV(itr, iov, IOVEC_MAX_SIZE);
+
 	ssize_t rcvd = NETWORK::recvall(conn.getSocket(), iov, iov_cnt, true);
-	hasNotRecvBytes(conn, total - (rcvd < 0 ? 0 : rcvd));
+	hasNotRecvBytes(conn, CONN_READAHEAD - (rcvd < 0 ? 0 : rcvd));
 	if (rcvd < 0) {
 		if (netWouldBlock(errno)) {
 			return 0;
@@ -184,8 +181,12 @@ connectionSend(Connection<BUFFER,  LibevNetProvider<BUFFER, NETWORK>> &conn)
 {
 	while (hasDataToSend(conn)) {
 		size_t sent_bytes = 0;
-		size_t iov_cnt = 0;
-		struct iovec *iov = outBufferToIOV(conn, &iov_cnt);
+
+		struct iovec iov[IOVEC_MAX_SIZE];
+		auto &buf = conn.getOutBuf();
+		size_t iov_cnt = buf.getIOV(buf.template begin<true>(),
+					    iov, IOVEC_MAX_SIZE);
+
 		int rc = NETWORK::sendall(conn.getSocket(), iov, iov_cnt,
 					  &sent_bytes);
 		hasSentBytes(conn, sent_bytes);
