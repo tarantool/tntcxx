@@ -90,7 +90,7 @@ public:
 	using Connector_t = Connector<BUFFER, NetProvider_t >;
 
 	LibevNetProvider(Connector_t &connector, struct ev_loop *loop = nullptr);
-	int connect(Conn_t &conn, const std::string& addr, uint16_t port);
+	int connect(Conn_t &conn, const ConnectOptions &opts);
 	void close(Conn_t &conn);
 	int wait(int timeout);
 
@@ -285,21 +285,16 @@ LibevNetProvider<BUFFER, Stream>::registerWatchers(Conn_t &conn, int fd)
 
 template<class BUFFER, class Stream>
 int
-LibevNetProvider<BUFFER, Stream>::connect(Conn_t &conn, const std::string &addr,
-					  uint16_t port)
+LibevNetProvider<BUFFER, Stream>::connect(Conn_t &conn,
+					  const ConnectOptions &opts)
 {
 	auto &strm = conn.get_strm();
-	std::string service = port == 0 ? std::string{} : std::to_string(port);
-	if (strm.connect({
-				 .address = addr,
-				 .service = service,
-			 }) < 0) {
-		conn.setError(
-			std::string("Failed to establish connection to ") +
-			std::string(addr));
+	if (strm.connect(opts) < 0) {
+		conn.setError("Failed to establish connection to " +
+			      opts.address);
 		return -1;
 	}
-	LOG_DEBUG("Connected to ", addr, ", socket is ", strm.get_fd());
+	LOG_DEBUG("Connected to ", opts.address, ", socket is ", strm.get_fd());
 	conn.getImpl()->is_greeting_received = false;
 
 	registerWatchers(conn, strm.get_fd());

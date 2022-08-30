@@ -38,8 +38,8 @@
 #include <sys/prctl.h>
 #endif
 
-int
-launchTarantool()
+inline int
+launchTarantool(bool enable_ssl = false)
 {
 	pid_t ppid_before_fork = getpid();
 	pid_t pid = fork();
@@ -66,7 +66,8 @@ launchTarantool()
 				"just before prctl call");
 		exit(EXIT_FAILURE);
 	}
-	if (execlp("tarantool", "tarantool", "test_cfg.lua", NULL) == -1) {
+	const char *script = enable_ssl ? "test_cfg_ssl.lua" : "test_cfg.lua";
+	if (execlp("tarantool", "tarantool", script, NULL) == -1) {
 		fprintf(stderr, "Can't launch Tarantool: execlp failed! %s\n",
 			strerror(errno));
 		kill(getppid(), SIGKILL);
@@ -74,7 +75,7 @@ launchTarantool()
 	exit(EXIT_FAILURE);
 }
 
-int
+inline int
 cleanDir() {
 	pid_t pid = fork();
 	if (pid == -1) {
@@ -90,8 +91,33 @@ cleanDir() {
 		fprintf(stderr, "wait: child finished with error \n");
 		return -1;
 	}
-	if (execlp("/bin/sh", "/bin/sh", "-c", "rm *xlog *snap", NULL) == -1) {
+	if (execlp("/bin/sh", "/bin/sh", "-c",
+		   "rm -f *.xlog *.snap tarantool.log", NULL) == -1) {
 		fprintf(stderr, "Failed to clean directory: execlp failed! %s\n",
+			strerror(errno));
+	}
+	exit(EXIT_FAILURE);
+}
+
+inline int
+genSSLCert() {
+	pid_t pid = fork();
+	if (pid == -1) {
+		fprintf(stderr, "Failed to clean directory: fork failed! %s\n",
+			strerror(errno));
+		return -1;
+	}
+	if (pid != 0) {
+		int status;
+		wait(&status);
+		if (WIFEXITED(status) != 0)
+			return 0;
+		fprintf(stderr, "wait: child finished with error \n");
+		return -1;
+	}
+	if (execlp("/bin/sh", "/bin/sh", "-c",
+		   "./test_gen_ssl.sh", NULL) == -1) {
+		fprintf(stderr, "Failed to generate ssl: execlp failed! %s\n",
 			strerror(errno));
 	}
 	exit(EXIT_FAILURE);
