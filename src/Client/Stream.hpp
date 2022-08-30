@@ -98,6 +98,14 @@ struct ConnectOptions {
 	/** Time span limit for connection establishment. */
 	size_t connect_timeout = DEFAULT_CONNECT_TIMEOUT;
 
+	/** SSL settings. */
+	std::string ssl_cert_file{};
+	std::string ssl_key_file{};
+	std::string ssl_ca_file{};
+	std::string ssl_ciphers{};
+	std::string ssl_passwd{};
+	std::string ssl_passwd_file{};
+
 	/** Standard output. */
 	friend inline std::ostream &
 	operator<<(std::ostream &strm, const ConnectOptions &opts);

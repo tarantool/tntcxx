@@ -40,6 +40,27 @@ int port = 3301;
 const char *unixsocket = "./tnt.sock";
 int WAIT_TIMEOUT = 1000; //milliseconds
 
+#ifdef TNTCXX_ENABLE_SSL
+constexpr bool enable_ssl = true;
+constexpr StreamTransport transport = STREAM_SSL;
+#else
+constexpr bool enable_ssl = false;
+constexpr StreamTransport transport = STREAM_PLAIN;
+#endif
+
+template <class Connector, class Connection>
+static int
+test_connect(Connector &client, Connection &conn, const std::string &addr,
+	     unsigned port)
+{
+	std::string service = port == 0 ? std::string{} : std::to_string(port);
+	return client.connect(conn, {
+		.address = addr,
+		.service = service,
+		.transport = transport,
+	});
+}
+
 enum ResultFormat {
 	TUPLES = 0,
 	MULTI_RETURN,
@@ -105,16 +126,16 @@ trivial(Connector<BUFFER, NetProvider> &client)
 	fail_unless(rc != 0);
 	/* Connect to the wrong address. */
 	TEST_CASE("Bad address");
-	rc = client.connect(conn, "asdasd", port);
+	rc = test_connect(client, conn, "asdasd", port);
 	fail_unless(rc != 0);
 	TEST_CASE("Unreachable address");
-	rc = client.connect(conn, "101.101.101", port);
+	rc = test_connect(client, conn, "101.101.101", port);
 	fail_unless(rc != 0);
 	TEST_CASE("Wrong port");
-	rc = client.connect(conn, localhost, -666);
+	rc = test_connect(client, conn, localhost, -666);
 	fail_unless(rc != 0);
 	TEST_CASE("Connect timeout");
-	rc = client.connect(conn, "8.8.8.8", port);
+	rc = test_connect(client, conn, "8.8.8.8", port);
 	fail_unless(rc != 0);
 }
 
@@ -125,7 +146,7 @@ single_conn_ping(Connector<BUFFER, NetProvider> &client)
 {
 	TEST_INIT(0);
 	Connection<Buf_t, NetProvider> conn(client);
-	int rc = client.connect(conn, localhost, port);
+	int rc = test_connect(client, conn, localhost, port);
 	fail_unless(rc == 0);
 	rid_t f = conn.ping();
 	fail_unless(!conn.futureIsReady(f));
@@ -180,18 +201,18 @@ many_conn_ping(Connector<BUFFER, NetProvider> &client)
 	Connection<Buf_t, NetProvider> conn1(client);
 	Connection<Buf_t, NetProvider> conn2(client);
 	Connection<Buf_t, NetProvider> conn3(client);
-	int rc = client.connect(conn1, localhost, port);
+	int rc = test_connect(client, conn1, localhost, port);
 	fail_unless(rc == 0);
 	/* Try to connect to the same port */
-	rc = client.connect(conn2, localhost, port);
+	rc = test_connect(client, conn2, localhost, port);
 	fail_unless(rc == 0);
 	/*
 	 * Try to re-connect to another address whithout closing
 	 * current connection.
 	 */
-	//rc = client.connect(conn2, localhost, port + 2);
+	//rc = test_connect(client, conn2, localhost, port + 2);
 	//fail_unless(rc != 0);
-	rc = client.connect(conn3, localhost, port);
+	rc = test_connect(client, conn3, localhost, port);
 	fail_unless(rc == 0);
 	rid_t f1 = conn1.ping();
 	rid_t f2 = conn2.ping();
@@ -212,7 +233,7 @@ single_conn_error(Connector<BUFFER, NetProvider> &client)
 {
 	TEST_INIT(0);
 	Connection<Buf_t, NetProvider> conn(client);
-	int rc = client.connect(conn, localhost, port);
+	int rc = test_connect(client, conn, localhost, port);
 	fail_unless(rc == 0);
 	/* Fake space id. */
 	uint32_t space_id = -111;
@@ -249,7 +270,7 @@ single_conn_replace(Connector<BUFFER, NetProvider> &client)
 {
 	TEST_INIT(0);
 	Connection<Buf_t, NetProvider> conn(client);
-	int rc = client.connect(conn, localhost, port);
+	int rc = test_connect(client, conn, localhost, port);
 	fail_unless(rc == 0);
 	uint32_t space_id = 512;
 	std::tuple data = std::make_tuple(666, "111", 1.01);
@@ -268,6 +289,7 @@ single_conn_replace(Connector<BUFFER, NetProvider> &client)
 	client.wait(conn, f2, WAIT_TIMEOUT);
 	fail_unless(conn.futureIsReady(f2));
 	response = conn.getResponse(f2);
+	printResponse<BUFFER, NetProvider>(conn, *response);
 	fail_unless(response != std::nullopt);
 	fail_unless(response->body.data != std::nullopt);
 	fail_unless(response->body.error_stack == std::nullopt);
@@ -282,7 +304,7 @@ single_conn_insert(Connector<BUFFER, NetProvider> &client)
 {
 	TEST_INIT(0);
 	Connection<Buf_t, NetProvider> conn(client);
-	int rc = client.connect(conn, localhost, port);
+	int rc = test_connect(client, conn, localhost, port);
 	fail_unless(rc == 0);
 	TEST_CASE("Successful inserts");
 	uint32_t space_id = 512;
@@ -326,7 +348,7 @@ single_conn_update(Connector<BUFFER, NetProvider> &client)
 {
 	TEST_INIT(0);
 	Connection<Buf_t, NetProvider> conn(client);
-	int rc = client.connect(conn, localhost, port);
+	int rc = test_connect(client, conn, localhost, port);
 	fail_unless(rc == 0);
 	TEST_CASE("Successful update");
 	uint32_t space_id = 512;
@@ -361,7 +383,7 @@ single_conn_delete(Connector<BUFFER, NetProvider> &client)
 {
 	TEST_INIT(0);
 	Connection<Buf_t, NetProvider> conn(client);
-	int rc = client.connect(conn, localhost, port);
+	int rc = test_connect(client, conn, localhost, port);
 	fail_unless(rc == 0);
 	TEST_CASE("Successful deletes");
 	uint32_t space_id = 512;
@@ -405,7 +427,7 @@ single_conn_upsert(Connector<BUFFER, NetProvider> &client)
 {
 	TEST_INIT(0);
 	Connection<Buf_t, NetProvider> conn(client);
-	int rc = client.connect(conn, localhost, port);
+	int rc = test_connect(client, conn, localhost, port);
 	fail_unless(rc == 0);
 	TEST_CASE("upsert-insert");
 	uint32_t space_id = 512;
@@ -436,7 +458,7 @@ single_conn_select(Connector<BUFFER, NetProvider> &client)
 {
 	TEST_INIT(0);
 	Connection<Buf_t, NetProvider> conn(client);
-	int rc = client.connect(conn, localhost, port);
+	int rc = test_connect(client, conn, localhost, port);
 	fail_unless(rc == 0);
 	uint32_t space_id = 512;
 	uint32_t index_id = 0;
@@ -497,7 +519,7 @@ single_conn_call(Connector<BUFFER, NetProvider> &client)
 	const static char *return_multi   = "remote_multi";
 
 	Connection<Buf_t, NetProvider> conn(client);
-	int rc = client.connect(conn, localhost, port);
+	int rc = test_connect(client, conn, localhost, port);
 	fail_unless(rc == 0);
 
 	TEST_CASE("call remote_replace");
@@ -508,17 +530,17 @@ single_conn_call(Connector<BUFFER, NetProvider> &client)
 	fail_unless(conn.futureIsReady(f1));
 	std::optional<Response<Buf_t>> response = conn.getResponse(f1);
 	fail_unless(response != std::nullopt);
+	printResponse<BUFFER, NetProvider>(conn, *response);
 	fail_unless(response->body.data != std::nullopt);
 	fail_unless(response->body.error_stack == std::nullopt);
-	printResponse<BUFFER, NetProvider>(conn, *response);
 
 	client.wait(conn, f2, WAIT_TIMEOUT);
 	fail_unless(conn.futureIsReady(f2));
 	response = conn.getResponse(f2);
 	fail_unless(response != std::nullopt);
+	printResponse<BUFFER, NetProvider>(conn, *response);
 	fail_unless(response->body.data != std::nullopt);
 	fail_unless(response->body.error_stack == std::nullopt);
-	printResponse<BUFFER, NetProvider>(conn, *response);
 
 	TEST_CASE("call remote_uint");
 	rid_t f4 = conn.call(return_uint, std::make_tuple());
@@ -574,7 +596,7 @@ replace_unix_socket(Connector<BUFFER, NetProvider> &client)
 	TEST_INIT(0);
 
 	Connection<Buf_t, NetProvider> conn(client);
-	int rc = client.connect(conn, unixsocket, 0);
+	int rc = test_connect(client, conn, unixsocket, 0);
 	fail_unless(rc == 0);
 
 	TEST_CASE("select from unix socket");
@@ -597,8 +619,15 @@ int main()
 {
 	if (cleanDir() != 0)
 		return -1;
-	if (launchTarantool() != 0)
+
+#ifdef TNTCXX_ENABLE_SSL
+	if (genSSLCert() != 0)
 		return -1;
+#endif
+
+	if (launchTarantool(enable_ssl) != 0)
+		return -1;
+
 	sleep(1);
 #ifdef __linux__
 	using NetEpoll_t = EpollNetProvider<Buf_t, DefaultStream>;

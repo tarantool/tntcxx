@@ -30,12 +30,22 @@
  * SUCH DAMAGE.
  */
 #include "Connection.hpp"
+
+#ifdef TNTCXX_ENABLE_SSL
+#include "UnixSSLStream.hpp"
+#else
 #include "UnixPlainStream.hpp"
+#endif
+
 #include "../Utils/Timer.hpp"
 
 #include <set>
 
+#ifdef TNTCXX_ENABLE_SSL
+using DefaultStream = UnixSSLStream;
+#else
 using DefaultStream = UnixPlainStream;
+#endif
 
 /**
  * MacOS does not have epoll so let's use Libev as default network provider.
@@ -59,6 +69,8 @@ public:
 	Connector(const Connector& connector) = delete;
 	Connector& operator = (const Connector& connector) = delete;
 	//////////////////////////////Main API//////////////////////////////////
+	int connect(Connection<BUFFER, NetProvider> &conn,
+		    const ConnectOptions &opts);
 	int connect(Connection<BUFFER, NetProvider> &conn,
 		    const std::string& addr, unsigned port);
 
@@ -94,17 +106,31 @@ Connector<BUFFER, NetProvider>::~Connector()
 template<class BUFFER, class NetProvider>
 int
 Connector<BUFFER, NetProvider>::connect(Connection<BUFFER, NetProvider> &conn,
-					const std::string& addr,
-					unsigned port)
+					const ConnectOptions &opts)
 {
 	//Make sure that connection is not yet established.
 	assert(conn.get_strm().has_status(SS_DEAD));
-	if (m_NetProvider.connect(conn, addr, port) != 0) {
-		LOG_ERROR("Failed to connect to ", addr, ':', port);
+	if (m_NetProvider.connect(conn, opts) != 0) {
+		LOG_ERROR("Failed to connect to ",
+			  opts.address, ':', opts.service);
 		return -1;
 	}
-	LOG_DEBUG("Connection to ", addr, ':', port, " has been established");
+	LOG_DEBUG("Connection to ", opts.address, ':', opts.service,
+		  " has been established");
 	return 0;
+}
+
+template<class BUFFER, class NetProvider>
+int
+Connector<BUFFER, NetProvider>::connect(Connection<BUFFER, NetProvider> &conn,
+					const std::string& addr,
+					unsigned port)
+{
+	std::string service = port == 0 ? std::string{} : std::to_string(port);
+	return connect(conn, {
+		.address = addr,
+		.service = service,
+	});
 }
 
 template<class BUFFER, class NetProvider>

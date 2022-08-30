@@ -125,7 +125,9 @@ main()
 	 * exception free, so we rely only on return codes.
 	 */
 	//doclabel06-1
-	int rc = client.connect(conn, address, port);
+	int rc = client.connect(conn, {.address = address,
+				       .service = std::to_string(port),
+				       /* .transport = STREAM_SSL, */});
 	//doclabel06-2
 	if (rc != 0) {
 		//assert(conn.getError().saved_errno != 0);
@@ -217,7 +219,9 @@ main()
 	//doclabel11-3
 	/* Let's create another connection. */
 	Connection<Buf_t, Net_t> another(client);
-	if (client.connect(another, address, port) != 0) {
+	if (client.connect(another, {.address = address,
+				     .service = std::to_string(port),
+				     /* .transport = STREAM_SSL, */}) != 0) {
 		std::cerr << conn.getError().msg << std::endl;
 		return -1;
 	}
