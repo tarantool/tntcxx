@@ -48,6 +48,7 @@ struct DefaultResourceDestroyer {
 template <class T, T Default, class Destroyer = DefaultResourceDestroyer<T>>
 struct Resource : public Destroyer {
 	using Destroyer::destroy;
+	static_assert(std::is_trivial_v<T>, "Designed for simple types");
 
 	Resource() noexcept = default;
 	Resource(T t) noexcept;
@@ -58,10 +59,14 @@ struct Resource : public Destroyer {
 	Resource &operator=(const Resource &) = delete;
 	Resource(Resource &&a) noexcept;
 	Resource &operator=(Resource &&a) noexcept;
-	Resource &operator=(T &&t);
+
+	T get() const noexcept { return value; }
+	void set(T t) noexcept;
+
+	operator T() const noexcept { return value; }
+	Resource &operator=(T t) noexcept;
 
 	void close();
-	operator T() const noexcept { return value; }
 
 private:
 	T value = Default;
@@ -106,12 +111,19 @@ Resource<T, Default, Destroyer>::operator=(Resource &&a) noexcept
 }
 
 template <class T, T Default, class Destroyer>
-Resource<T, Default, Destroyer> &
-Resource<T, Default, Destroyer>::operator=(T &&t)
+void
+Resource<T, Default, Destroyer>::set(T t) noexcept
 {
 	if (value != Default)
 		destroy(value);
 	value = t;
+}
+
+template <class T, T Default, class Destroyer>
+Resource<T, Default, Destroyer> &
+Resource<T, Default, Destroyer>::operator=(T t) noexcept
+{
+	set(t);
 	return *this;
 }
 
