@@ -592,6 +592,174 @@ buffer_iterator_get()
 	fail_if(buf.debugSelfCheck());
 }
 
+template <class BUF>
+auto itr_at(BUF &buf, size_t pos)
+{
+	auto itr = buf.begin();
+	itr += pos;
+	return itr;
+}
+
+/**
+ * Test move constructor and assignment.
+ */
+template<size_t N>
+void
+buffer_move()
+{
+	TEST_INIT(1, N);
+	for (size_t S = N / 2; S <= 2 * N; S *= 2)
+	{
+		tnt::Buffer<N> buf1;
+		fillBuffer(buf1, S);
+		/* It is ok to move to itself. */
+		buf1 = std::move(buf1);
+
+		/* Create three iterators pointing to different parts. */
+		auto itr0 = buf1.begin();
+		auto itr1 = buf1.begin();
+		itr1 += 1;
+		auto itr2 = buf1.begin();
+		std::advance(itr2, S / 2);
+		auto itr3 = buf1.begin();
+		std::advance(itr3, S - 1);
+		char expect1 = char_samples[1];
+		char expect2 = char_samples[(S / 2) % SAMPLES_CNT];
+		char expect3 = char_samples[(S - 1) % SAMPLES_CNT];
+		size_t ins_cnt = 0;
+
+		fail_unless(itr0 == buf1.begin());
+		fail_unless(itr1 == itr_at(buf1, 1 + ins_cnt));
+		fail_unless(itr2 == itr_at(buf1, S / 2 + ins_cnt));
+		fail_unless(itr3 == itr_at(buf1, S - 1 + ins_cnt));
+		fail_unless(*itr1 == expect1);
+		fail_unless(*itr2 == expect2);
+		fail_unless(*itr3 == expect3);
+		fail_unless(buf1.has(buf1.begin(), S + ins_cnt));
+		fail_unless(!buf1.has(buf1.begin(), S + ins_cnt + 1));
+		buf1.flush();
+		fail_unless(buf1.has(buf1.begin(), S + ins_cnt));
+		fail_unless(!buf1.has(buf1.begin(), S + ins_cnt + 1));
+
+		/* It is ok to move to itself. */
+		buf1 = std::move(buf1);
+		fail_unless(itr0 == buf1.begin());
+		fail_unless(itr1 == itr_at(buf1, 1 + ins_cnt));
+		fail_unless(itr2 == itr_at(buf1, S / 2 + ins_cnt));
+		fail_unless(itr3 == itr_at(buf1, S - 1 + ins_cnt));
+		fail_unless(*itr1 == expect1);
+		fail_unless(*itr2 == expect2);
+		fail_unless(*itr3 == expect3);
+		fail_unless(buf1.has(buf1.begin(), S + ins_cnt));
+		fail_unless(!buf1.has(buf1.begin(), S + ins_cnt + 1));
+		buf1.flush();
+		fail_unless(buf1.has(buf1.begin(), S + ins_cnt));
+		fail_unless(!buf1.has(buf1.begin(), S + ins_cnt + 1));
+
+		/*
+		 * If we insert some data to the beginning of buffer, the
+		 * iterators must be moved in order to point to the same data,
+		 * except iterator to the beginning, which remains the same.
+		 */
+		buf1.insert(buf1.begin(), 1);
+		++ins_cnt;
+		fail_unless(itr0 == buf1.begin());
+		auto x = buf1.begin();
+		auto y = x + 1;
+		fail_unless(itr1 == itr_at(buf1, 1 + ins_cnt));
+		fail_unless(itr2 == itr_at(buf1, S / 2 + ins_cnt));
+		fail_unless(itr3 == itr_at(buf1, S - 1 + ins_cnt));
+		fail_unless(*itr1 == expect1);
+		fail_unless(*itr2 == expect2);
+		fail_unless(*itr3 == expect3);
+		fail_unless(buf1.has(buf1.begin(), S + ins_cnt));
+		fail_unless(!buf1.has(buf1.begin(), S + ins_cnt + 1));
+		buf1.flush();
+		fail_unless(buf1.has(buf1.begin(), S + ins_cnt));
+		fail_unless(!buf1.has(buf1.begin(), S + ins_cnt + 1));
+
+		/*
+		 * Move constructor to new buffer.
+		 * Iterators now belongs to it.
+		 */
+		tnt::Buffer<N> buf2(std::move(buf1));
+		fail_unless(itr0 == buf2.begin());
+		fail_unless(itr1 == itr_at(buf2, 1 + ins_cnt));
+		fail_unless(itr2 == itr_at(buf2, S / 2 + ins_cnt));
+		fail_unless(itr3 == itr_at(buf2, S - 1 + ins_cnt));
+		fail_unless(*itr1 == expect1);
+		fail_unless(*itr2 == expect2);
+		fail_unless(*itr3 == expect3);
+		fail_unless(buf2.has(buf2.begin(), S + ins_cnt));
+		fail_unless(!buf2.has(buf2.begin(), S + ins_cnt + 1));
+		buf2.flush();
+		fail_unless(buf2.has(buf2.begin(), S + ins_cnt));
+		fail_unless(!buf2.has(buf2.begin(), S + ins_cnt + 1));
+
+		/*
+		 * If we insert some data to the beginning of buffer, the
+		 * iterators must be moved in order to point to the same data.
+		 */
+		buf2.insert(buf2.begin(), 1);
+		++ins_cnt;
+		fail_unless(itr0 == buf2.begin());
+		fail_unless(itr1 == itr_at(buf2, 1 + ins_cnt));
+		fail_unless(itr2 == itr_at(buf2, S / 2 + ins_cnt));
+		fail_unless(itr3 == itr_at(buf2, S - 1 + ins_cnt));
+		fail_unless(*itr1 == expect1);
+		fail_unless(*itr2 == expect2);
+		fail_unless(*itr3 == expect3);
+		fail_unless(buf2.has(buf2.begin(), S + ins_cnt));
+		fail_unless(!buf2.has(buf2.begin(), S + ins_cnt + 1));
+		buf2.flush();
+		fail_unless(buf2.has(buf2.begin(), S + ins_cnt));
+		fail_unless(!buf2.has(buf2.begin(), S + ins_cnt + 1));
+
+		{
+			/*
+			 * Move assignment to new buffer.
+			 * Iterators now belongs to it.
+			 */
+			tnt::Buffer<N> buf3;
+			fillBuffer(buf3, 1);
+			buf3 = std::move(buf2);
+
+			fail_unless(itr0 == buf3.begin());
+			fail_unless(itr1 == itr_at(buf3, 1 + ins_cnt));
+			fail_unless(itr2 == itr_at(buf3, S / 2 + ins_cnt));
+			fail_unless(itr3 == itr_at(buf3, S - 1 + ins_cnt));
+			fail_unless(*itr1 == expect1);
+			fail_unless(*itr2 == expect2);
+			fail_unless(*itr3 == expect3);
+			fail_unless(buf3.has(buf3.begin(), S + ins_cnt));
+			fail_unless(!buf3.has(buf3.begin(), S + ins_cnt + 1));
+			buf3.flush();
+			fail_unless(buf3.has(buf3.begin(), S + ins_cnt));
+			fail_unless(!buf3.has(buf3.begin(), S + ins_cnt + 1));
+
+			/*
+			 * If we insert some data to the beginning of buffer,
+			 * the iterators must be moved in order to point to the
+			 * same data.
+			 */
+			buf3.insert(buf3.begin(), 1);
+			++ins_cnt;
+			fail_unless(itr0 == buf3.begin());
+			fail_unless(itr1 == itr_at(buf3, 1 + ins_cnt));
+			fail_unless(itr2 == itr_at(buf3, S / 2 + ins_cnt));
+			fail_unless(itr3 == itr_at(buf3, S - 1 + ins_cnt));
+			fail_unless(*itr1 == expect1);
+			fail_unless(*itr2 == expect2);
+			fail_unless(*itr3 == expect3);
+			fail_unless(buf3.has(buf3.begin(), S + ins_cnt));
+			fail_unless(!buf3.has(buf3.begin(), S + ins_cnt + 1));
+			buf3.flush();
+			fail_unless(buf3.has(buf3.begin(), S + ins_cnt));
+			fail_unless(!buf3.has(buf3.begin(), S + ins_cnt + 1));
+		}
+	}
+}
+
 int main()
 {
 	buffer_basic<SMALL_BLOCK_SZ>();
@@ -608,4 +776,7 @@ int main()
 	buffer_out<LARGE_BLOCK_SZ>();
 	buffer_iterator_get<SMALL_BLOCK_SZ>();
 	buffer_iterator_get<LARGE_BLOCK_SZ>();
+	buffer_move<SMALL_BLOCK_SZ>();
+	buffer_move<LARGE_BLOCK_SZ>();
+
 }
