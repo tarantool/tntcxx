@@ -253,11 +253,13 @@ public:
 	using light_iterator = iterator_common<true>;
 
 	/** =============== Buffer definition =============== */
-	/** Copy of any kind is disabled. */
+	/** Copy of any kind is disabled. Move is allowed. */
 	Buffer(const allocator& all = allocator());
 	Buffer(const Buffer& buf) = delete;
 	Buffer& operator = (const Buffer& buf) = delete;
-	~Buffer();
+	Buffer(Buffer &&buf) noexcept = default;
+	Buffer &operator=(Buffer &&buf) noexcept = default;
+	~Buffer() noexcept;
 
 	/**
 	 * Return iterator pointing to the start/end of buffer.
@@ -367,9 +369,13 @@ private:
 	/**
 	 * Offset of the data in the first block. Data may start not from
 	 * the beginning of the block due to ::dropFront invocation.
+	 * If buffer is moved, this member is leaved in undefined state.
 	 */
 	char *m_begin;
-	/** Last block can be partially filled, so store end border as well. */
+	/**
+	 * Last block can be partially filled, so store end border as well.
+	 * If buffer is moved, this member is leaved in undefined state.
+	 */
 	char *m_end;
 
 	/** Instance of an allocator. */
@@ -646,7 +652,7 @@ Buffer<N, allocator>::Buffer(const allocator &all) : m_all(all)
 }
 
 template <size_t N, class allocator>
-Buffer<N, allocator>::~Buffer()
+Buffer<N, allocator>::~Buffer() noexcept
 {
 	/* Delete blocks and release occupied memory. */
 	while (!m_blocks.isEmpty())

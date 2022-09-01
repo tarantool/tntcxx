@@ -220,10 +220,10 @@ class MempoolHolder {
 private:
 	using Base_t = MempoolInstance<B, M, ENABLE_STATS>;
 public:
-	MempoolHolder() : m_Instance(Base_t::defaultInstance()) {}
-	explicit MempoolHolder(Base_t &instance) : m_Instance(instance) {}
-	char *allocate() { return m_Instance.allocate(); }
-	void deallocate(char *ptr) noexcept { m_Instance.deallocate(ptr); }
+	MempoolHolder() : m_Instance(&Base_t::defaultInstance()) {}
+	explicit MempoolHolder(Base_t &instance) : m_Instance(&instance) {}
+	char *allocate() { return m_Instance->allocate(); }
+	void deallocate(char *ptr) noexcept { m_Instance->deallocate(ptr); }
 	int selfcheck() const { return m_Instance.selfcheck(); } 
 
 	static constexpr size_t REAL_SIZE = Base_t::REAL_SIZE;
@@ -232,11 +232,11 @@ public:
 	static constexpr size_t BLOCK_ALIGN = Base_t::BLOCK_ALIGN;
 	static constexpr size_t SLAB_ALIGN = Base_t::SLAB_ALIGN;
 	/** See MempoolStats<ENABLE_STATS>::statBlockCount() description. */
-	size_t statBlockCount() const { return m_Instance.statBlockCount(); }
+	size_t statBlockCount() const { return m_Instance->statBlockCount(); }
 	/** See MempoolStats<ENABLE_STATS>::statSlabCount() description. */
-	size_t statSlabCount() const { return m_Instance.statSlabCount(); }
+	size_t statSlabCount() const { return m_Instance->statSlabCount(); }
 private:
-	Base_t &m_Instance;
+	Base_t *m_Instance;
 };
 
 /**
