@@ -34,6 +34,8 @@
 #include <map>
 
 #include "IprotoConstants.hpp"
+#include "ResponseReader.hpp"
+#include "Scramble.hpp"
 #include "../mpp/mpp.hpp"
 #include "../Utils/Logger.hpp"
 
@@ -84,6 +86,10 @@ public:
 			    IteratorType iterator = EQ);
 	template <class T>
 	size_t encodeCall(const std::string &func, const T &args);
+	size_t encodeAuth(std::string_view user, std::string_view passwd,
+			  const Greeting &greet);
+	void reencodeAuth(std::string_view user, std::string_view passwd,
+			  const Greeting &greet);
 
 	/** Sync value is used as request id. */
 	static size_t getSync() { return sync; }
@@ -258,4 +264,45 @@ RequestEncoder<BUFFER>::encodeCall(const std::string &func, const T &args)
 	++request_start;
 	request_start.set(__builtin_bswap32(request_size));
 	return request_size + PREHEADER_SIZE;
+}
+
+template<class BUFFER>
+size_t
+RequestEncoder<BUFFER>::encodeAuth(std::string_view user,
+				   std::string_view passwd,
+				   const Greeting &greet)
+{
+	auto scram = tnt::scramble(passwd, greet.salt);
+	std::string_view scram_str{(const char*)scram.data(), scram.size()};
+	iterator_t<BUFFER> request_start = m_Buf.end();
+	m_Buf.write('\xce');
+	m_Buf.write(uint32_t{0});
+	tnt::mpp::encode(m_Buf, tnt::mpp::as_map(std::forward_as_tuple(
+		MPP_AS_CONST(Iproto::REQUEST_TYPE), MPP_AS_CONST(Iproto::AUTH))));
+	tnt::mpp::encode(m_Buf, tnt::mpp::as_map(std::forward_as_tuple(
+		MPP_AS_CONST(Iproto::USER_NAME), user,
+		MPP_AS_CONST(Iproto::TUPLE),
+		std::make_tuple("chap-sha1", scram_str))));
+	uint32_t request_size = (m_Buf.end() - request_start) - PREHEADER_SIZE;
+	++request_start;
+	request_start.set(__builtin_bswap32(request_size));
+	return request_size + PREHEADER_SIZE;
+}
+
+template<class BUFFER>
+void
+RequestEncoder<BUFFER>::reencodeAuth(std::string_view user,
+				     std::string_view passwd,
+				     const Greeting &greet)
+{
+	auto scram = tnt::scramble(passwd, greet.salt);
+	std::string_view scram_str{(const char*)scram.data(), scram.size()};
+	iterator_t<BUFFER> req = m_Buf.begin();
+	req += PREHEADER_SIZE;
+	tnt::mpp::encode(req, tnt::mpp::as_map(std::forward_as_tuple(
+		MPP_AS_CONST(Iproto::REQUEST_TYPE), MPP_AS_CONST(Iproto::AUTH))));
+	tnt::mpp::encode(req, tnt::mpp::as_map(std::forward_as_tuple(
+		MPP_AS_CONST(Iproto::USER_NAME), user,
+		MPP_AS_CONST(Iproto::TUPLE),
+		std::make_tuple("chap-sha1", scram_str))));
 }

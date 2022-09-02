@@ -51,13 +51,16 @@ constexpr StreamTransport transport = STREAM_PLAIN;
 template <class Connector, class Connection>
 static int
 test_connect(Connector &client, Connection &conn, const std::string &addr,
-	     unsigned port)
+	     unsigned port,
+	     const std::string user = {}, const std::string passwd = {})
 {
 	std::string service = port == 0 ? std::string{} : std::to_string(port);
 	return client.connect(conn, {
 		.address = addr,
 		.service = service,
 		.transport = transport,
+		.user = user,
+		.passwd = passwd,
 	});
 }
 
@@ -615,6 +618,33 @@ replace_unix_socket(Connector<BUFFER, NetProvider> &client)
 	client.close(conn);
 }
 
+/** Single connection, call procedure with arguments */
+template <class BUFFER, class NetProvider>
+void
+test_auth(Connector<BUFFER, NetProvider> &client)
+{
+	TEST_INIT(0);
+	const char *user = "megauser";
+	const char *passwd  = "megapassword";
+
+	Connection<Buf_t, NetProvider> conn(client);
+	int rc = test_connect(client, conn, localhost, port, user, passwd);
+	fail_unless(rc == 0);
+
+	uint32_t space_id = 513;
+
+	auto s = conn.space[space_id];
+	rid_t f = s.select(std::make_tuple(0));
+	client.wait(conn, f, WAIT_TIMEOUT);
+	fail_unless(conn.futureIsReady(f));
+
+	std::optional<Response<Buf_t>> response = conn.getResponse(f);
+	fail_unless(response != std::nullopt);
+	fail_unless(response->body.data != std::nullopt);
+	fail_unless(response->body.error_stack == std::nullopt);
+	printResponse<BUFFER, NetProvider>(conn, *response);
+}
+
 int main()
 {
 	if (cleanDir() != 0)
@@ -644,6 +674,7 @@ int main()
 	single_conn_select<Buf_t, NetEpoll_t>(client);
 	single_conn_call<Buf_t, NetEpoll_t>(client);
 	replace_unix_socket(client);
+	test_auth(client);
 #endif
 	/* LibEv network provide */
 	using NetLibEv_t = LibevNetProvider<Buf_t, DefaultStream>;
@@ -660,5 +691,6 @@ int main()
 	single_conn_select<Buf_t, NetLibEv_t>(another_client);
 	single_conn_call<Buf_t, NetLibEv_t>(another_client);
 	replace_unix_socket(client);
+	test_auth(client);
 	return 0;
 }

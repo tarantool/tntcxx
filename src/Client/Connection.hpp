@@ -90,6 +90,7 @@ public:
 	ConnectionError error;
 	Greeting greeting;
 	bool is_greeting_received;
+	bool is_auth_required;
 	std::unordered_map<rid_t, Response<BUFFER>> futures;
 };
 
@@ -143,6 +144,7 @@ public:
 	Connection& operator = (const Connection& connection);
 
 	Impl_t *getImpl() { return impl; }
+	const Impl_t *getImpl() const { return impl; }
 
 	typename NetProvider::Stream_t &get_strm() { return impl->strm; }
 	const typename NetProvider::Stream_t &get_strm() const { return impl->strm; }
@@ -205,6 +207,12 @@ public:
 	template<class B, class N>
 	friend
 	int decodeGreeting(Connection<B, N> &conn);
+
+	rid_t prepare_auth(std::string_view user,
+			   std::string_view passwd);
+
+	rid_t commit_auth(std::string_view user,
+			  std::string_view passwd);
 
 private:
 	ConnectionImpl<BUFFER, NetProvider> *impl;
@@ -641,4 +649,23 @@ Connection<BUFFER, NetProvider>::select(const T &key, uint32_t space_id,
 					       offset, iterator);
 	impl->connector.readyToSend(*this);
 	return RequestEncoder<BUFFER>::getSync();
+}
+
+template<class BUFFER, class NetProvider>
+rid_t
+Connection<BUFFER, NetProvider>::prepare_auth(std::string_view user,
+					      std::string_view passwd)
+{
+	impl->enc.encodeAuth(user, passwd, impl->greeting);
+	return 0;
+}
+
+template<class BUFFER, class NetProvider>
+rid_t
+Connection<BUFFER, NetProvider>::commit_auth(std::string_view user,
+					      std::string_view passwd)
+{
+	impl->enc.reencodeAuth(user, passwd, impl->greeting);;
+	impl->connector.readyToSend(*this);
+	return 0;
 }

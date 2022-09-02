@@ -147,6 +147,11 @@ connectionReceive(Connection<BUFFER,  LibevNetProvider<BUFFER, Stream>> &conn)
 		}
 		LOG_DEBUG("Greetings are decoded");
 		rcvd -= Iproto::GREETING_SIZE;
+		if (conn.getImpl()->is_auth_required) {
+			// Finalize auth request in buffer.
+			conn.commit_auth(conn.get_strm().get_opts().user,
+					 conn.get_strm().get_opts().passwd);
+		}
 	}
 
 	return 0;
@@ -295,7 +300,6 @@ LibevNetProvider<BUFFER, Stream>::connect(Conn_t &conn,
 		return -1;
 	}
 	LOG_DEBUG("Connected to ", opts.address, ", socket is ", strm.get_fd());
-	conn.getImpl()->is_greeting_received = false;
 
 	registerWatchers(conn, strm.get_fd());
 	return 0;

@@ -52,7 +52,7 @@ public:
 	/**
 	 * Receive data to connection.
 	 * Return positive number - number of bytes was received.
-	 * Return 0 if nothing was received but there's no error.
+	 * Return 0 if nothing was sent but there's no error.
 	 * Return -1 on error.
 	 * One must check the stream status to understand what happens.
 	 */

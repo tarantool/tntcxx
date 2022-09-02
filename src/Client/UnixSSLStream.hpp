@@ -366,6 +366,10 @@ int UnixSSLStream::connect(const ConnectOptions &opts_arg)
 
 	SSL_set_connect_state(ssl);
 
+	/* Trigger client-server negotiation. */
+	size_t rcvd;
+	SSL_read_ex(ssl, nullptr, 0, &rcvd);
+
 	return 0;
 }
 

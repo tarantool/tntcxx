@@ -5,9 +5,8 @@ box.cfg{listen = {{uri = 'localhost:3301', params = ssl_params},
 	readahead = 163200,
 	log = 'tarantool.log',
 }
-box.schema.user.grant('guest', 'super', nil, nil, {if_not_exists=true})
 
-if box.space.t then box.space.t:drop() end
+if box.space.T then box.space.T:drop() end
 s = box.schema.space.create('T')
 s:format{{name='id',type='integer'},{name='a',type='string'},{name='b',type='number'}}
 s:create_index('primary')
@@ -36,3 +35,15 @@ end
 function get_rps()
     return box.stat.net().REQUESTS.rps
 end
+
+box.schema.user.grant('guest', 'read,write', 'space', 'T', nil, {if_not_exists=true})
+box.schema.user.grant('guest', 'execute', 'universe', nil, {if_not_exists=true})
+
+if box.space.S then box.space.S:drop() end
+secret = box.schema.space.create('S')
+secret:format{{name='id',type='integer'},{name='secret',type='string'}}
+secret:create_index('primary')
+secret:replace{0, "There's a secret place I like to go", 3.14}
+
+box.schema.user.create('megauser', {password = 'megapassword'})
+box.schema.user.grant('megauser', 'read,write', 'space', 'S', nil, {if_not_exists=true})

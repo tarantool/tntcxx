@@ -115,6 +115,12 @@ Connector<BUFFER, NetProvider>::connect(Connection<BUFFER, NetProvider> &conn,
 			  opts.address, ':', opts.service);
 		return -1;
 	}
+	conn.getImpl()->is_greeting_received = false;
+	conn.getImpl()->is_auth_required = !opts.user.empty();
+	if (conn.getImpl()->is_auth_required) {
+		// Encode auth request to reserve space in buffer.
+		conn.prepare_auth(opts.user, opts.passwd);
+	}
 	LOG_DEBUG("Connection to ", opts.address, ':', opts.service,
 		  " has been established");
 	return 0;
@@ -286,6 +292,11 @@ template<class BUFFER, class NetProvider>
 void
 Connector<BUFFER, NetProvider>::readyToSend(const Connection<BUFFER, NetProvider> &conn)
 {
+	if (conn.getImpl()->is_auth_required &&
+	    !conn.getImpl()->is_greeting_received) {
+		// Need to receive greeting first.
+		return;
+	}
 	m_ReadyToSend.insert(conn);
 }
 

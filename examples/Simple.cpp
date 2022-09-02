@@ -127,6 +127,8 @@ main()
 	//doclabel06-1
 	int rc = client.connect(conn, {.address = address,
 				       .service = std::to_string(port),
+				       /*.user = ...,*/
+				       /*.passwd = ...,*/
 				       /* .transport = STREAM_SSL, */});
 	//doclabel06-2
 	if (rc != 0) {
