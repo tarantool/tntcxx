@@ -35,6 +35,7 @@
 #include <vector>
 
 #include "IprotoConstants.hpp"
+#include "ResponseReader.hpp"
 #include "../mpp/mpp.hpp"
 #include "../Utils/Logger.hpp"
 

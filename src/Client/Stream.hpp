@@ -98,6 +98,10 @@ struct ConnectOptions {
 	/** Time span limit for connection establishment. */
 	size_t connect_timeout = DEFAULT_CONNECT_TIMEOUT;
 
+	/** Optional login and password. */
+	std::string user{};
+	std::string passwd{};
+
 	/** SSL settings. */
 	std::string ssl_cert_file{};
 	std::string ssl_key_file{};
@@ -128,6 +132,11 @@ public:
 	 * Check the status bits.
 	 */
 	bool has_status(uint32_t st) const { return (status & st) != 0; }
+
+	/**
+	 * Get connect options.
+	 */
+	const ConnectOptions& get_opts() const { return opts; }
 
 	/*
 	 * The final stream class must implement the following methods:
