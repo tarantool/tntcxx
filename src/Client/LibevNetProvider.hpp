@@ -91,7 +91,7 @@ public:
 
 	LibevNetProvider(Connector_t &connector, struct ev_loop *loop = nullptr);
 	int connect(Conn_t &conn, const ConnectOptions &opts);
-	void close(Conn_t &conn);
+	void close(Stream_t &strm);
 	int wait(int timeout);
 
 	~LibevNetProvider();
@@ -307,10 +307,10 @@ LibevNetProvider<BUFFER, Stream>::connect(Conn_t &conn,
 
 template<class BUFFER, class Stream>
 void
-LibevNetProvider<BUFFER, Stream>::close(Conn_t &conn)
+LibevNetProvider<BUFFER, Stream>::close(Stream_t &strm)
 {
-	int was_fd = conn.get_strm().get_fd();
-	conn.get_strm().close();
+	int was_fd = strm.get_fd();
+	strm.close();
 	//close can be called during libev provider destruction. In this case
 	//all connections staying alive only due to the presence in m_Watchers
 	//map. While cleaning up m_Watchers destructors of connections will be

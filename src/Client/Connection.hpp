@@ -106,8 +106,7 @@ ConnectionImpl<BUFFER, NetProvider>::~ConnectionImpl()
 {
 	assert(refs == 0);
 	if (!strm.has_status(SS_DEAD)) {
-		Connection<BUFFER, NetProvider> conn(this);
-		connector.close(conn);
+		connector.close(*this);
 	}
 }
 

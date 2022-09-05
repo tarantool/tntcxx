@@ -195,6 +195,32 @@ single_conn_ping(Connector<BUFFER, NetProvider> &client)
 	client.close(conn);
 }
 
+template <class BUFFER, class NetProvider>
+void
+auto_close(Connector<BUFFER, NetProvider> &client)
+{
+	TEST_INIT(0);
+	{
+		TEST_CASE("Without requests");
+		Connection<Buf_t, NetProvider> conn(client);
+		int rc = test_connect(client, conn, localhost, port);
+		fail_unless(rc == 0);
+	}
+	{
+		TEST_CASE("With requests");
+		Connection<Buf_t, NetProvider> conn(client);
+		int rc = test_connect(client, conn, localhost, port);
+		fail_unless(rc == 0);
+
+		rid_t f = conn.ping();
+		fail_unless(!conn.futureIsReady(f));
+		client.wait(conn, f, WAIT_TIMEOUT);
+		fail_unless(conn.futureIsReady(f));
+		std::optional<Response<Buf_t>> response = conn.getResponse(f);
+		fail_unless(response != std::nullopt);
+	}
+}
+
 /** Several connection, separate/sequence pings, no errors */
 template <class BUFFER, class NetProvider>
 void
@@ -664,6 +690,7 @@ int main()
 	Connector<Buf_t, NetEpoll_t> client;
 	trivial<Buf_t, NetEpoll_t>(client);
 	single_conn_ping<Buf_t, NetEpoll_t>(client);
+	auto_close<Buf_t, NetEpoll_t>(client);
 	many_conn_ping<Buf_t, NetEpoll_t>(client);
 	single_conn_error<Buf_t, NetEpoll_t>(client);
 	single_conn_replace<Buf_t, NetEpoll_t>(client);
@@ -681,6 +708,7 @@ int main()
 	Connector<Buf_t, NetLibEv_t > another_client;
 	trivial<Buf_t, NetLibEv_t >(another_client);
 	single_conn_ping<Buf_t, NetLibEv_t>(another_client);
+	auto_close<Buf_t, NetLibEv_t>(another_client);
 	many_conn_ping<Buf_t, NetLibEv_t>(another_client);
 	single_conn_error<Buf_t, NetLibEv_t>(another_client);
 	single_conn_replace<Buf_t, NetLibEv_t>(another_client);
