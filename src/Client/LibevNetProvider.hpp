@@ -183,6 +183,11 @@ template<class BUFFER, class Stream>
 static inline int
 connectionSend(Connection<BUFFER,  LibevNetProvider<BUFFER, Stream>> &conn)
 {
+	if (conn.getImpl()->is_auth_required &&
+	    !conn.getImpl()->is_greeting_received) {
+		// Need to receive greeting first.
+		return 0;
+	}
 	while (hasDataToSend(conn)) {
 		struct iovec iov[IOVEC_MAX_SIZE];
 		auto &buf = conn.getOutBuf();

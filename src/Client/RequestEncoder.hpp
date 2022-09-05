@@ -97,7 +97,7 @@ public:
 private:
 	void encodeHeader(int request);
 	BUFFER &m_Buf;
-	inline static ssize_t sync = -1;
+	inline static ssize_t sync = 0;
 };
 
 template<class BUFFER>
