@@ -88,6 +88,7 @@ public:
 
 	std::set<Connection<BUFFER, NetProvider>> m_ReadyToSend;
 	void close(Connection<BUFFER, NetProvider> &conn);
+	void close(ConnectionImpl<BUFFER, NetProvider> &conn);
 private:
 	NetProvider m_NetProvider;
 	std::set<Connection<BUFFER, NetProvider>> m_ReadyToDecode;
@@ -143,8 +144,15 @@ template<class BUFFER, class NetProvider>
 void
 Connector<BUFFER, NetProvider>::close(Connection<BUFFER, NetProvider> &conn)
 {
-	assert(!conn.get_strm().has_status(SS_DEAD));
-	m_NetProvider.close(conn);
+	return close(*conn.getImpl());
+}
+
+template<class BUFFER, class NetProvider>
+void
+Connector<BUFFER, NetProvider>::close(ConnectionImpl<BUFFER, NetProvider> &conn)
+{
+	assert(!conn.strm.has_status(SS_DEAD));
+	m_NetProvider.close(conn.strm);
 }
 
 template<class BUFFER, class NetProvider>

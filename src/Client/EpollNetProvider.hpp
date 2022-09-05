@@ -59,7 +59,7 @@ public:
 	EpollNetProvider(Connector_t &connector);
 	~EpollNetProvider();
 	int connect(Conn_t &conn, const ConnectOptions &opts);
-	void close(Conn_t &conn);
+	void close(Stream_t &strm);
 	/** Read and write to sockets; polling using epoll. */
 	int wait(int timeout);
 
@@ -108,7 +108,6 @@ EpollNetProvider<BUFFER, Stream>::registerEpoll(Conn_t &conn)
 	struct epoll_event event;
 	event.events = EPOLLIN;
 	event.data.ptr = conn.getImpl();
-	conn.getImpl()->ref();
 	if (epoll_ctl(m_EpollFd, EPOLL_CTL_ADD, conn.get_strm().get_fd(),
 		      &event) != 0) {
 		LOG_ERROR("Failed to add socket to epoll: "
@@ -152,11 +151,11 @@ EpollNetProvider<BUFFER, Stream>::connect(Conn_t &conn,
 
 template<class BUFFER, class Stream>
 void
-EpollNetProvider<BUFFER, Stream>::close(Conn_t& conn)
+EpollNetProvider<BUFFER, Stream>::close(Stream_t& strm)
 {
-	int was_fd = conn.get_strm().get_fd();
+	int was_fd = strm.get_fd();
 	assert(was_fd >= 0);
-	conn.get_strm().close();
+	strm.close();
 #ifndef NDEBUG
 	struct sockaddr sa;
 	socklen_t sa_len = sizeof(sa);
@@ -174,7 +173,6 @@ EpollNetProvider<BUFFER, Stream>::close(Conn_t& conn)
 			  " corresponding to address ", addr);
 	}
 #endif
-	conn.getImpl()->unref();
 	/*
 	 * Descriptor is automatically removed from epoll handler
 	 * when all descriptors are closed. So in case
