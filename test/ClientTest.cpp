@@ -718,7 +718,7 @@ int main()
 	single_conn_upsert<Buf_t, NetLibEv_t>(another_client);
 	single_conn_select<Buf_t, NetLibEv_t>(another_client);
 	single_conn_call<Buf_t, NetLibEv_t>(another_client);
-	replace_unix_socket(client);
-	test_auth(client);
+	replace_unix_socket(another_client);
+	test_auth(another_client);
 	return 0;
 }
