@@ -304,13 +304,32 @@ auto getIS([[maybe_unused]] const T& t, [[maybe_unused]] const U& u)
 	}
 }
 
+#if defined(__BYTE_ORDER) && __BYTE_ORDER == __BIG_ENDIAN || \
+    defined(__BIG_ENDIAN__) || \
+    defined(__ARMEB__) || \
+    defined(__THUMBEB__) || \
+    defined(__AARCH64EB__) || \
+    defined(_MIBSEB) || defined(__MIBSEB) || defined(__MIBSEB__)
+// It's a big-endian target architecture
+#error "bswap must be removed for big-endian architecture"
+#elif defined(__BYTE_ORDER) && __BYTE_ORDER == __LITTLE_ENDIAN || \
+    defined(__LITTLE_ENDIAN__) || \
+    defined(__ARMEL__) || \
+    defined(__THUMBEL__) || \
+    defined(__AARCH64EL__) || \
+    defined(_MIPSEL) || defined(__MIPSEL) || defined(__MIPSEL__)
+// It's a little-endian target architecture
+// swap must be done as followed.
+#else
+#error "Unknown architecture!"
+#endif
+
 template <class T, T V, size_t... I>
 constexpr auto enc_bswap_h(std::integral_constant<T, V>, std::index_sequence<I...>)
 {
 	static_assert(tnt::is_unsigned_integer_v<T>);
-	constexpr union { char bytes[2]; uint16_t value; } host_order = {{0, 1}};
-	static_assert(host_order.value == 0x0100);
-	return tnt::CStr<((V >> (8 * (sizeof...(I) - I - 1))) & 0xff)...>{};
+	constexpr size_t R = sizeof...(I) - 1;
+	return tnt::CStr<static_cast<char>(((V >> (8 * (R - I))) & 0xff))...>{};
 }
 
 template <class T, T V>
@@ -405,15 +424,14 @@ constexpr auto getTagValSimple([[maybe_unused]] V value)
 		return std::make_pair(tag, enc_val);
 	} else if constexpr(tnt::is_integral_constant_v<V>) {
 		constexpr auto cv = V::value;
-		if constexpr(RULE::is_negative &&
-			     tnt::is_signed_integer_v<decltype(cv)>) {
-			if constexpr(under_int_t<decltype(cv)>(cv) >= 0) {
-				using rule = typename RULE::positive_rule;
-				return getTagValSimple<rule, false, void>(value);
-			}
-		}
-		constexpr size_t soff = find_simplex_offset<RULE>(V::value);
-		if constexpr(soff < SimplexRange<RULE>::length) {
+		[[maybe_unused]] constexpr size_t soff =
+			find_simplex_offset<RULE>(V::value);
+		if constexpr (RULE::is_negative &&
+			      tnt::is_signed_integer_v<decltype(cv)> &&
+			      under_int_t<decltype(cv)>(cv) >= 0) {
+			using rule = typename RULE::positive_rule;
+			return getTagValSimple<rule, false, void>(value);
+		} else if constexpr(soff < SimplexRange<RULE>::length) {
 			constexpr uint8_t ut = RULE::simplex_tag + soff;
 			constexpr int8_t t = static_cast<uint8_t>(ut);
 			return std::make_pair(tnt::CStr<t>{}, Nothing{});

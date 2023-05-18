@@ -378,6 +378,15 @@ test_basic()
 	mpp::encode(buf, uint8_t(200), short(2000), 2000000, 4000000000u);
 	mpp::encode(buf, FOR_BILLIONS, 20000000000ull, -1);
 	mpp::encode(buf, MUNUS_ONE_HUNDRED, -100, -1000);
+	// Add integral constants.
+	mpp::encode(buf, std::integral_constant<int, 11>{});
+	mpp::encode(buf, std::integral_constant<unsigned, 12>{});
+	mpp::encode(buf, std::integral_constant<int, -13>{});
+	mpp::encode(buf, std::integral_constant<int, 100500>{});
+	mpp::encode(buf, std::integral_constant<unsigned, 100501>{});
+	mpp::encode(buf, std::integral_constant<bool, false>{});
+	mpp::encode(buf, std::integral_constant<bool, true>{});
+	// Add strings.
 	mpp::encode(buf, "aaa");
 	const char* bbb = "bbb";
 	mpp::encode(buf, bbb);
@@ -449,6 +458,22 @@ test_basic()
 	{
 		int32_t val = 15478;
 		dec.SetReader(false, mpp::SimpleReader<Buf_t, mpp::MP_AINT, int32_t>{val});
+		mpp::ReadResult_t res = dec.Read();
+		fail_if(res != mpp::READ_SUCCESS);
+		fail_if(val != exp);
+	}
+	for (int32_t exp : {11, 12, -13, 100500, 100501})
+	{
+		int32_t val = 15478;
+		dec.SetReader(false, mpp::SimpleReader<Buf_t, mpp::MP_AINT, int32_t>{val});
+		mpp::ReadResult_t res = dec.Read();
+		fail_if(res != mpp::READ_SUCCESS);
+		fail_if(val != exp);
+	}
+	for (bool  exp : {false, true})
+	{
+		bool val = !exp;
+		dec.SetReader(false, mpp::SimpleReader<Buf_t, mpp::MP_BOOL, bool>{val});
 		mpp::ReadResult_t res = dec.Read();
 		fail_if(res != mpp::READ_SUCCESS);
 		fail_if(val != exp);
