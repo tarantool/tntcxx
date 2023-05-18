@@ -391,13 +391,13 @@ constexpr auto getTagValSimple([[maybe_unused]] V value)
 			if constexpr(tnt::is_integral_constant_v<V>) {
 				constexpr I i = static_cast<I>(V::value);
 				if constexpr(tnt::is_signed_integer_v<FIXED_T>)
-					static_assert(i >= L::min);
-				static_assert(i <= L::max);
+					static_assert(i >= L::min());
+				static_assert(i <= L::max());
 			} else {
 				I i = static_cast<I>(value);
 				if constexpr(tnt::is_signed_integer_v<FIXED_T>)
-					assert(i >= L::min);
-				assert(i <= L::max);
+					assert(i >= L::min());
+				assert(i <= L::max());
 			}
 		}
 
