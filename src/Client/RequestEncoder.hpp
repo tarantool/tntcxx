@@ -105,7 +105,7 @@ void
 RequestEncoder<BUFFER>::encodeHeader(int request)
 {
 	//TODO: add schema version.
-	tnt::mpp::encode(m_Buf, tnt::mpp::as_map(std::forward_as_tuple(
+	mpp::encode(m_Buf, mpp::as_map(std::forward_as_tuple(
 		MPP_AS_CONST(Iproto::SYNC), ++RequestEncoder::sync,
 		MPP_AS_CONST(Iproto::REQUEST_TYPE), request)));
 }
@@ -118,7 +118,7 @@ RequestEncoder<BUFFER>::encodePing()
 	m_Buf.write('\xce');
 	m_Buf.write(uint32_t{0});
 	encodeHeader(Iproto::PING);
-	tnt::mpp::encode(m_Buf, tnt::mpp::as_map(std::make_tuple()));
+	mpp::encode(m_Buf, mpp::as_map(std::make_tuple()));
 	uint32_t request_size = (m_Buf.end() - request_start) - PREHEADER_SIZE;
 	++request_start;
 	request_start.set(__builtin_bswap32(request_size));
@@ -134,7 +134,7 @@ RequestEncoder<BUFFER>::encodeInsert(const T &tuple, uint32_t space_id)
 	m_Buf.write('\xce');
 	m_Buf.write(uint32_t{0});
 	encodeHeader(Iproto::INSERT);
-	tnt::mpp::encode(m_Buf, tnt::mpp::as_map(std::forward_as_tuple(
+	mpp::encode(m_Buf, mpp::as_map(std::forward_as_tuple(
 		MPP_AS_CONST(Iproto::SPACE_ID), space_id,
 		MPP_AS_CONST(Iproto::TUPLE), tuple)));
 	uint32_t request_size = (m_Buf.end() - request_start) - PREHEADER_SIZE;
@@ -152,7 +152,7 @@ RequestEncoder<BUFFER>::encodeReplace(const T &tuple, uint32_t space_id)
 	m_Buf.write('\xce');
 	m_Buf.write(uint32_t{0});
 	encodeHeader(Iproto::REPLACE);
-	tnt::mpp::encode(m_Buf, tnt::mpp::as_map(std::forward_as_tuple(
+	mpp::encode(m_Buf, mpp::as_map(std::forward_as_tuple(
 		MPP_AS_CONST(Iproto::SPACE_ID), space_id,
 		MPP_AS_CONST(Iproto::TUPLE), tuple)));
 	uint32_t request_size = (m_Buf.end() - request_start) - PREHEADER_SIZE;
@@ -171,7 +171,7 @@ RequestEncoder<BUFFER>::encodeDelete(const T &key, uint32_t space_id,
 	m_Buf.write('\xce');
 	m_Buf.write(uint32_t{0});
 	encodeHeader(Iproto::DELETE);
-	tnt::mpp::encode(m_Buf, tnt::mpp::as_map(std::forward_as_tuple(
+	mpp::encode(m_Buf, mpp::as_map(std::forward_as_tuple(
 		MPP_AS_CONST(Iproto::SPACE_ID), space_id,
 		MPP_AS_CONST(Iproto::INDEX_ID), index_id,
 		MPP_AS_CONST(Iproto::KEY), key)));
@@ -191,7 +191,7 @@ RequestEncoder<BUFFER>::encodeUpdate(const K &key, const T &tuple,
 	m_Buf.write('\xce');
 	m_Buf.write(uint32_t{0});
 	encodeHeader(Iproto::UPDATE);
-	tnt::mpp::encode(m_Buf, tnt::mpp::as_map(std::forward_as_tuple(
+	mpp::encode(m_Buf, mpp::as_map(std::forward_as_tuple(
 		MPP_AS_CONST(Iproto::SPACE_ID), space_id,
 		MPP_AS_CONST(Iproto::INDEX_ID), index_id,
 		MPP_AS_CONST(Iproto::KEY), key,
@@ -212,7 +212,7 @@ RequestEncoder<BUFFER>::encodeUpsert(const T &tuple, const O &ops,
 	m_Buf.write('\xce');
 	m_Buf.write(uint32_t{0});
 	encodeHeader(Iproto::UPSERT);
-	tnt::mpp::encode(m_Buf, tnt::mpp::as_map(std::forward_as_tuple(
+	mpp::encode(m_Buf, mpp::as_map(std::forward_as_tuple(
 		MPP_AS_CONST(Iproto::SPACE_ID), space_id,
 		MPP_AS_CONST(Iproto::INDEX_BASE), index_base,
 		MPP_AS_CONST(Iproto::OPS), ops,
@@ -235,7 +235,7 @@ RequestEncoder<BUFFER>::encodeSelect(const T &key,
 	m_Buf.write('\xce');
 	m_Buf.write(uint32_t{0});
 	encodeHeader(Iproto::SELECT);
-	tnt::mpp::encode(m_Buf, tnt::mpp::as_map(std::forward_as_tuple(
+	mpp::encode(m_Buf, mpp::as_map(std::forward_as_tuple(
 		MPP_AS_CONST(Iproto::SPACE_ID), space_id,
 		MPP_AS_CONST(Iproto::INDEX_ID), index_id,
 		MPP_AS_CONST(Iproto::LIMIT), limit,
@@ -257,7 +257,7 @@ RequestEncoder<BUFFER>::encodeCall(const std::string &func, const T &args)
 	m_Buf.write('\xce');
 	m_Buf.write(uint32_t{0});
 	encodeHeader(Iproto::CALL);
-	tnt::mpp::encode(m_Buf, tnt::mpp::as_map(std::forward_as_tuple(
+	mpp::encode(m_Buf, mpp::as_map(std::forward_as_tuple(
 		MPP_AS_CONST(Iproto::FUNCTION_NAME), func,
 		MPP_AS_CONST(Iproto::TUPLE), mpp::as_arr(args))));
 	uint32_t request_size = (m_Buf.end() - request_start) - PREHEADER_SIZE;
@@ -277,9 +277,9 @@ RequestEncoder<BUFFER>::encodeAuth(std::string_view user,
 	iterator_t<BUFFER> request_start = m_Buf.end();
 	m_Buf.write('\xce');
 	m_Buf.write(uint32_t{0});
-	tnt::mpp::encode(m_Buf, tnt::mpp::as_map(std::forward_as_tuple(
+	mpp::encode(m_Buf, mpp::as_map(std::forward_as_tuple(
 		MPP_AS_CONST(Iproto::REQUEST_TYPE), MPP_AS_CONST(Iproto::AUTH))));
-	tnt::mpp::encode(m_Buf, tnt::mpp::as_map(std::forward_as_tuple(
+	mpp::encode(m_Buf, mpp::as_map(std::forward_as_tuple(
 		MPP_AS_CONST(Iproto::USER_NAME), user,
 		MPP_AS_CONST(Iproto::TUPLE),
 		std::make_tuple("chap-sha1", scram_str))));
@@ -299,9 +299,9 @@ RequestEncoder<BUFFER>::reencodeAuth(std::string_view user,
 	std::string_view scram_str{(const char*)scram.data(), scram.size()};
 	iterator_t<BUFFER> req = m_Buf.begin();
 	req += PREHEADER_SIZE;
-	tnt::mpp::encode(req, tnt::mpp::as_map(std::forward_as_tuple(
+	mpp::encode(req, mpp::as_map(std::forward_as_tuple(
 		MPP_AS_CONST(Iproto::REQUEST_TYPE), MPP_AS_CONST(Iproto::AUTH))));
-	tnt::mpp::encode(req, tnt::mpp::as_map(std::forward_as_tuple(
+	mpp::encode(req, mpp::as_map(std::forward_as_tuple(
 		MPP_AS_CONST(Iproto::USER_NAME), user,
 		MPP_AS_CONST(Iproto::TUPLE),
 		std::make_tuple("chap-sha1", scram_str))));

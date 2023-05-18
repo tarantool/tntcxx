@@ -373,35 +373,35 @@ test_basic()
 	TEST_INIT(0);
 	using Buf_t = tnt::Buffer<16 * 1024>;
 	Buf_t buf;
-	tnt::mpp::encode(buf, 0);
-	tnt::mpp::encode(buf, 10);
-	tnt::mpp::encode(buf, uint8_t(200), short(2000), 2000000, 4000000000u);
-	tnt::mpp::encode(buf, FOR_BILLIONS, 20000000000ull, -1);
-	tnt::mpp::encode(buf, MUNUS_ONE_HUNDRED, -100, -1000);
-	tnt::mpp::encode(buf, "aaa");
+	mpp::encode(buf, 0);
+	mpp::encode(buf, 10);
+	mpp::encode(buf, uint8_t(200), short(2000), 2000000, 4000000000u);
+	mpp::encode(buf, FOR_BILLIONS, 20000000000ull, -1);
+	mpp::encode(buf, MUNUS_ONE_HUNDRED, -100, -1000);
+	mpp::encode(buf, "aaa");
 	const char* bbb = "bbb";
-	tnt::mpp::encode(buf, bbb);
+	mpp::encode(buf, bbb);
 	// Add array.
-	tnt::mpp::encode(buf, std::make_tuple());
-	tnt::mpp::encode(buf, std::make_tuple(1., 2.f, "test", nullptr, false));
+	mpp::encode(buf, std::make_tuple());
+	mpp::encode(buf, std::make_tuple(1., 2.f, "test", nullptr, false));
 	// Add map.
-	tnt::mpp::encode(buf, mpp::as_map(
+	mpp::encode(buf, mpp::as_map(
 		std::forward_as_tuple(10, true, 11, "val",
 				      12, std::make_tuple(1, 2, 3))));
 	// std::array
 	std::array<int, 3> add_arr = {1, 2, 3};
-	tnt::mpp::encode(buf, add_arr);
+	mpp::encode(buf, add_arr);
 	// std::vector
 	std::vector<unsigned int> add_vec = {4, 5, 6};
-	tnt::mpp::encode(buf, add_vec);
+	mpp::encode(buf, add_vec);
 	// std::set
 	std::set<uint8_t> add_set = {7, 8};
-	tnt::mpp::encode(buf, add_set);
+	mpp::encode(buf, add_set);
 	// std::map
 	std::map<int, int> add_map;
 	add_map[1] = 2;
 	add_map[3] = 4;
-	tnt::mpp::encode(buf, add_map);
+	mpp::encode(buf, add_map);
 
 	for (auto itr = buf.begin(); itr != buf.end(); ++itr) {
 		char c = itr.get<uint8_t>();

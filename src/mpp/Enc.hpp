@@ -54,13 +54,13 @@
 //TODO : add std::optional
 //TODO : universal buffer
 
-namespace tnt {
 namespace mpp {
-
-using namespace ::mpp;
 
 using std::integral_constant;
 using tnt::CStr;
+#ifndef TNT_DISABLE_STR_LITERAL
+namespace literal = tnt::literal;
+#endif
 
 namespace encode_details {
 
@@ -93,7 +93,7 @@ constexpr compact::Family detectFamily()
 		return compact::MP_STR;
 	} else if constexpr (tnt::is_char_ptr_v<V>) {
 		return compact::MP_STR;
-	} else if constexpr (is_contiguous_char_v<V>) {
+	} else if constexpr (tnt::is_contiguous_char_v<V>) {
 		return compact::MP_STR;
 	} else if constexpr (tnt::is_const_pairs_iterable_v<V>) {
 		return compact::MP_MAP;
@@ -157,14 +157,14 @@ auto getValue([[maybe_unused]] const T& t, [[maybe_unused]] const U& u)
 	if constexpr (FAMILY == compact::MP_STR) {
 		static_assert(tnt::is_char_ptr_v<U> ||
 			      tnt::is_string_constant_v<U> ||
-			      is_contiguous_char_v<U>);
+			      tnt::is_contiguous_char_v<U>);
 		if constexpr (tnt::is_char_ptr_v<U> ||
 			      tnt::is_bounded_array_v<U>) {
 			/* Note special rule for MP_STR and "" literals. */
 			return static_cast<uint32_t>(strlen(u));
 		} else {
 			static_assert(tnt::is_string_constant_v<U> ||
-				      is_contiguous_char_v<U>);
+				      tnt::is_contiguous_char_v<U>);
 			return uniLength32(u);
 		}
 	} else if constexpr (FAMILY == compact::MP_BIN ||
@@ -255,7 +255,7 @@ auto getData([[maybe_unused]] const T& t, [[maybe_unused]] const U& u,
 		} else if constexpr(tnt::is_string_constant_v<U>) {
 			return u;
 		} else {
-			static_assert(is_contiguous_char_v<U>);
+			static_assert(tnt::is_contiguous_char_v<U>);
 			using check0_t = decltype(std::data(u)[0]);
 			using check1_t = std::remove_reference_t<check0_t>;
 			using check2_t = std::remove_cv_t<check1_t>;
@@ -726,4 +726,3 @@ encode(CONT &cont, const T&... t)
 }
 
 } // namespace mpp
-} // namespace tnt
