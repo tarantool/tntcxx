@@ -797,6 +797,11 @@ struct BrandNewArray {
 	int *data() noexcept;
 	const int *data() const noexcept;
 	int size() const noexcept;
+	using value_type = int;
+	void push_back(int);
+	int &emplace_back();
+	int &emplace_back(const int &);
+	void resize(int);
 	static constexpr size_t static_capacity = 10;
 };
 
@@ -806,6 +811,8 @@ struct BrandNewSet {
 	const int *begin() const noexcept;
 	const int *end() const noexcept;
 	int size() const noexcept;
+	using value_type = int;
+	void insert(int);
 };
 
 struct BrandNewMap {
@@ -814,6 +821,9 @@ struct BrandNewMap {
 	const std::pair<int, int> *begin() const noexcept;
 	const std::pair<int, int> *end() const noexcept;
 	int size() const noexcept;
+	using value_type = std::pair<int, int>;
+	std::pair<int, int>& emplace();
+	std::pair<int, int>& emplace(std::pair<int, int>&&);
 };
 
 template <class CONT, bool SIZABLE, bool CONTIGUOUS, bool CONTIGUOUS_CHAR, bool ITERABLE, bool PAIR_ITERABLE>
@@ -863,6 +873,40 @@ test_container_traits()
 	static_assert(!tnt::is_limited_v<std::set<int>>);
 }
 
+template <class CONT, bool RESIZABLE, bool BACK_PUSHABLE, bool BACK_EMPLACABLE,
+	bool INSERTABLE, bool EMPLACABLE>
+void check_rw_cont()
+{
+	static_assert(tnt::is_resizable_v<CONT> == RESIZABLE);
+	static_assert(tnt::is_back_pushable_v<CONT> == BACK_PUSHABLE);
+	static_assert(tnt::is_back_emplacable_v<CONT> == BACK_EMPLACABLE);
+	static_assert(tnt::is_insertable_v<CONT> == INSERTABLE);
+	static_assert(tnt::is_emplacable_v<CONT> == EMPLACABLE);
+}
+
+void
+test_rw_container_traits()
+{
+	check_rw_cont<std::vector<int>, true, true, true, false, false>();
+	check_rw_cont<std::vector<int>&, true, true, true, false, false>();
+	check_rw_cont<const std::vector<int>, true, true, true, false, false>();
+	check_rw_cont<const std::vector<int>&, true, true, true, false, false>();
+
+	check_rw_cont<std::set<int>, false, false, false, true, true>();
+	check_rw_cont<std::set<int>&, false, false, false, true, true>();
+	check_rw_cont<const std::set<int>, false, false, false, true, true>();
+	check_rw_cont<const std::set<int>&, false, false, false, true, true>();
+
+	check_rw_cont<std::map<int, int>, false, false, false, true, true>();
+	check_rw_cont<std::map<int, int>&, false, false, false, true, true>();
+	check_rw_cont<const std::map<int, int>, false, false, false, true, true>();
+	check_rw_cont<const std::map<int, int>&, false, false, false, true, true>();
+
+	check_rw_cont<BrandNewArray, true, true, true, false, false>();
+	check_rw_cont<BrandNewSet, false, false, false, true, false>();
+	check_rw_cont<BrandNewMap, false, false, false, false, true>();
+}
+
 MAKE_IS_METHOD_CALLABLE_CHECKER(set);
 
 struct A1 { void set(int, float); };
@@ -905,5 +949,6 @@ int main()
 	test_optional_traits();
 	test_member_traits();
 	test_container_traits();
+	test_rw_container_traits();
 	test_is_method_callable();
 }

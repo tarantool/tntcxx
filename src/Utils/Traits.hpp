@@ -69,6 +69,10 @@
  * is_contiguous_char_v
  * is_const_iterable_v
  * is_const_pairs_iterable_v
+ * is_back_pushable_v
+ * is_back_emplacable_v
+ * is_insertable
+ * is_emplacable
  * is_limited_v (has static static_capacity member)
  * MAKE_IS_METHOD_CALLABLE_CHECKER (makes is_##ARG##_callable_v)
  */
@@ -628,6 +632,105 @@ struct is_const_pairs_iterable_h<T,
 template <class T>
 constexpr bool is_const_pairs_iterable_v =
 	details::is_const_pairs_iterable_h<std::remove_cv_t<T>>::value;
+
+/**
+ * Useful helper from C++20. TODO: remove when C++20 is used.
+ */
+namespace details {
+	template <class T>
+	using remove_cvref_t = std::remove_cv_t<std::remove_reference_t<T>>;
+}
+
+/**
+ * Checker that a type has resize method.
+ */
+namespace details {
+template <class, class _ = void>
+struct is_resizable_h : std::false_type {};
+template <class T>
+struct is_resizable_h<T,
+	std::void_t<
+		decltype(std::declval<T>().resize(0))
+	>> : std::true_type { };
+} //namespace details {
+
+template <class T>
+constexpr bool is_resizable_v =
+	details::is_resizable_h<details::remove_cvref_t<T>>::value;
+
+/**
+ * Checker that a type has push_back method.
+ */
+namespace details {
+template <class, class _ = void>
+struct is_back_pushable_h : std::false_type {};
+template <class T>
+struct is_back_pushable_h<T,
+	std::void_t<
+		decltype(std::declval<T>().push_back(
+			std::declval<typename T::value_type>()))
+	>> : std::true_type { };
+} //namespace details {
+
+template <class T>
+constexpr bool is_back_pushable_v =
+	details::is_back_pushable_h<details::remove_cvref_t<T>>::value;
+
+/**
+ * Checker that a type has emplace_back method.
+ */
+namespace details {
+template <class, class _ = void>
+struct is_back_emplacable_h : std::false_type {};
+template <class T>
+struct is_back_emplacable_h<T,
+	std::void_t<
+		decltype(std::declval<T>().emplace_back()),
+		decltype(std::declval<T>().emplace_back(
+			std::declval<typename T::value_type>()))
+	>> : std::true_type { };
+} //namespace details {
+
+template <class T>
+constexpr bool is_back_emplacable_v =
+	details::is_back_emplacable_h<details::remove_cvref_t<T>>::value;
+
+/**
+ * Checker that a type has insert method.
+ */
+namespace details {
+template <class, class _ = void>
+struct is_insertable_h : std::false_type {};
+template <class T>
+struct is_insertable_h<T,
+	std::void_t<
+		decltype(std::declval<T>().insert(
+			std::declval<typename T::value_type>()))
+	>> : std::true_type { };
+} //namespace details {
+
+template <class T>
+constexpr bool is_insertable_v =
+	details::is_insertable_h<details::remove_cvref_t<T>>::value;
+
+/**
+ * Checker that a type has insert method.
+ */
+namespace details {
+template <class, class _ = void>
+struct is_emplacable_h : std::false_type {};
+template <class T>
+struct is_emplacable_h<T,
+	std::void_t<
+		decltype(std::declval<T>().emplace()),
+		decltype(std::declval<T>().emplace(
+			std::declval<typename T::value_type>()))
+	>> : std::true_type { };
+} //namespace details {
+
+template <class T>
+constexpr bool is_emplacable_v =
+	details::is_emplacable_h<details::remove_cvref_t<T>>::value;
 
 /**
  * Check whether the type has static static_capacity member.
