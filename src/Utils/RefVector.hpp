@@ -66,13 +66,12 @@ private:
 		      !std::is_same_v<std::remove_cv_t<DRR_STORED_SIZE>, bool>);
 	using T = tuple_element_t<0, DRR_STORED_DATA>;
 	using S = DRR_STORED_SIZE;
-	static constexpr size_t N = tuple_size_v<DRR_STORED_DATA>;
+	static constexpr S N = tuple_size_v<DRR_STORED_DATA>;
 public:
 	RefVector() = default;
 	RefVector(STORED_DATA data, STORED_SIZE size) : m_data(data), m_size(size) {}
 
 	// Quite usual container API.
-	static constexpr size_t static_capacity = N;
 	using value_type = T;
 	using size_type = S;
 	using difference_type = ptrdiff_t;
@@ -82,6 +81,7 @@ public:
 	using const_pointer = const T*;
 	using iterator = T*;
 	using const_iterator = const T*;
+	static constexpr size_type static_capacity = N;
 
 	void clear() const noexcept;
 	pointer data() const noexcept;
@@ -92,6 +92,11 @@ public:
 	void push_back(T&& value) const;
 	template< class... ARGS>
 	reference emplace_back(ARGS&&... args) const;
+	void resize(size_type s);
+	reference front();
+	const_reference front() const;
+	reference back();
+	const_reference back() const;
 	iterator begin() const;
 	iterator end() const;
 	const_iterator cbegin() const;
@@ -230,6 +235,47 @@ RefVector<DATA, SIZE>::emplace_back(ARGS&&... args) const
 		throw std::bad_alloc{};
 	new (&m_data[m_size]) T(std::forward<ARGS>(args)...);
 	return m_data[m_size++];
+}
+
+template <class DATA, class SIZE>
+void
+RefVector<DATA, SIZE>::resize(typename RefVector<DATA, SIZE>::size_type s)
+{
+	static_assert(!tnt::is_member_ptr_v<DATA>, "Must be substituted!");
+	static_assert(!tnt::is_member_ptr_v<SIZE>, "Must be substituted!");
+	static_assert(!std::is_const_v<T>, "Unable to modify read-only data!");
+	static_assert(!std::is_const_v<S>, "Unable to modify read-only data!");
+	if (s > N)
+		throw std::bad_alloc{};
+	m_size = s;
+}
+
+template <class DATA, class SIZE>
+typename RefVector<DATA, SIZE>::reference
+RefVector<DATA, SIZE>::front()
+{
+	return m_data[0];
+}
+
+template <class DATA, class SIZE>
+typename RefVector<DATA, SIZE>::const_reference
+RefVector<DATA, SIZE>::front() const
+{
+	return m_data[0];
+}
+
+template <class DATA, class SIZE>
+typename RefVector<DATA, SIZE>::reference
+RefVector<DATA, SIZE>::back()
+{
+	return m_data[m_size - 1];
+}
+
+template <class DATA, class SIZE>
+typename RefVector<DATA, SIZE>::const_reference
+RefVector<DATA, SIZE>::back() const
+{
+	return m_data[m_size - 1];
 }
 
 template <class DATA, class SIZE>

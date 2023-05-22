@@ -93,6 +93,40 @@ test_simple()
 
 	fail_unless(arr1.data() == &data1[0]);
 	fail_unless(arr2.data() == &data2[0]);
+
+	int data3[5];
+	int size3 = 0;
+	auto arr3 = tnt::make_ref_vector(data3, size3);
+	const auto &carr3 = arr3;
+	for (int i = 0; i < 5; i++) {
+		arr3.push_back(i);
+		fail_unless(&arr3.front() == &data3[0]);
+		fail_unless(&arr3.back() == &data3[i]);
+		fail_unless(&carr3.front() == &data3[0]);
+		fail_unless(&carr3.back() == &data3[i]);
+	}
+	arr3.clear();
+	for (int i = 0; i < 5; i++) {
+		arr3.push_back(std::move(i));
+		fail_unless(&arr3.front() == &data3[0]);
+		fail_unless(&arr3.back() == &data3[i]);
+		fail_unless(&carr3.front() == &data3[0]);
+		fail_unless(&carr3.back() == &data3[i]);
+	}
+	arr3.resize(3);
+	fail_unless(arr3.size() == 3);
+	fail_unless(arr3.back() == 2);
+	arr3.resize(0);
+	fail_unless(size3 == 0);
+	for (int i = 0; i < 5; i++) {
+		auto &ref = arr3.emplace_back(i);
+		fail_unless(&ref == &data3[i]);
+		fail_unless(&arr3.front() == &data3[0]);
+		fail_unless(&arr3.back() == &data3[i]);
+		fail_unless(&carr3.front() == &data3[0]);
+		fail_unless(&carr3.back() == &data3[i]);
+	}
+	arr3.clear();
 }
 
 void
