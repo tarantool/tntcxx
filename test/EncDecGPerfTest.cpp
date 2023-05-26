@@ -126,6 +126,13 @@ struct SimpleReader {
 		pos += sizeof(t);
 		return t;
 	}
+	template <class T>
+	T get()
+	{
+		T t;
+		memcpy(&t, pos, sizeof(t));
+		return t;
+	}
 };
 
 template <codec_variant CODEC>

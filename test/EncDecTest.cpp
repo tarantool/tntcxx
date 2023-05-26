@@ -372,6 +372,24 @@ enum E2 {
 	MUNUS_ONE_HUNDRED = -100,
 };
 
+template <class T>
+struct OverflowGuard {
+	T data = {};
+	uint64_t guard = 0xdeadbeef;
+	bool is_safe() {
+		static_assert(sizeof(T) + sizeof(guard) == sizeof(*this));
+		return guard == 0xdeadbeef;
+	}
+};
+
+template <class T, class U>
+bool are_equal(const T& t, const U& u)
+{
+	return std::size(t) == std::size(u) &&
+	       std::equal(std::begin(t), std::end(t), std::begin(u));
+}
+
+
 void
 test_basic()
 {
@@ -397,6 +415,7 @@ test_basic()
 	mpp::encode(buf, "abc");
 	const char* bbb = "defg";
 	mpp::encode(buf, bbb);
+	mpp::encode(buf, TNT_CON_STR("1234567890"));
 	// Array.
 	mpp::encode(buf, std::make_tuple());
 	mpp::encode(buf, std::make_tuple(1., 2.f, "test", nullptr, false));
@@ -434,14 +453,14 @@ test_basic()
 	// Numbers.
 	uint64_t u0 = 999;
 	int i10 = 0;
-	mpp::decode(run, u0, i10);
+	fail_unless(mpp::decode(run, u0, i10));
 	fail_if(u0 != 0);
 	fail_if(i10 != 10);
 	uint8_t u200 = 0;
 	short i2k = 0;
 	double d2M = 0;
 	uint64_t u4G = 0;
-	mpp::decode(run, u200, i2k, d2M, u4G);
+	fail_unless(mpp::decode(run, u200, i2k, d2M, u4G));
 	fail_if(u200 != 200);
 	fail_if(i2k != 2000);
 	fail_if(d2M != 2000000);
@@ -451,7 +470,7 @@ test_basic()
 	int8_t i_minus_one = 0;
 	E2 e2 = ZERO2;
 	int im100 = 0, im1000 = 0;
-	mpp::decode(run, e1, i2M, i_minus_one, e2, im100, im1000);
+	fail_unless(mpp::decode(run, e1, i2M, i_minus_one, e2, im100, im1000));
 	fail_if(e1 != FOR_BILLIONS);
 	fail_if(i2M != 20000000000ull);
 	fail_if(i_minus_one != -1);
@@ -459,21 +478,21 @@ test_basic()
 	fail_if(im100 != -100);
 	fail_if(im1000 != -1000);
 	double d1 = 0, d2 = 0;
-	mpp::decode(run, d1, d2);
+	fail_unless(mpp::decode(run, d1, d2));
 	fail_if(d1 != 1.);
 	fail_if(d2 != 2.);
 
 	// Integral constants.
 	int i11 = 0, i13 = 0, i100500 = 0;
 	unsigned u12 = 0, u100501 = 0;
-	mpp::decode(run, i11, u12, i13, i100500, u100501);
+	fail_unless(mpp::decode(run, i11, u12, i13, i100500, u100501));
 	fail_if(i11 != 11);
 	fail_if(u12 != 12);
 	fail_if(i13 != -13);
 	fail_if(i100500 != 100500);
 	fail_if(u100501 != 100501);
 	bool bf = true, bt = false;
-	mpp::decode(run, bf, bt);
+	fail_unless(mpp::decode(run, bf, bt));
 	fail_if(bf != false);
 	fail_if(bt != true);
 
@@ -482,20 +501,198 @@ test_basic()
 	char b_data[10];
 	size_t b_size = 0;
 	auto b = tnt::make_ref_vector(b_data, b_size);
-	mpp::decode(run, a, b);
+	fail_unless(mpp::decode(run, a, b));
 	fail_if(a != "abc");
 	fail_if(b.size() != 4);
 	fail_if(memcmp(b_data, "defg", 4) != 0);
 
+	auto run_save = run;
+	{
+		std::string c;
+		fail_unless(mpp::decode(run, c));
+		fail_if(c != "1234567890");
+	}
+	auto run_end = run;
+
+	run = run_save;
+	{
+		char c[16] = {};
+		fail_unless(mpp::decode(run, c));
+		fail_if(std::string_view(c) != "1234567890");
+		fail_if(run != run_end);
+	}
+
+	run = run_save;
+	{
+		std::array<char, 16> c = {};
+		fail_unless(mpp::decode(run, c));
+		fail_if(std::string_view(c.data()) != "1234567890");
+		fail_if(run != run_end);
+	}
+
+	run = run_save;
+	{
+		OverflowGuard<char[8]> c = {};
+		fail_unless(mpp::decode(run, c.data));
+		fail_unless(c.is_safe());
+		std::string_view res{c.data, sizeof(c.data)};
+		fail_if(res != "12345678");
+		fail_if(run != run_end);
+	}
+
+	run = run_save;
+	{
+		OverflowGuard<std::array<char, 8>> c = {};
+		fail_unless(mpp::decode(run, c.data));
+		fail_unless(c.is_safe());
+		std::string_view res{c.data.data(), c.data.size()};
+		fail_if(res != "12345678");
+		fail_if(run != run_end);
+	}
+
 	// Array.
 	std::tuple<> arr1;
-	mpp::decode(run, arr1);
+	fail_unless(mpp::decode(run, arr1));
+
+	run_save = run;
 	std::tuple<double, double, std::string, std::nullptr_t, bool> arr2;
-	mpp::decode(run, arr2);
+	fail_unless(mpp::decode(run, arr2));
 	fail_if(std::get<0>(arr2) != 1.);
 	fail_if(std::get<1>(arr2) != 2.);
 	fail_if(std::get<2>(arr2) != "test");
 	fail_if(std::get<4>(arr2) != false);
+	run_end = run;
+
+	run = run_save;
+	double a0 = 0;
+	double a1 = 0;
+	std::string a2 = "";
+	nullptr_t a3;
+	bool a4 = true;
+	fail_unless(mpp::decode(run,
+		mpp::as_arr(std::forward_as_tuple(a0, mpp::as_flt(a1),
+						  a2, a3, a4))));
+	fail_if(a0 != 1.);
+	fail_if(a1 != 2.);
+	fail_if(a2 != "test");
+	fail_if(a4 != false);
+	fail_if(run != run_end);
+
+	run = run_save;
+	a0 = 0;
+	fail_unless(mpp::decode(run, mpp::as_arr(std::tie(a0))));
+	fail_if(a0 != 1.);
+	fail_if(run != run_end);
+
+	run = run_save;
+	fail_unless(mpp::decode(run, mpp::as_arr(std::tie())));
+	fail_if(run != run_end);
+
+	// Map.
+	run_save = run;
+	std::vector<int> map_arr;
+	std::vector<int> map_arr_expect{1, 2, 3};
+	std::tuple<int, std::vector<int>&, int8_t, bool, size_t, std::string>
+	        map1(12, map_arr, 10, false, 11, "");
+	fail_unless(mpp::decode(run, mpp::as_map(map1)));
+	fail_if(std::get<0>(map1) != 12);
+	fail_if(map_arr != map_arr_expect);
+	fail_if(std::get<2>(map1) != 10);
+	fail_if(std::get<3>(map1) != true);
+	fail_if(std::get<4>(map1) != 11);
+	fail_if(std::get<5>(map1) != "val");
+
+	run = run_save;
+	map_arr.clear();
+	bool map_bool = false;
+	auto ic10 = std::integral_constant<size_t, 10>{};
+	fail_unless(mpp::decode(run,
+		mpp::as_map(std::forward_as_tuple(mpp::as_int(ic10),
+						  mpp::as_bool(map_bool),
+						  mpp::as_int(12),
+						  mpp::as_arr(map_arr)))));
+	fail_if(map_bool != true);
+	fail_if(map_arr != map_arr_expect);
+
+	run = run_save;
+	map_bool = false;
+	map_arr.clear();
+	fail_unless(mpp::decode(run, std::forward_as_tuple(
+		std::make_pair(mpp::as_int(ic10), mpp::as_bool(map_bool)),
+		std::make_pair(mpp::as_int(12), mpp::as_arr(map_arr)))));
+	fail_if(map_bool != true);
+	fail_if(map_arr != map_arr_expect);
+
+	// std::array etc
+	run_save = run;
+	{
+		std::array<int, 4> read_arr = {};
+		std::array<int, 4> expected = {1, 2, 3, 0};
+		fail_unless(mpp::decode(run, read_arr));
+		fail_unless(are_equal(read_arr, expected));
+	}
+
+	run = run_save;
+	{
+		int read_arr[4] = {};
+		int expected[4] = {1, 2, 3, 0};
+		fail_unless(mpp::decode(run, read_arr));
+		fail_unless(are_equal(read_arr, expected));
+	}
+
+	run = run_save;
+	{
+		int read_arr[4] = {};
+		int expected[4] = {1, 2, 3, 0};
+		size_t size = 0;
+		auto vec = tnt::make_ref_vector(read_arr, size);
+		fail_unless(mpp::decode(run, vec));
+		fail_unless(are_equal(read_arr, expected));
+	}
+
+	run = run_save;
+	{
+		OverflowGuard<std::array<int, 2>> read_arr;
+		std::array<int, 2> expected = {1, 2};
+		fail_unless(mpp::decode(run, read_arr.data));
+		fail_unless(read_arr.is_safe());
+		fail_unless(are_equal(read_arr.data, expected));
+	}
+
+	run = run_save;
+	{
+		OverflowGuard<int[2]> read_arr;
+		int expected[2] = {1, 2};
+		fail_unless(mpp::decode(run, read_arr.data));
+		fail_unless(read_arr.is_safe());
+		fail_unless(are_equal(read_arr.data, expected));
+	}
+
+	run = run_save;
+	{
+		OverflowGuard<int[2]> read_arr;
+		int expected[2] = {1, 2};
+		size_t size = 0;
+		auto vec = tnt::make_ref_vector(read_arr.data, size);
+		fail_unless(mpp::decode(run, vec));
+		fail_unless(read_arr.is_safe());
+		fail_unless(are_equal(read_arr.data, expected));
+	}
+
+	// std::vector
+	std::vector<unsigned int> read_vec;
+	fail_unless(mpp::decode(run, read_vec));
+	fail_unless(are_equal(read_vec, add_vec));
+
+	// std::set
+	std::set<uint8_t> read_set;
+	fail_unless(mpp::decode(run, read_set));
+	fail_unless(are_equal(read_set, add_set));
+
+	// std::map
+	std::map<int, int> read_map;
+	fail_unless(mpp::decode(run, read_map));
+	fail_unless(are_equal(read_map, add_map));
 
 	mpp::Dec<Buf_t> dec(buf);
 	{
@@ -581,6 +778,17 @@ test_basic()
 		fail_if(res != mpp::READ_SUCCESS);
 		fail_if(size != 4);
 		fail_if(strcmp(str, "defg") != 0);
+	}
+	{
+		constexpr size_t S = 16;
+		char str[S];
+		size_t size;
+		dec.SetReader(false, mpp::SimpleStrReader<Buf_t, S - 1>{str, size});
+		mpp::ReadResult_t res = dec.Read();
+		str[size] = 0;
+		fail_if(res != mpp::READ_SUCCESS);
+		fail_if(size != 10);
+		fail_if(strcmp(str, "1234567890") != 0);
 	}
 	{
 		TestArrStruct arr = {};
