@@ -76,21 +76,14 @@ TNT_DECLARE_TAG(wrapped_raw);
 #undef TNT_DECLARE_TAG
 
 template <class T>
-constexpr const auto& unwrap(const T& t)
+constexpr auto&& unwrap(T&& t)
 {
-	if constexpr (is_wrapped_v<T>)
-		return t.object;
+	if constexpr (!is_wrapped_v<T>)
+		return std::forward<T>(t);
+	else if constexpr (std::is_rvalue_reference_v<T&&>)
+		return std::move(t.object);
 	else
-		return t;
-}
-
-template <class T>
-constexpr auto& unwrap(T& t)
-{
-	if constexpr (is_wrapped_v<T>)
 		return t.object;
-	else
-		return t;
 }
 
 template <class T>
