@@ -221,15 +221,15 @@ void collectType(FullInfo& infos)
 			set_info += mpp::FamilyHumanName[FAMILY];
 			if (std::is_integral_v<typename Rule::type>) {
 				set_info += " ";
-				if (ranges[i].first + 1 == ranges[i].second) {
+				if (ranges[i].first == ranges[i].second) {
 					set_info += std::to_string(ranges[i].first);
 				} else {
 					set_info += std::to_string(ranges[i].first);
 					set_info += "..";
-					set_info += std::to_string(ranges[i].second - 1);
+					set_info += std::to_string(ranges[i].second);
 				}
 			}
-			for (auto j = ranges[i].first; j < ranges[i].second; j++) {
+			for (auto j = ranges[i].first; j <= ranges[i].second; j++) {
 				auto& info = infos[(uint8_t)(tag++)];
 				fail_unless(info.empty());
 				info = set_info;
@@ -297,17 +297,17 @@ void collectByTags(FullInfo& info)
 		if (std::is_integral_v<typename rule_t::type>) {
 			auto tag_offset = TAG - rule_t::simplex_tag;
 			for (size_t i = 0; i < std::size(ranges); i++) {
-				auto w = ranges[i].second - ranges[i].first;
+				auto w = ranges[i].second - ranges[i].first + 1;
 				if (tag_offset >= w) {
 					tag_offset -= w;
 					continue;
 				}
 				set_info += " ";
 				set_info += std::to_string(ranges[i].first);
-				if (ranges[i].first + 1 == ranges[i].second)
+				if (ranges[i].first == ranges[i].second)
 					break;
 				set_info += "..";
-				set_info += std::to_string(ranges[i].second - 1);
+				set_info += std::to_string(ranges[i].second);
 				break;
 			}
 		}
