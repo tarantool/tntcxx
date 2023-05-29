@@ -69,7 +69,7 @@ struct KeyValueReader : mpp::DefaultErrorHandler {
 			++tmp;
 			--v.size;
 		}
-		dec.SetReader(true, mpp::SimpleReader<BUFFER, mpp::MP_UINT, uint64_t>{key_value.second});
+		dec.SetReader(true, mpp::SimpleReader<BUFFER, mpp::MP_INT, uint64_t>{key_value.second});
 	}
 	void WrongType(mpp::Family expected, mpp::Family got)
 	{
@@ -85,15 +85,17 @@ template <class BUFFER>
 struct TupleValueReader : mpp::DefaultErrorHandler {
 	using BufIter_t = typename BUFFER::iterator;
 	explicit TupleValueReader(mpp::Dec<BUFFER>& d, UserTuple& t) : dec(d), tuple(t) {}
-	static constexpr mpp::Family VALID_TYPES = mpp::MP_UINT | mpp::MP_STR |
-		mpp::MP_DBL | mpp::MP_NIL | mpp::MP_MAP;
+	static constexpr mpp::Family VALID_TYPES = mpp::MP_INT | mpp::MP_STR |
+		mpp::MP_FLT | mpp::MP_NIL | mpp::MP_MAP;
 	template <class T>
 	void Value(const BufIter_t&, mpp::compact::Family, T v)
 	{
-		using A = UserTuple;
-		static constexpr std::tuple map(&A::field1, &A::field3);
-		auto ptr = std::get<std::decay_t<T> A::*>(map);
-		tuple.*ptr = v;
+		if constexpr (std::is_integral_v<T>) {
+			tuple.field1 = v;
+		} else {
+			static_assert(std::is_floating_point_v<T>);
+			tuple.field3 = v;
+		}
 	}
 	void Value(BufIter_t& itr, mpp::compact::Family, mpp::StrValue v)
 	{

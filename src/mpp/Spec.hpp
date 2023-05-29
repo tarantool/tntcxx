@@ -51,10 +51,8 @@ constexpr auto as_family(T&& t);
 template <class T> constexpr auto as_nil (T&& t) { return as_family<compact::MP_NIL >(std::forward<T>(t)); }
 template <class T> constexpr auto as_ignr(T&& t) { return as_family<compact::MP_IGNR>(std::forward<T>(t)); }
 template <class T> constexpr auto as_bool(T&& t) { return as_family<compact::MP_BOOL>(std::forward<T>(t)); }
-template <class T> constexpr auto as_uint(T&& t) { return as_family<compact::MP_UINT>(std::forward<T>(t)); }
 template <class T> constexpr auto as_int (T&& t) { return as_family<compact::MP_INT >(std::forward<T>(t)); }
 template <class T> constexpr auto as_flt (T&& t) { return as_family<compact::MP_FLT >(std::forward<T>(t)); }
-template <class T> constexpr auto as_dbl (T&& t) { return as_family<compact::MP_DBL >(std::forward<T>(t)); }
 template <class T> constexpr auto as_str (T&& t) { return as_family<compact::MP_STR >(std::forward<T>(t)); }
 template <class T> constexpr auto as_bin (T&& t) { return as_family<compact::MP_BIN >(std::forward<T>(t)); }
 template <class T> constexpr auto as_arr (T&& t) { return as_family<compact::MP_ARR >(std::forward<T>(t)); }

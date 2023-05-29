@@ -31,8 +31,9 @@
  */
 
 #include <cstdint>
-#include <tuple>
 #include <limits>
+#include <tuple>
+#include <type_traits>
 
 #include "Constants.hpp"
 
@@ -83,7 +84,7 @@
  * have Simplex and Complex encoding definition. Absence of one or another
  * part declares that the family cannon be encoded in the corresponding way.
  * Simplex part:
- * simplex_ranges - an array of ranges (including boundaries) of values that
+ * simplex_value_range - range (including boundaries) of values that
  *  can be encoded in simplex way. Note that the ranges can have negative
  *  boundaries.
  * simplex_tag - the tag by which the first value in the first range is
@@ -97,14 +98,28 @@
 
 namespace mpp {
 
-struct UintRule;
+template <class T>
+struct RuleRange {
+	T first;
+	T last;
+	size_t count;
+	constexpr RuleRange(T first_, T last_) : first(first_), last(last_),
+						 count(last - first + 1) {}
+};
 
-template <class TYPE, compact::Family FAMILY>
+template <compact::Family FAMILY, class ...TYPE>
 struct BaseRule {
-	// A type that can hold a value.
-	using type = TYPE;
+	// Widest types that can represent the value.
+	using types = std::tuple<TYPE...>;
 	// Msgpack family.
 	static constexpr compact::Family family = FAMILY;
+	// The rule stores bool values.
+	static constexpr bool is_bool = FAMILY == compact::MP_BOOL;
+	// The rule stores floating point values.
+	static constexpr bool is_floating_point = FAMILY == compact::MP_FLT;
+	// The rule actually doest not store value, only type matters.
+	static constexpr bool is_valueless = FAMILY == compact::MP_NIL ||
+					     FAMILY == compact::MP_IGNR;
 	// The encoded object has data section (of size equal to value).
 	static constexpr bool has_data = FAMILY == compact::MP_STR ||
 					 FAMILY == compact::MP_BIN ||
@@ -116,364 +131,302 @@ struct BaseRule {
 					     FAMILY == compact::MP_MAP;
 	// ... and the number of children is value * children_multiplier.
 	static constexpr uint32_t children_multiplier =
-		FAMILY == compact::MP_ARR ? 1 : FAMILY == compact::MP_MAP ? 2 : 0;
-	// The rule is supposed to encode negative integers...
-	static constexpr bool is_negative = FAMILY == compact::MP_INT;
-	// ... and for similar positive the positive_rule should be used.
-	using positive_rule = std::conditional_t<is_negative, UintRule, void>;
+		FAMILY == compact::MP_ARR ? 1 :
+		FAMILY == compact::MP_MAP ? 2 : 0;
+	// The rule has simplex form.
+	static constexpr bool has_simplex = FAMILY == compact::MP_NIL ||
+					    FAMILY == compact::MP_IGNR ||
+					    FAMILY == compact::MP_BOOL ||
+					    FAMILY == compact::MP_INT ||
+					    FAMILY == compact::MP_STR ||
+					    FAMILY == compact::MP_ARR ||
+					    FAMILY == compact::MP_MAP ||
+					    FAMILY == compact::MP_EXT;
+	// The rule has simplex form.
+	static constexpr bool has_complex = FAMILY == compact::MP_INT ||
+					    FAMILY == compact::MP_FLT ||
+					    FAMILY == compact::MP_STR ||
+					    FAMILY == compact::MP_BIN ||
+					    FAMILY == compact::MP_ARR ||
+					    FAMILY == compact::MP_MAP ||
+					    FAMILY == compact::MP_EXT;
+	// The rule has signed simplex range.
+	static constexpr bool is_simplex_signed = FAMILY == compact::MP_INT;
+	// The rule has logarithmic simplex range.
+	static constexpr bool is_simplex_log_range = FAMILY == compact::MP_EXT;
+	// The type of simplex value in simplex range.
+	using simplex_value_t =
+		std::conditional_t<is_simplex_signed, int8_t, uint8_t>;
+	// The type of simplex range.
+	using simplex_value_range_t = RuleRange<simplex_value_t>;
 };
 
-struct NilRule : BaseRule<std::nullptr_t, compact::MP_NIL> {
-	static constexpr std::pair<uint8_t, uint8_t> simplex_ranges[] = {{0, 0}};
+struct NilRule : BaseRule<compact::MP_NIL, std::nullptr_t> {
+	static constexpr simplex_value_range_t simplex_value_range = {0, 0};
 	static constexpr uint8_t simplex_tag = 0xc0;
 };
 
-struct IgnrRule : BaseRule<decltype(std::ignore), compact::MP_IGNR> {
-	static constexpr std::pair<uint8_t, uint8_t> simplex_ranges[] = {{0, 0}};
+struct IgnrRule : BaseRule<compact::MP_IGNR, decltype(std::ignore)> {
+	static constexpr simplex_value_range_t simplex_value_range = {0, 0};
 	static constexpr uint8_t simplex_tag = 0xc1;
 };
 
-struct BoolRule : BaseRule<bool, compact::MP_BOOL> {
-	static constexpr std::pair<uint8_t, uint8_t> simplex_ranges[] = {{0, 1}};
+struct BoolRule : BaseRule<compact::MP_BOOL, bool> {
+	static constexpr simplex_value_range_t simplex_value_range = {0, 1};
 	static constexpr uint8_t simplex_tag = 0xc2;
 };
 
-struct UintRule : BaseRule<uint64_t, compact::MP_UINT> {
-	static constexpr std::pair<uint8_t, uint8_t> simplex_ranges[] = {{0, 127}};
+struct IntRule : BaseRule<compact::MP_INT, uint64_t, int64_t> {
+	static constexpr simplex_value_range_t simplex_value_range = {-32, 127};
 	static constexpr uint8_t simplex_tag = 0x00;
-	using complex_types = std::tuple<uint8_t, uint16_t, uint32_t, uint64_t>;
+	using complex_types = std::tuple<uint8_t, uint16_t, uint32_t, uint64_t,
+		int8_t, int16_t, int32_t, int64_t>;
 	static constexpr uint8_t complex_tag = 0xcc;
 };
 
-struct IntRule : BaseRule<int64_t, compact::MP_INT> {
-	static constexpr std::pair<int8_t, int8_t> simplex_ranges[] = {{-32, -1}};
-	static constexpr uint8_t simplex_tag = -32;
-	using complex_types = std::tuple<int8_t, int16_t, int32_t, int64_t>;
-	static constexpr uint8_t complex_tag = 0xd0;
-};
-
-struct FltRule : BaseRule<float, compact::MP_FLT> {
-	using complex_types = std::tuple<float>;
+struct FltRule : BaseRule<compact::MP_FLT, double> {
+	using complex_types = std::tuple<float, double>;
 	static constexpr uint8_t complex_tag = 0xca;
 };
 
-struct DblRule : BaseRule<double, compact::MP_DBL> {
-	using complex_types = std::tuple<double>;
-	static constexpr uint8_t complex_tag = 0xcb;
-};
-
-struct StrRule : BaseRule<uint32_t, compact::MP_STR> {
-	static constexpr std::pair<uint8_t, uint8_t> simplex_ranges[] = {{0, 31}};
+struct StrRule : BaseRule<compact::MP_STR, uint32_t> {
+	static constexpr simplex_value_range_t simplex_value_range = {0, 31};
 	static constexpr uint8_t simplex_tag = 0xa0;
 	using complex_types = std::tuple<uint8_t, uint16_t, uint32_t>;
 	static constexpr uint8_t complex_tag = 0xd9;
 };
 
-struct BinRule : BaseRule<uint32_t, compact::MP_BIN> {
+struct BinRule : BaseRule<compact::MP_BIN, uint32_t> {
 	using complex_types = std::tuple<uint8_t, uint16_t, uint32_t>;
 	static constexpr uint8_t complex_tag = 0xc4;
 };
 
-struct ArrRule : BaseRule<uint32_t, compact::MP_ARR> {
-	static constexpr std::pair<uint8_t, uint8_t> simplex_ranges[] = {{0, 15}};
+struct ArrRule : BaseRule<compact::MP_ARR, uint32_t> {
+	static constexpr simplex_value_range_t simplex_value_range = {0, 15};
 	static constexpr uint8_t simplex_tag = 0x90;
 	using complex_types = std::tuple<uint16_t, uint32_t>;
 	static constexpr uint8_t complex_tag = 0xdc;
 };
 
-struct MapRule : BaseRule<uint32_t, compact::MP_MAP> {
-	static constexpr std::pair<uint8_t, uint8_t> simplex_ranges[] = {{0, 15}};
+struct MapRule : BaseRule<compact::MP_MAP, uint32_t> {
+	static constexpr simplex_value_range_t simplex_value_range = {0, 15};
 	static constexpr uint8_t simplex_tag = 0x80;
 	using complex_types = std::tuple<uint16_t, uint32_t>;
 	static constexpr uint8_t complex_tag = 0xde;
 };
 
-struct ExtRule : BaseRule<uint32_t, compact::MP_EXT> {
-	static constexpr std::pair<uint8_t, uint8_t> simplex_ranges[] =
-		{{1,  2}, {4,  4}, {8,  8}, {16, 16}};
+struct ExtRule : BaseRule<compact::MP_EXT, uint32_t> {
+	static constexpr simplex_value_range_t simplex_value_range = {0, 4};
 	static constexpr uint8_t simplex_tag = 0xd4;
 	using complex_types = std::tuple<uint8_t, uint16_t, uint32_t>;
 	static constexpr uint8_t complex_tag = 0xc7;
 };
 
-using AllRules_t = std::tuple<NilRule, IgnrRule, BoolRule, UintRule, IntRule,
-	FltRule, DblRule, StrRule, BinRule, ArrRule, MapRule, ExtRule>;
-
-/**
- * Check that a rule has simplex and complex encodings.
- */
-namespace details {
-template <class T, class _ = void>
-struct has_simplex_h : std::false_type {};
-
-template <class T>
-struct has_simplex_h<T, std::void_t<decltype(T::simplex_tag)>> : std::true_type {};
-
-template <class T, class _ = void>
-struct has_complex_h : std::false_type {};
-
-template <class T>
-struct has_complex_h<T, std::void_t<decltype(T::complex_tag)>> : std::true_type {};
-} // namespace details {
-
-template <class T>
-constexpr bool has_simplex_v = details::has_simplex_h<T>::value;
-
-template <class T>
-constexpr bool has_complex_v = details::has_complex_h<T>::value;
+using all_rules_t = std::tuple<NilRule, IgnrRule, BoolRule, IntRule,
+	FltRule, StrRule, BinRule, ArrRule, MapRule, ExtRule>;
 
 /**
  * Find a rule by compact::Family.
  */
-namespace details {
-template <compact::Family FAMILY, class TUPLE>
-struct RuleByFamily_h1 { using type = void; };
-
-template <compact::Family FAMILY, class T, class ...U>
-struct RuleByFamily_h1<FAMILY, std::tuple<T, U...>> {
-	using next = typename RuleByFamily_h1<FAMILY, std::tuple<U...>>::type;
-	static_assert(FAMILY != T::family || std::is_same_v<void, next>);
-	using type = std::conditional_t<FAMILY == T::family, T, next>;
-};
-
 template <compact::Family FAMILY>
-struct RuleByFamily_h2 {
-	using type = typename RuleByFamily_h1<FAMILY, AllRules_t>::type;
-	static_assert(!std::is_same_v<type, void>);
-};
-} // namespace details {
-
-template <compact::Family FAMILY>
-using RuleByFamily_t = typename details::RuleByFamily_h2<FAMILY>::type;
+using rule_by_family_t = std::tuple_element_t<FAMILY, all_rules_t>;
 
 /**
- * Important helper - SimplexRange - that provides range of simplex tags
- * of given rule. That means that in uint8_t sequence a byte that is in
- * range (SimplexRange::first <= byte < SimplexRange::second) is a one-byte
- * encoded value of that rule.
+ * Helper of rule_complex_types_safe_t.
  */
 namespace details {
-template <class RULE, class _ = void>
-struct SimplexIndexSequence { using type = void; };
+template <class RULE, bool HAS_COMPLEX = RULE::has_complex>
+struct rule_complex_types_safe_h {
+	using type = std::tuple<>;
+};
 
 template <class RULE>
-struct SimplexIndexSequence<RULE, std::enable_if_t<has_simplex_v<RULE>, void>> {
-	using type = std::make_index_sequence<std::size(RULE::simplex_ranges)>;
+struct rule_complex_types_safe_h<RULE, true> {
+	using type = typename RULE::complex_types;
 };
-
-template <class RULE, class INDEX_SEQUENCE_OR_VOID>
-struct SimplexRange_h {
-	static constexpr size_t length = 0, first = 0, second = 0;
-};
-
-template <class RULE, size_t ...I>
-struct SimplexRange_h<RULE, std::index_sequence<I...>> {
-	static constexpr size_t length =
-		((RULE::simplex_ranges[I].second -
-		  RULE::simplex_ranges[I].first + 1) + ...);
-	static constexpr size_t first = RULE::simplex_tag;
-	static constexpr size_t second = first + length;
-};
-} // namespace details {
-
-template <class RULE>
-struct SimplexRange
-	: details::SimplexRange_h<RULE,
-		typename details::SimplexIndexSequence<RULE>::type> { };
+} // namespace details
 
 /**
- * Important helper - ComplexRange - that provides range of complex tags
- * of given rule. That means that in uint8_t sequence a byte that is in
- * range (ComplexRange::first <= byte < ComplexRange::second) is a start of
- * multi-byte encoded value of that rule.
+ * Get RULE::complex_types if present, or empty std::tuple otherwise.
  */
-namespace details {
-template <class RULE, class _ = void>
-struct ComplexRange_h {
-	static constexpr size_t length = 0, first = 0, second = 0;
-};
-
 template <class RULE>
-struct ComplexRange_h<RULE, std::enable_if_t<has_complex_v<RULE>, void>> {
-	static constexpr size_t
-		length = std::tuple_size_v<typename RULE::complex_types>;
-	static constexpr size_t first = RULE::complex_tag;
-	static constexpr size_t second = first + length;
-};
-} // namespace details {
-
-template <class RULE>
-struct ComplexRange : details::ComplexRange_h<RULE> { };
+using rule_complex_types_safe_t =
+	typename details::rule_complex_types_safe_h<RULE>::type;
 
 /**
- * Try to find an offset of simplex tag by given value.
- * Is SimplexRange<RULE>::length if that is not possible.
- * If success, that value must be encoded with a tag RULE::simplex_tag + result.
+ * Get number of complex variants (0 if none).
  */
+template <class RULE>
+constexpr uint8_t rule_complex_count_v =
+	std::tuple_size_v<rule_complex_types_safe_t<RULE>>;
+
+/**
+ * Range of tags by which a value can be encoded in simplex forms.
+ * Warning: for MP_INT this range comes with int8_t boundaries.
+ */
+template <class RULE>
+constexpr RuleRange<typename RULE::simplex_value_t> rule_simplex_tag_range_v =
+	{RULE::simplex_value_range.first + RULE::simplex_tag,
+	 RULE::simplex_value_range.last + RULE::simplex_tag};
+
+/**
+ * Getter of a range of tags by which a value can be encoded in complex forms.
+ */
+template <class RULE>
+constexpr RuleRange<uint8_t> rule_complex_tag_range_v =
+	{RULE::complex_tag,
+	 RULE::complex_tag + (rule_complex_count_v<RULE> - 1)};
+
 namespace details {
-template <class RULE, size_t I, size_t N, size_t S, class V>
-constexpr size_t find_simplex_offset_h(V value)
-{
-	if constexpr(std::is_same_v<V, bool> &&
-		     RULE::simplex_ranges[I].first == 0 &&
-		     RULE::simplex_ranges[I].second >= 1) {
-		return S + value - RULE::simplex_ranges[I].first;
-	} else {
-		if (value >= RULE::simplex_ranges[I].first &&
-		    value <= RULE::simplex_ranges[I].second)
-			return S + value - RULE::simplex_ranges[I].first;
-	}
-	if constexpr(I + 1 < N) {
-		constexpr size_t rlen = RULE::simplex_ranges[I].second -
-					RULE::simplex_ranges[I].first + 1;
-		return find_simplex_offset_h<RULE, I + 1, N, S + rlen>(value);
-	} else {
-		return SimplexRange<RULE>::length;
-	}
+/**
+ * Helper of find_simplex_offset: convert MP_EXT value to simplex tag offset.
+ */
+constexpr size_t exp_range[] =
+	{5, 0, 1, 5, 2, 5, 5, 5, 3, 5, 5, 5, 5, 5, 5, 5, 4};
+
+/**
+ * Helper of find_simplex_offset: convert enum type to underlying type.
+ */
+template <class T>
+constexpr auto rule_unenum(T t) {
+	if constexpr (std::is_enum_v<T>)
+		return static_cast<std::underlying_type_t<T>>(t);
+	else
+		return t;
 }
-} // namespace details {
+} // namespace details
 
-template <class RULE, class V>
-constexpr size_t find_simplex_offset(V value)
+/**
+ * Try to find a simplex offset of a value in a rule.
+ * If failed, RULE::simplex_value_range.count is returned.
+ * Otherwise that value can be encoded with a tag RULE::simplex_tag + result.
+ */
+template <class RULE, class E>
+constexpr int find_simplex_offset([[maybe_unused]] E eval)
 {
-	if constexpr(!has_simplex_v<RULE>) {
-		return SimplexRange<RULE>::length;
+	static_assert(RULE::has_simplex);
+	static_assert(!RULE::is_floating_point);
+	auto val = details::rule_unenum(eval);
+	using V = decltype(val);
+	if constexpr (RULE::is_bool) {
+		return !!val;
+	} else if constexpr (RULE::is_valueless) {
+		return 0;
+	} else if constexpr (RULE::is_simplex_log_range) {
+		if (val > (1 << RULE::simplex_value_range.last))
+			return RULE::simplex_value_range.count;
+		static_assert(std::size(details::exp_range) ==
+			      1 + (1 << RULE::simplex_value_range.last));
+		static_assert(details::exp_range[0] ==
+			      RULE::simplex_value_range.count);
+		return details::exp_range[val];
+	} else if constexpr (!RULE::is_simplex_signed || !std::is_signed_v<V>) {
+		constexpr std::make_unsigned_t<typename RULE::simplex_value_t>
+		        range_last = RULE::simplex_value_range.last;
+		if (val <= range_last)
+			return val;
+		else
+			return RULE::simplex_value_range.count;
 	} else {
-		constexpr size_t N = std::size(RULE::simplex_ranges);
-		return details::find_simplex_offset_h<RULE, 0, N, 0>(value);
+		if (val >= RULE::simplex_value_range.first &&
+		    val <= RULE::simplex_value_range.last)
+			return val;
+		else
+			return RULE::simplex_value_range.count;
 	}
 }
 
-/**
- * Try to find an offset of complex tag by given value.
- * The value is expected to be compatible with the rule, comply is_negative
- * and be represented with the largest complex_types.
- * That means that value can be encoded with a tag RULE::complex_tag + result.
- */
 namespace details {
-template <class RULE, size_t I, size_t N, class V>
-constexpr size_t find_complex_offset_h([[maybe_unused]] V x)
+/**
+ * Helper of rule_complex_apply, see description below.
+ */
+template <class RULE, size_t I, size_t N, class V, class F>
+constexpr size_t rule_complex_apply_h([[maybe_unused]] V val, F &&f)
 {
+	using arg_t = std::integral_constant<size_t, I>;
 	if constexpr(I + 1 < N) {
-		using type = std::tuple_element_t<I, typename RULE::complex_types>;
+		using types = typename RULE::complex_types;
+		using type = std::tuple_element_t<I, types>;
 		using lim = std::numeric_limits<type>;
-		if constexpr (std::is_signed_v<type> == std::is_signed_v<V>) {
-			if constexpr(sizeof(type) >= sizeof(V)) {
-				return I;
-			} else if constexpr(std::is_signed_v<type>) {
-				return x >= lim::min() ? I
-				: find_complex_offset_h<RULE, I + 1, N>(x);
+		if constexpr (RULE::is_floating_point) {
+			static_assert(std::is_floating_point_v<type>);
+			if (std::is_floating_point_v<V>) {
+				if constexpr(sizeof(V) <= sizeof(type))
+					return f(arg_t{});
 			} else {
-				return x <= lim::max() ? I
-				: find_complex_offset_h<RULE, I + 1, N>(x);
+				if constexpr(sizeof(V) < sizeof(type))
+					return f(arg_t{});
 			}
 		} else if constexpr (std::is_signed_v<type>) {
-			if constexpr(sizeof(type) > sizeof(V)) {
-				return I;
+			// V must be negative here.
+			static_assert(std::is_signed_v<V>);
+			if constexpr(sizeof(V) <= sizeof(type)) {
+				return f(arg_t{});
 			} else {
-				using utype = std::make_unsigned_t<type>;
-				auto max = static_cast<utype>(lim::max());
-				return x <= max ? I
-				: find_complex_offset_h<RULE, I + 1, N>(x);
+				if (val >= lim::min())
+					return f(arg_t{});
 			}
 		} else {
-			if constexpr(sizeof(type) >= sizeof(V)) {
-				return I;
+			if constexpr(sizeof(V) <= sizeof(type)) {
+				return f(arg_t{});
 			} else {
-				auto y = static_cast<std::make_unsigned_t<V>>(x);
-				return y <= lim::max() ? I
-				: find_complex_offset_h<RULE, I + 1, N>(x);
+				if (val <= lim::max())
+					return f(arg_t{});
 			}
 		}
+		return rule_complex_apply_h<RULE, I + 1, N>(val,
+							    std::forward<F>(f));
 	} else {
-		return I;
+		return f(arg_t{});
 	}
 }
-} // namespace details {
+} // namespace details
 
+/**
+ * Find a complex type in @a RULE that fits value @a eval most, and call
+ * given functor @a f with an argument of std::integral_constant<size_t, I>,
+ * where I is the offset of that complex type.
+ * Return the functor's result.
+ */
+template <class RULE, class E, class F>
+constexpr size_t rule_complex_apply(E eval, F &&f)
+{
+	static_assert(RULE::has_complex);
+	auto val = details::rule_unenum(eval);
+	using V = decltype(val);
+	constexpr bool is_int = RULE::family == compact::MP_INT;
+	constexpr size_t N = rule_complex_count_v<RULE>;
+	if constexpr (is_int && std::is_signed_v<V>) {
+		static_assert(N == 8);
+		if (val < 0) {
+			return details::rule_complex_apply_h<RULE, 4, 8>(val,
+				std::forward<F>(f));
+		} else {
+			using U = std::make_unsigned_t<V>;
+			auto u = static_cast<U>(val);
+			return details::rule_complex_apply_h<RULE, 0, 4>(u,
+				std::forward<F>(f));
+		}
+	} else if constexpr (is_int && !std::is_signed_v<V>) {
+		static_assert(N == 8);
+		return details::rule_complex_apply_h<RULE, 0, 4>(val,
+			std::forward<F>(f));
+	} else {
+		return details::rule_complex_apply_h<RULE, 0, N>(val,
+			std::forward<F>(f));
+	}
+}
+
+/**
+ * Find an offset of complex tag by given value.
+ * That means that value can be encoded with a tag RULE::complex_tag + result.
+ */
 template <class RULE, class V>
-constexpr size_t find_complex_offset(V value)
+constexpr size_t find_complex_offset(V val)
 {
-	static_assert(has_complex_v<RULE>);
-	constexpr size_t N = std::tuple_size_v<typename RULE::complex_types>;
-	return details::find_complex_offset_h<RULE, 0, N>(value);
+	return rule_complex_apply<RULE>(val, [&](auto IND) -> size_t {
+		return decltype(IND)::value;
+	});
 }
-
-/**
- * Check that a rule has an encoded value that starts with given tag.
- */
-template <class RULE, uint8_t TAG>
-constexpr bool rule_has_simplex_tag_v =
-	(TAG >= SimplexRange<RULE>::first && TAG < SimplexRange<RULE>::second);
-
-template <class RULE, uint8_t TAG>
-constexpr bool rule_has_complex_tag_v =
-	(TAG >= ComplexRange<RULE>::first && TAG < ComplexRange<RULE>::second);
-
-template <class RULE, uint8_t TAG>
-constexpr bool rule_has_tag_v =
-	rule_has_simplex_tag_v<RULE, TAG> || rule_has_complex_tag_v<RULE, TAG>;
-
-template <class RULE>
-constexpr bool rule_has_simplex_tag([[maybe_unused]] uint8_t tag)
-{
-	if constexpr (has_simplex_v<RULE>)
-		return tag >= SimplexRange<RULE>::first &&
-		       tag < SimplexRange<RULE>::second;
-	return false;
-}
-
-template <class RULE>
-constexpr bool rule_has_complex_tag([[maybe_unused]] uint8_t tag)
-{
-	if constexpr (has_complex_v<RULE>)
-		return tag >= ComplexRange<RULE>::first &&
-		       tag < ComplexRange<RULE>::second;
-	return false;
-}
-
-template <class RULE>
-constexpr bool rule_has_tag(uint8_t tag)
-{
-	return rule_has_simplex_tag<RULE>(tag) || rule_has_complex_tag<RULE>(tag);
-}
-
-/**
- * Find a rule by tag.
- */
-namespace details {
-template <uint8_t TAG, class TUPLE>
-struct RuleByTag_h1 { using type = void; };
-
-template <uint8_t TAG, class T, class ...U>
-struct RuleByTag_h1<TAG, std::tuple<T, U...>> {
-	using next = typename RuleByTag_h1<TAG, std::tuple<U...>>::type;
-	static_assert(!rule_has_tag_v<T, TAG> || std::is_same_v<void, next>);
-	using type = std::conditional_t<rule_has_tag_v<T, TAG>, T, next>;
-};
-
-template <uint8_t TAG>
-struct RuleByTag_h2 {
-	using type = typename RuleByTag_h1<TAG, AllRules_t>::type;
-	static_assert(!std::is_same_v<type, void>);
-};
-} // namespace details {
-
-template <uint8_t TAG>
-using RuleByTag_t = typename details::RuleByTag_h2<TAG>::type;
-
-/**
- * A tuple that constructed with rules by sequent tags 0..255.
- */
-namespace details {
-template<class SEQUENCE = std::make_index_sequence<256>>
-struct AllTagRules_h {};
-template<size_t ...I>
-struct AllTagRules_h<std::index_sequence<I...>> {
-	using type = std::tuple<RuleByTag_t<I>...>;
-};
-} // namespace details {
-
-using AllTagRules_t = typename details::AllTagRules_h<>::type;
 
 } // namespace mpp {

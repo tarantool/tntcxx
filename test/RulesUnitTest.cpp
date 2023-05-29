@@ -36,91 +36,167 @@
 
 #include "Utils/Helpers.hpp"
 
+namespace test {
+using fis_t = std::make_index_sequence<mpp::compact::MP_END>;
+
+template <class R, class _ = void>
+struct has_simplex : std::false_type {};
+
+template <class R>
+struct has_simplex<R, std::void_t<decltype(R::simplex_tag)>> : std::true_type{};
+
+template <class R, class _ = void>
+struct has_complex : std::false_type {};
+
+template <class R>
+struct has_complex<R, std::void_t<decltype(R::complex_tag)>> : std::true_type{};
+
+template <class RULE, uint8_t TAG>
+constexpr bool rule_has_simplex_tag_h() {
+	if constexpr (RULE::has_simplex) {
+		using simplex_value_t = typename RULE::simplex_value_t;
+		constexpr auto t = static_cast<simplex_value_t>(TAG);
+		constexpr auto r = mpp::rule_simplex_tag_range_v<RULE>;
+		return t >= r.first && t <= r.last;
+	} else {
+		return false;
+	}
+}
+
+template <class RULE, uint8_t TAG>
+constexpr bool rule_has_simplex_tag_v = rule_has_simplex_tag_h<RULE, TAG>();
+
+template <class RULE, uint8_t TAG>
+constexpr bool rule_has_complex_tag_h() {
+	if constexpr (RULE::has_complex) {
+		constexpr auto r = mpp::rule_complex_tag_range_v<RULE>;
+		return TAG >= r.first && TAG <= r.last;
+	} else {
+		return false;
+	}
+}
+
+template <class RULE, uint8_t TAG>
+constexpr bool rule_has_complex_tag_v = rule_has_complex_tag_h<RULE, TAG>();
+
+template <class RULE, uint8_t TAG>
+constexpr bool rule_has_tag_v =
+	rule_has_simplex_tag_v<RULE, TAG> || rule_has_complex_tag_v<RULE, TAG>;
+
+template <uint8_t TAG, size_t FAMILY, size_t ...MORE>
+constexpr auto rule_by_tag_h(std::index_sequence<FAMILY, MORE...>)
+{
+	constexpr mpp::compact::Family family{FAMILY};
+	using rule_t = mpp::rule_by_family_t<family>;
+	if constexpr (rule_has_tag_v<rule_t, TAG>) {
+		return rule_t{};
+	} else {
+		static_assert(sizeof...(MORE) > 0);
+		return rule_by_tag_h<TAG>(std::index_sequence<MORE...>{});
+	}
+}
+
+template <uint8_t TAG>
+using rule_by_tag_t = decltype(rule_by_tag_h<TAG>(test::fis_t{}));
+
+} // namespace test
+
+template <mpp::compact::Family FAMILY>
+void
+check_family_rule()
+{
+	using Rule_t = mpp::rule_by_family_t<FAMILY>;
+	static_assert(Rule_t::family == FAMILY);
+	static_assert(Rule_t::has_simplex == test::has_simplex<Rule_t>::value);
+	static_assert(Rule_t::has_complex == test::has_complex<Rule_t>::value);
+	if constexpr (Rule_t::has_simplex)
+		static_assert(Rule_t::simplex_value_range.first == 0 ||
+			      (Rule_t::simplex_value_range.first < 0 &&
+			       FAMILY == mpp::compact::MP_INT));
+}
+
+template <size_t ...FAMILY>
+void
+check_family_rule(std::index_sequence<FAMILY...>)
+{
+	(check_family_rule<static_cast<mpp::compact::Family>(FAMILY)>(), ...);
+}
+
 void
 test_basic()
 {
 	TEST_INIT(0);
 
-	static_assert(std::is_same_v<bool, mpp::BoolRule::type>);
-	static_assert(std::is_same_v<int64_t, mpp::IntRule::type>);
-	static_assert(mpp::NilRule::family == mpp::compact::MP_NIL);
-	static_assert(mpp::BinRule::family == mpp::compact::MP_BIN);
-	static_assert(mpp::IgnrRule::has_data == false);
-	static_assert(mpp::StrRule::has_data == true);
-	static_assert(mpp::BinRule::has_data == true);
-	static_assert(mpp::ExtRule::has_data == true);
-	static_assert(mpp::FltRule::has_ext == false);
-	static_assert(mpp::ExtRule::has_ext == true);
-	static_assert(mpp::DblRule::has_children == false);
-	static_assert(mpp::ArrRule::has_children == true);
-	static_assert(mpp::MapRule::has_children == true);
-	static_assert(mpp::UintRule::children_multiplier == 0);
-	static_assert(mpp::ArrRule::children_multiplier == 1);
-	static_assert(mpp::MapRule::children_multiplier == 2);
-	static_assert(mpp::MapRule::is_negative == false);
-	static_assert(mpp::IntRule::is_negative == true);
-	static_assert(std::is_same_v<mpp::IntRule::positive_rule, mpp::UintRule>);
-	static_assert(std::is_same_v<mpp::UintRule::positive_rule, void>);
-
-	static_assert(mpp::has_simplex_v<mpp::NilRule>);
-	static_assert(!mpp::has_complex_v<mpp::NilRule>);
-	static_assert(mpp::has_simplex_v<mpp::StrRule>);
-	static_assert(mpp::has_complex_v<mpp::StrRule>);
-	static_assert(!mpp::has_simplex_v<mpp::BinRule>);
-	static_assert(mpp::has_complex_v<mpp::BinRule>);
+	check_family_rule(test::fis_t{});
 
 	using namespace mpp;
-	static_assert(std::is_same_v<RuleByFamily_t<compact::MP_NIL >, NilRule>);
-	static_assert(std::is_same_v<RuleByFamily_t<compact::MP_IGNR>, IgnrRule>);
-	static_assert(std::is_same_v<RuleByFamily_t<compact::MP_BOOL>, BoolRule>);
-	static_assert(std::is_same_v<RuleByFamily_t<compact::MP_UINT>, UintRule>);
-	static_assert(std::is_same_v<RuleByFamily_t<compact::MP_INT >, IntRule>);
-	static_assert(std::is_same_v<RuleByFamily_t<compact::MP_FLT >, FltRule>);
-	static_assert(std::is_same_v<RuleByFamily_t<compact::MP_DBL >, DblRule>);
-	static_assert(std::is_same_v<RuleByFamily_t<compact::MP_STR >, StrRule>);
-	static_assert(std::is_same_v<RuleByFamily_t<compact::MP_BIN >, BinRule>);
-	static_assert(std::is_same_v<RuleByFamily_t<compact::MP_ARR >, ArrRule>);
-	static_assert(std::is_same_v<RuleByFamily_t<compact::MP_MAP >, MapRule>);
-	static_assert(std::is_same_v<RuleByFamily_t<compact::MP_EXT >, ExtRule>);
 
-	static_assert(SimplexRange<UintRule>::first == 0);
-	static_assert(SimplexRange<UintRule>::second == 128);
-	static_assert(SimplexRange<UintRule>::length == 128);
-	static_assert(ComplexRange<UintRule>::first == 0xcc);
-	static_assert(ComplexRange<UintRule>::second == 0xd0);
-	static_assert(ComplexRange<UintRule>::length == 4);
-	static_assert(SimplexRange<IntRule>::first == 0xe0);
-	static_assert(SimplexRange<IntRule>::second == 256);
-	static_assert(SimplexRange<IntRule>::length == 32);
-	static_assert(ComplexRange<IntRule>::first == 0xd0);
-	static_assert(ComplexRange<IntRule>::second == 0xd4);
-	static_assert(ComplexRange<IntRule>::length == 4);
-	static_assert(SimplexRange<ArrRule>::first == 0x90);
-	static_assert(SimplexRange<ArrRule>::second == 0xa0);
-	static_assert(SimplexRange<ArrRule>::length == 16);
-	static_assert(ComplexRange<ArrRule>::first == 0xdc);
-	static_assert(ComplexRange<ArrRule>::second == 0xde);
-	static_assert(ComplexRange<ArrRule>::length == 2);
-	static_assert(ComplexRange<IntRule>::length == 4);
-	static_assert(SimplexRange<ExtRule>::first == 0xd4);
-	static_assert(SimplexRange<ExtRule>::second == 0xd9);
-	static_assert(SimplexRange<ExtRule>::length == 5);
-	static_assert(ComplexRange<ExtRule>::first == 0xc7);
-	static_assert(ComplexRange<ExtRule>::second == 0xca);
-	static_assert(ComplexRange<ExtRule>::length == 3);
+	// Some selective checks.
+	static_assert(std::is_same_v<std::tuple<bool>, BoolRule::types>);
+	static_assert(std::is_same_v<std::tuple<uint64_t, int64_t>, IntRule::types>);
+	static_assert(NilRule::family == compact::MP_NIL);
+	static_assert(BinRule::family == compact::MP_BIN);
+	static_assert(IgnrRule::has_data == false);
+	static_assert(StrRule::has_data == true);
+	static_assert(BinRule::has_data == true);
+	static_assert(ExtRule::has_data == true);
+	static_assert(FltRule::has_ext == false);
+	static_assert(ExtRule::has_ext == true);
+	static_assert(FltRule::has_children == false);
+	static_assert(ArrRule::has_children == true);
+	static_assert(MapRule::has_children == true);
+	static_assert(IntRule::children_multiplier == 0);
+	static_assert(ArrRule::children_multiplier == 1);
+	static_assert(MapRule::children_multiplier == 2);
 
-	static_assert(find_simplex_offset<UintRule>(0) == 0);
-	static_assert(find_simplex_offset<UintRule>(5) == 5);
-	static_assert(find_simplex_offset<UintRule>(127) == 127);
-	static_assert(find_simplex_offset<UintRule>(128) == 128);
-	static_assert(find_simplex_offset<UintRule>(1280) == 128);
-	static_assert(find_simplex_offset<IntRule>(0) == 32);
-	static_assert(find_simplex_offset<IntRule>(-1) == 31);
-	static_assert(find_simplex_offset<IntRule>(-32) == 0);
-	static_assert(find_simplex_offset<IntRule>(-33) == 32);
-	static_assert(find_simplex_offset<IntRule>(1280) == 32);
+	// More selective checks.
+	static_assert(NilRule::has_simplex);
+	static_assert(!NilRule::has_complex);
+	static_assert(StrRule::has_simplex);
+	static_assert(StrRule::has_complex);
+	static_assert(!BinRule::has_simplex);
+	static_assert(BinRule::has_complex);
+
+	// rule_complex_count_v
+	static_assert(rule_complex_count_v<NilRule> == 0);
+	static_assert(rule_complex_count_v<FltRule> == 2);
+	static_assert(rule_complex_count_v<IntRule> == 8);
+
+	// And more selective checks.
+	static_assert(rule_simplex_tag_range_v<IntRule>.first == -32);
+	static_assert(rule_simplex_tag_range_v<IntRule>.last == 127);
+	static_assert(rule_simplex_tag_range_v<IntRule>.count == 160);
+	static_assert(rule_complex_tag_range_v<IntRule>.first == 0xcc);
+	static_assert(rule_complex_tag_range_v<IntRule>.last == 0xd3);
+	static_assert(rule_complex_tag_range_v<IntRule>.count == 8);
+	static_assert(rule_simplex_tag_range_v<ArrRule>.first == 0x90);
+	static_assert(rule_simplex_tag_range_v<ArrRule>.last == 0x9f);
+	static_assert(rule_simplex_tag_range_v<ArrRule>.count == 16);
+	static_assert(rule_complex_tag_range_v<ArrRule>.first == 0xdc);
+	static_assert(rule_complex_tag_range_v<ArrRule>.last == 0xdd);
+	static_assert(rule_complex_tag_range_v<ArrRule>.count == 2);
+	static_assert(rule_simplex_tag_range_v<ExtRule>.first == 0xd4);
+	static_assert(rule_simplex_tag_range_v<ExtRule>.last == 0xd8);
+	static_assert(rule_simplex_tag_range_v<ExtRule>.count == 5);
+	static_assert(rule_complex_tag_range_v<ExtRule>.first == 0xc7);
+	static_assert(rule_complex_tag_range_v<ExtRule>.last == 0xc9);
+	static_assert(rule_complex_tag_range_v<ExtRule>.count == 3);
+
+	static_assert(find_simplex_offset<IntRule>(0) == 0);
+	static_assert(find_simplex_offset<IntRule>(5) == 5);
+	static_assert(find_simplex_offset<IntRule>(127) == 127);
+	static_assert(find_simplex_offset<IntRule>(128) == 160);
+	static_assert(find_simplex_offset<IntRule>(127.) == 127);
+	static_assert(find_simplex_offset<IntRule>(128.) == 160);
+	static_assert(find_simplex_offset<IntRule>(1280) == 160);
+	static_assert(find_simplex_offset<IntRule>(-1) == -1);
+	static_assert(find_simplex_offset<IntRule>(-32) == -32);
+	static_assert(find_simplex_offset<IntRule>(-33) == 160);
+	static_assert(find_simplex_offset<NilRule>(nullptr) == 0);
+	static_assert(find_simplex_offset<NilRule>(1) == 0);
 	static_assert(find_simplex_offset<BoolRule>(false) == 0);
 	static_assert(find_simplex_offset<BoolRule>(true) == 1);
+	static_assert(find_simplex_offset<BoolRule>(3) == 1);
 	static_assert(find_simplex_offset<MapRule>(0) == 0);
 	static_assert(find_simplex_offset<MapRule>(15) == 15);
 	static_assert(find_simplex_offset<MapRule>(16) == 16);
@@ -136,31 +212,33 @@ test_basic()
 	static_assert(find_simplex_offset<ExtRule>(7) == 5);
 	static_assert(find_simplex_offset<ExtRule>(9) == 5);
 
-	static_assert(find_complex_offset<UintRule>(0) == 0);
-	static_assert(find_complex_offset<UintRule>(255) == 0);
-	static_assert(find_complex_offset<UintRule>(256) == 1);
-	static_assert(find_complex_offset<UintRule>(65535) == 1);
-	static_assert(find_complex_offset<UintRule>(65536) == 2);
-	static_assert(find_complex_offset<UintRule>(0xFFFFFFFF) == 2);
-	static_assert(find_complex_offset<UintRule>(0x100000000) == 3);
-	static_assert(find_complex_offset<UintRule>(0x100000000000) == 3);
-	static_assert(find_complex_offset<UintRule>(0u) == 0);
-	static_assert(find_complex_offset<UintRule>(255u) == 0);
-	static_assert(find_complex_offset<UintRule>(256u) == 1);
-	static_assert(find_complex_offset<UintRule>(65535u) == 1);
-	static_assert(find_complex_offset<UintRule>(65536u) == 2);
-	static_assert(find_complex_offset<UintRule>(0xFFFFFFFFu) == 2);
-	static_assert(find_complex_offset<UintRule>(0x100000000u) == 3);
-	static_assert(find_complex_offset<UintRule>(0x100000000000u) == 3);
-	static_assert(find_complex_offset<IntRule>(-1) == 0);
-	static_assert(find_complex_offset<IntRule>(-128) == 0);
-	static_assert(find_complex_offset<IntRule>(-129) == 1);
-	static_assert(find_complex_offset<IntRule>(-32768) == 1);
-	static_assert(find_complex_offset<IntRule>(-32769) == 2);
-	static_assert(find_complex_offset<IntRule>(-0x80000000ll) == 2);
-	static_assert(find_complex_offset<IntRule>(-0x80000001ll) == 3);
-	static_assert(find_complex_offset<IntRule>(-0x80000001000ll) == 3);
-	static_assert(find_complex_offset<FltRule>(1) == 0);
+	static_assert(find_complex_offset<IntRule>(0) == 0);
+	static_assert(find_complex_offset<IntRule>(255) == 0);
+	static_assert(find_complex_offset<IntRule>(256) == 1);
+	static_assert(find_complex_offset<IntRule>(65535) == 1);
+	static_assert(find_complex_offset<IntRule>(65536) == 2);
+	static_assert(find_complex_offset<IntRule>(0xFFFFFFFF) == 2);
+	static_assert(find_complex_offset<IntRule>(0x100000000) == 3);
+	static_assert(find_complex_offset<IntRule>(0x100000000000) == 3);
+	static_assert(find_complex_offset<IntRule>(0u) == 0);
+	static_assert(find_complex_offset<IntRule>(255u) == 0);
+	static_assert(find_complex_offset<IntRule>(256u) == 1);
+	static_assert(find_complex_offset<IntRule>(65535u) == 1);
+	static_assert(find_complex_offset<IntRule>(65536u) == 2);
+	static_assert(find_complex_offset<IntRule>(0xFFFFFFFFu) == 2);
+	static_assert(find_complex_offset<IntRule>(0x100000000u) == 3);
+	static_assert(find_complex_offset<IntRule>(0x100000000000u) == 3);
+	static_assert(find_complex_offset<IntRule>(-1) == 4);
+	static_assert(find_complex_offset<IntRule>(-128) == 4);
+	static_assert(find_complex_offset<IntRule>(-129) == 5);
+	static_assert(find_complex_offset<IntRule>(-32768) == 5);
+	static_assert(find_complex_offset<IntRule>(-32769) == 6);
+	static_assert(find_complex_offset<IntRule>(-0x80000000ll) == 6);
+	static_assert(find_complex_offset<IntRule>(-0x80000001ll) == 7);
+	static_assert(find_complex_offset<IntRule>(-0x80000001000ll) == 7);
+	static_assert(find_complex_offset<FltRule>(1.f) == 0);
+	static_assert(find_complex_offset<FltRule>(1) == 1);
+	static_assert(find_complex_offset<FltRule>(1.) == 1);
 	static_assert(find_complex_offset<ArrRule>(0) == 0);
 	static_assert(find_complex_offset<ArrRule>(255) == 0);
 	static_assert(find_complex_offset<ArrRule>(256) == 0);
@@ -170,30 +248,24 @@ test_basic()
 	// Wrong arg, find_complex_offset does not check it.
 	static_assert(find_complex_offset<ArrRule>(0x100000000) == 1);
 
-	static_assert(mpp::rule_has_tag_v<UintRule, 1>);
-	static_assert(mpp::rule_has_simplex_tag_v<UintRule, 1>);
-	static_assert(!mpp::rule_has_complex_tag_v<UintRule, 1>);
-	static_assert(!mpp::rule_has_tag_v<UintRule, 255>);
-	static_assert(!mpp::rule_has_simplex_tag_v<UintRule, 255>);
-	static_assert(!mpp::rule_has_complex_tag_v<UintRule, 255>);
-	static_assert(mpp::rule_has_tag_v<UintRule, 0xcc>);
-	static_assert(!mpp::rule_has_simplex_tag_v<UintRule, 0xcc>);
-	static_assert(mpp::rule_has_complex_tag_v<UintRule, 0xcc>);
-	static_assert(!mpp::rule_has_tag_v<UintRule, 0xd0>);
-	static_assert(!mpp::rule_has_simplex_tag_v<UintRule, 0xd0>);
-	static_assert(!mpp::rule_has_complex_tag_v<UintRule, 0xd0>);
-	static_assert(!mpp::rule_has_tag_v<IntRule, 1>);
-	static_assert(!mpp::rule_has_simplex_tag_v<IntRule, 1>);
-	static_assert(!mpp::rule_has_complex_tag_v<IntRule, 1>);
-	static_assert(mpp::rule_has_tag_v<IntRule, 255>);
-	static_assert(mpp::rule_has_simplex_tag_v<IntRule, 255>);
-	static_assert(!mpp::rule_has_complex_tag_v<IntRule, 255>);
-	static_assert(!mpp::rule_has_tag_v<IntRule, 0xcc>);
-	static_assert(!mpp::rule_has_simplex_tag_v<IntRule, 0xcc>);
-	static_assert(!mpp::rule_has_complex_tag_v<IntRule, 0xcc>);
-	static_assert(mpp::rule_has_tag_v<IntRule, 0xd0>);
-	static_assert(!mpp::rule_has_simplex_tag_v<IntRule, 0xd0>);
-	static_assert(mpp::rule_has_complex_tag_v<IntRule, 0xd0>);
+	static_assert(test::rule_has_tag_v<mpp::IntRule, 1>);
+	static_assert(test::rule_has_simplex_tag_v<mpp::IntRule, 1>);
+	static_assert(!test::rule_has_complex_tag_v<mpp::IntRule, 1>);
+	static_assert(test::rule_has_tag_v<mpp::IntRule, 126>);
+	static_assert(test::rule_has_simplex_tag_v<mpp::IntRule, 126>);
+	static_assert(!test::rule_has_complex_tag_v<mpp::IntRule, 126>);
+	static_assert(test::rule_has_tag_v<mpp::IntRule, 127>);
+	static_assert(test::rule_has_simplex_tag_v<mpp::IntRule, 127>);
+	static_assert(!test::rule_has_complex_tag_v<mpp::IntRule, 127>);
+	static_assert(test::rule_has_tag_v<mpp::IntRule, 255>);
+	static_assert(test::rule_has_simplex_tag_v<mpp::IntRule, 255>);
+	static_assert(!test::rule_has_complex_tag_v<mpp::IntRule, 255>);
+	static_assert(test::rule_has_tag_v<mpp::IntRule, 0xcc>);
+	static_assert(!test::rule_has_simplex_tag_v<mpp::IntRule, 0xcc>);
+	static_assert(test::rule_has_complex_tag_v<mpp::IntRule, 0xcc>);
+	static_assert(test::rule_has_tag_v<mpp::IntRule, 0xd0>);
+	static_assert(!test::rule_has_simplex_tag_v<mpp::IntRule, 0xd0>);
+	static_assert(test::rule_has_complex_tag_v<mpp::IntRule, 0xd0>);
 }
 
 using Info = std::string;
@@ -210,33 +282,32 @@ constexpr std::array<size_t, std::tuple_size_v<T>> tuple_sizes =
 	tuple_sizes_h<T>(std::make_index_sequence<std::tuple_size_v<T>>{});
 
 template <mpp::compact::Family FAMILY>
-void collectType(FullInfo& infos)
+void collectByType(FullInfo& infos)
 {
-	using Rule = mpp::RuleByFamily_t<FAMILY>;
-	if constexpr (mpp::has_simplex_v<Rule>) {
-		const auto& ranges = Rule::simplex_ranges;
-		auto tag = Rule::simplex_tag;
-		for (size_t i = 0; i < std::size(ranges); i++) {
-			std::string set_info = std::string("fix");
-			set_info += mpp::FamilyHumanName[FAMILY];
-			if (std::is_integral_v<typename Rule::type>) {
-				set_info += " ";
-				if (ranges[i].first == ranges[i].second) {
-					set_info += std::to_string(ranges[i].first);
-				} else {
-					set_info += std::to_string(ranges[i].first);
-					set_info += "..";
-					set_info += std::to_string(ranges[i].second);
-				}
+	using Rule = mpp::rule_by_family_t<FAMILY>;
+	if constexpr (Rule::has_simplex) {
+		const auto& range = Rule::simplex_value_range;
+		constexpr auto tag = Rule::simplex_tag;
+		std::string set_info = std::string("fix");
+		set_info += mpp::FamilyHumanName[FAMILY];
+		using type = std::tuple_element_t<0, typename Rule::types>;
+		if (std::is_integral_v<type>) {
+			set_info += " ";
+			if (range.first == range.last) {
+				set_info += std::to_string(range.first);
+			} else {
+				set_info += std::to_string(range.first);
+				set_info += "..";
+				set_info += std::to_string(range.last);
 			}
-			for (auto j = ranges[i].first; j <= ranges[i].second; j++) {
-				auto& info = infos[(uint8_t)(tag++)];
-				fail_unless(info.empty());
-				info = set_info;
-			}
-		};
+		}
+		for (uint8_t j = range.first; (j - 1) != range.last; j++) {
+			auto& info = infos[(uint8_t)(j + tag)];
+			fail_unless(info.empty());
+			info = set_info;
+		}
 	}
-	if constexpr (mpp::has_complex_v<Rule>) {
+	if constexpr (Rule::has_complex) {
 		using types = typename Rule::complex_types;
 		for (size_t i = 0; i < std::tuple_size_v<types>; i++) {
 			auto& info = infos[i + Rule::complex_tag];
@@ -248,67 +319,38 @@ void collectType(FullInfo& infos)
 	}
 }
 
-template <class TUPLE, size_t I, size_t ...J>
-void collectByTypes(FullInfo& info, std::index_sequence<I, J...>)
+template <size_t ...FAMILY>
+FullInfo collectByType(std::index_sequence<FAMILY...>)
 {
-	collectType<std::tuple_element_t<I, TUPLE>::value>(info);
-	if constexpr (sizeof...(J) > 0)
-		collectByTypes<TUPLE>(info, std::index_sequence<J...>{});
+	FullInfo infos;
+	(collectByType<static_cast<mpp::compact::Family>(FAMILY)>(infos), ...);
+	return infos;
 }
 
-FullInfo collectByTypes()
+FullInfo collectByType()
 {
-	using namespace mpp;
-	using families = std::tuple<
-		std::integral_constant<compact::Family, compact::MP_NIL>,
-		std::integral_constant<compact::Family, compact::MP_IGNR>,
-		std::integral_constant<compact::Family, compact::MP_BOOL>,
-		std::integral_constant<compact::Family, compact::MP_UINT>,
-		std::integral_constant<compact::Family, compact::MP_INT>,
-		std::integral_constant<compact::Family, compact::MP_FLT>,
-		std::integral_constant<compact::Family, compact::MP_DBL>,
-		std::integral_constant<compact::Family, compact::MP_STR>,
-		std::integral_constant<compact::Family, compact::MP_BIN>,
-		std::integral_constant<compact::Family, compact::MP_ARR>,
-		std::integral_constant<compact::Family, compact::MP_MAP>,
-		std::integral_constant<compact::Family, compact::MP_EXT>
-	>;
-	constexpr size_t S = std::tuple_size_v<families>;
-	FullInfo res;
-	collectByTypes<families>(res, std::make_index_sequence<S>{});
-	return res;
+	return collectByType(test::fis_t{});
 }
 
 template <uint8_t TAG>
 void collectByTags(FullInfo& info)
 {
-	using rule_t = mpp::RuleByTag_t<TAG>;
-	// Two lines below are built extremely slow, so disabled.
-	//using alt_rule_t = std::tuple_element_t<TAG, mpp::AllTagRules_t>;
-	//static_assert(std::is_same_v<rule_t, alt_rule_t>);
-	static_assert(mpp::rule_has_tag<rule_t>(TAG));
-	const bool r1 = mpp::rule_has_simplex_tag<rule_t>(TAG);
-	const bool r2 = mpp::rule_has_complex_tag<rule_t>(TAG);
-	static_assert(r1 != r2);
-	if constexpr (r1) {
-		const auto& ranges = rule_t::simplex_ranges;
+	using rule_t = test::rule_by_tag_t<TAG>;
+	static_assert(test::rule_has_tag_v<rule_t, TAG>);
+	constexpr bool is_simplex = test::rule_has_simplex_tag_v<rule_t, TAG>;
+	constexpr bool is_complex = test::rule_has_complex_tag_v<rule_t, TAG>;
+	static_assert(is_simplex != is_complex);
+	if constexpr (is_simplex) {
+		const auto& range = rule_t::simplex_value_range;
 		std::string set_info = std::string("fix");
 		set_info += mpp::FamilyHumanName[rule_t::family];
-		if (std::is_integral_v<typename rule_t::type>) {
-			auto tag_offset = TAG - rule_t::simplex_tag;
-			for (size_t i = 0; i < std::size(ranges); i++) {
-				auto w = ranges[i].second - ranges[i].first + 1;
-				if (tag_offset >= w) {
-					tag_offset -= w;
-					continue;
-				}
-				set_info += " ";
-				set_info += std::to_string(ranges[i].first);
-				if (ranges[i].first == ranges[i].second)
-					break;
+		using type = std::tuple_element_t<0, typename rule_t::types>;
+		if (std::is_integral_v<type>) {
+			set_info += " ";
+			set_info += std::to_string(range.first);
+			if (range.first != range.last) {
 				set_info += "..";
-				set_info += std::to_string(ranges[i].second);
-				break;
+				set_info += std::to_string(range.last);
 			}
 		}
 		info[TAG] = set_info;
@@ -339,9 +381,13 @@ test_collect_info()
 {
 	TEST_INIT(0);
 
-	FullInfo info1 = collectByTypes();
+	FullInfo info1 = collectByType();
 	FullInfo info2 = collectByTags();
 	fail_unless(info1 == info2);
+	for (size_t i = 0; i < 256; i++) {
+		//std::cout << info1[i] << std::endl;
+		fail_if(info1[i].empty());
+	}
 }
 
 int main()
