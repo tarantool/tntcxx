@@ -106,13 +106,13 @@ struct Greeting {
 };
 
 template <class BUFFER>
-struct HeaderKeyReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_UINT> {
+struct HeaderKeyReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_INT> {
 
 	HeaderKeyReader(mpp::Dec<BUFFER>& d, Header& h) : dec(d), header(h) {}
 
 	void Value(const iterator_t<BUFFER>&, mpp::compact::Family, uint64_t key)
 	{
-		using Int_t = mpp::SimpleReader<BUFFER, mpp::MP_UINT, int>;
+		using Int_t = mpp::SimpleReader<BUFFER, mpp::MP_INT, int>;
 		switch (key) {
 			case Iproto::REQUEST_TYPE:
 				dec.SetReader(true, Int_t{header.code});
@@ -151,7 +151,7 @@ struct TupleReader : mpp::ReaderTemplate<BUFFER> {
 
 	TupleReader(mpp::Dec<BUFFER>& d, Data<BUFFER>& dt) : dec(d), data(dt) {}
 	static constexpr mpp::Family VALID_TYPES = mpp::MP_ARR | mpp::MP_MAP |
-		mpp::MP_UINT | mpp::MP_INT | mpp::MP_BOOL | mpp::MP_DBL |
+		mpp::MP_INT | mpp::MP_BOOL | mpp::MP_FLT |
 		mpp::MP_STR | mpp::MP_NIL;
 	void Value(iterator_t<BUFFER>& arg, mpp::compact::Family, mpp::ArrValue u)
 	{
@@ -228,14 +228,14 @@ struct ErrorFieldsReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_MAP> {
 };
 
 template <class BUFFER>
-struct ErrorKeyReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_UINT> {
+struct ErrorKeyReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_INT> {
 
 	ErrorKeyReader(mpp::Dec<BUFFER>& d, Error& er) : dec(d), error(er) {}
 
 	void Value(const iterator_t<BUFFER>&, mpp::compact::Family, uint64_t key)
 	{
 		using TypeNameReader_t = mpp::SimpleStrReader<BUFFER, sizeof(Error{}.type_name)>;
-		using Int_t = mpp::SimpleReader<BUFFER, mpp::MP_UINT, int>;
+		using Int_t = mpp::SimpleReader<BUFFER, mpp::MP_INT, int>;
 		using FileReader_t = mpp::SimpleStrReader<BUFFER, sizeof(Error{}.file)>;
 		using MsgReader_t = mpp::SimpleStrReader<BUFFER, sizeof(Error{}.msg)>;
 		using FieldsReader_t = ErrorFieldsReader<BUFFER>;
@@ -308,7 +308,7 @@ struct ErrorArrayReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_ARR> {
 };
 
 template <class BUFFER>
-struct ErrorStackReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_UINT> {
+struct ErrorStackReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_INT> {
 
 	ErrorStackReader(mpp::Dec<BUFFER>& d, ErrorStack& er) : dec(d), error(er) {}
 
@@ -363,7 +363,7 @@ struct ErrorReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_MAP> {
 
 
 template <class BUFFER>
-struct BodyKeyReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_UINT> {
+struct BodyKeyReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_INT> {
 
 	BodyKeyReader(mpp::Dec<BUFFER>& d, Body<BUFFER>& b) : dec(d), body(b) {}
 

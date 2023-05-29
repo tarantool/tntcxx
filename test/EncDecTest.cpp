@@ -168,9 +168,9 @@ test_type_visual()
 		  << compact::MP_EXT << "\n";
 	std::cout << MP_NIL << " "
 		  << MP_BOOL << " "
-		  << (MP_UINT | MP_INT) << " "
+		  << (MP_INT) << " "
 		  << (MP_BIN  | MP_STR) << " "
-		  << (MP_UINT | MP_INT | MP_DBL | MP_FLT) << "\n";
+		  << (MP_INT | MP_FLT) << "\n";
 
 	std::cout << "(" << family_sequence<>{} << ") "
 		  << "(" << family_sequence<compact::MP_NIL>{} << ") "
@@ -193,7 +193,7 @@ struct ArrValueReader : mpp::DefaultErrorHandler {
 	using Buffer_t = tnt::Buffer<16 * 1024>;
 	using BufferIterator_t = typename Buffer_t::iterator;
 	explicit ArrValueReader(TestArrStruct& a) : arr(a) {}
-	static constexpr mpp::Family VALID_TYPES = mpp::MP_DBL | mpp::MP_FLT |
+	static constexpr mpp::Family VALID_TYPES = mpp::MP_FLT |
 		mpp::MP_STR | mpp::MP_NIL | mpp::MP_BOOL;
 	template <class T>
 	void Value(const BufferIterator_t&, mpp::compact::Family, T v)
@@ -247,7 +247,7 @@ struct TestMapStruct {
 	size_t arr_size;
 };
 
-struct MapKeyReader : mpp::SimpleReaderBase<Buffer_t, mpp::MP_UINT> {
+struct MapKeyReader : mpp::SimpleReaderBase<Buffer_t, mpp::MP_INT> {
 	MapKeyReader(mpp::Dec<Buffer_t>& d, TestMapStruct& m) : dec(d), map(m) {}
 
 	void Value(const BufferIterator_t&, mpp::compact::Family, uint64_t k)
@@ -259,7 +259,7 @@ struct MapKeyReader : mpp::SimpleReaderBase<Buffer_t, mpp::MP_UINT> {
 			<mpp::Dec<Buffer_t>,
 			Buffer_t,
 			sizeof(map_t{}.arr) / sizeof(map_t{}.arr[0]),
-			mpp::MP_UINT,
+			mpp::MP_INT,
 			int
 			>;
 		switch (k) {
@@ -301,8 +301,7 @@ struct IntVectorValueReader : mpp::DefaultErrorHandler {
 	using Buffer_t = tnt::Buffer<16 * 1024>;
 	using BufferIterator_t = typename Buffer_t::iterator;
 	explicit IntVectorValueReader(std::vector<T>& v) : vec(v) {}
-	static constexpr mpp::Family VALID_TYPES = std::is_signed_v<T> ?
-	        mpp::MP_UINT | mpp::MP_INT : mpp::MP_UINT;
+	static constexpr mpp::Family VALID_TYPES = mpp::MP_INT;
 	template <class V>
 	void Value(const BufferIterator_t&, mpp::compact::Family, V v)
 	{
@@ -334,14 +333,11 @@ struct IntMapValueReader : mpp::DefaultErrorHandler {
 	using Buffer_t = tnt::Buffer<16 * 1024>;
 	using BufferIterator_t = typename Buffer_t::iterator;
 	IntMapValueReader(std::map<T, U>& m, mpp::Dec<Buffer_t>& d) : map(m), dec(d) {}
-	static constexpr mpp::Family VALID_TYPES = std::is_signed_v<T> ?
-						   mpp::MP_UINT | mpp::MP_INT : mpp::MP_UINT;
+	static constexpr mpp::Family VALID_TYPES = mpp::MP_INT;
 	template <class V>
 	void Value(const BufferIterator_t&, mpp::compact::Family, V v)
 	{
 		auto res = map.template emplace(v, 0);
-		static constexpr mpp::Family VALID_TYPES = std::is_signed_v<U> ?
-			mpp::MP_UINT | mpp::MP_INT : mpp::MP_UINT;
 		using ValueReader_t = mpp::SimpleReader<Buffer_t, VALID_TYPES, U>;
 		dec.SetReader(true, ValueReader_t{res.first->second});
 	}
@@ -504,21 +500,21 @@ test_basic()
 	mpp::Dec<Buf_t> dec(buf);
 	{
 		int val = 15478;
-		dec.SetReader(false, mpp::SimpleReader<Buf_t, mpp::MP_UINT, int>{val});
+		dec.SetReader(false, mpp::SimpleReader<Buf_t, mpp::MP_INT, int>{val});
 		mpp::ReadResult_t res = dec.Read();
 		fail_if(res != mpp::READ_SUCCESS);
 		fail_if(val != 0);
 	}
 	{
 		int val = 15478;
-		dec.SetReader(false, mpp::SimpleReader<Buf_t, mpp::MP_AINT, int>{val});
+		dec.SetReader(false, mpp::SimpleReader<Buf_t, mpp::MP_INT, int>{val});
 		mpp::ReadResult_t res = dec.Read();
 		fail_if(res != mpp::READ_SUCCESS);
 		fail_if(val != 10);
 	}
 	{
 		unsigned short val = 15478;
-		mpp::SimpleReader<Buf_t, mpp::MP_ANUM, unsigned short> r{val};
+		mpp::SimpleReader<Buf_t, mpp::MP_NUM, unsigned short> r{val};
 		dec.SetReader(false, r);
 		mpp::ReadResult_t res = dec.Read();
 		fail_if(res != mpp::READ_SUCCESS);
@@ -527,7 +523,7 @@ test_basic()
 	for (uint64_t exp : {2000ull, 2000000ull, 4000000000ull, 4000000000ull, 20000000000ull})
 	{
 		uint64_t val = 15478;
-		dec.SetReader(false, mpp::SimpleReader<Buf_t, mpp::MP_UINT, uint64_t>{val});
+		dec.SetReader(false, mpp::SimpleReader<Buf_t, mpp::MP_INT, uint64_t>{val});
 		mpp::ReadResult_t res = dec.Read();
 		fail_if(res != mpp::READ_SUCCESS);
 		fail_if(val != exp);
@@ -535,7 +531,7 @@ test_basic()
 	for (int32_t exp : {-1, -100, -100, -1000})
 	{
 		int32_t val = 15478;
-		dec.SetReader(false, mpp::SimpleReader<Buf_t, mpp::MP_AINT, int32_t>{val});
+		dec.SetReader(false, mpp::SimpleReader<Buf_t, mpp::MP_INT, int32_t>{val});
 		mpp::ReadResult_t res = dec.Read();
 		fail_if(res != mpp::READ_SUCCESS);
 		fail_if(val != exp);
@@ -543,7 +539,7 @@ test_basic()
 	for (double exp : {1., 2.})
 	{
 		double val = 15478;
-		dec.SetReader(false, mpp::SimpleReader<Buf_t, mpp::MP_AFLT, double>{val});
+		dec.SetReader(false, mpp::SimpleReader<Buf_t, mpp::MP_FLT, double>{val});
 		mpp::ReadResult_t res = dec.Read();
 		fail_if(res != mpp::READ_SUCCESS);
 		fail_if(val != exp);
@@ -551,7 +547,7 @@ test_basic()
 	for (int32_t exp : {11, 12, -13, 100500, 100501})
 	{
 		int32_t val = 15478;
-		dec.SetReader(false, mpp::SimpleReader<Buf_t, mpp::MP_AINT, int32_t>{val});
+		dec.SetReader(false, mpp::SimpleReader<Buf_t, mpp::MP_INT, int32_t>{val});
 		mpp::ReadResult_t res = dec.Read();
 		fail_if(res != mpp::READ_SUCCESS);
 		fail_if(val != exp);

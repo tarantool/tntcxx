@@ -72,7 +72,7 @@ int
 ResponseDecoder<BUFFER>::decodeResponseSize()
 {
 	int size = -1;
-	m_Dec.SetReader(false, mpp::SimpleReader<BUFFER, mpp::MP_UINT, int>{size});
+	m_Dec.SetReader(false, mpp::SimpleReader<BUFFER, mpp::MP_INT, int>{size});
 	mpp::ReadResult_t res = m_Dec.Read();
 	//TODO: raise more detailed error
 	if (res != mpp::READ_SUCCESS)

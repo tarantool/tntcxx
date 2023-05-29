@@ -47,7 +47,7 @@
 //TODO : add time_t?
 //TODO : rollback in case of fail
 //TODO : error handling + names
-//TODO : min + max
+//TODO : min + max (detect max for string literal and static capacity)
 //TODO : avoid reinterpret_cast
 //TODO : add raw(N)
 //TODO : add std::variant
@@ -81,14 +81,10 @@ constexpr compact::Family detectFamily()
 		return compact::MP_NIL;
 	} else if constexpr (std::is_same_v<V, bool>) {
 		return compact::MP_BOOL;
-	} else if constexpr (tnt::is_signed_integer_v<V>) {
+	} else if constexpr (tnt::is_integer_v<V>) {
 		return compact::MP_INT;
-	} else if constexpr (tnt::is_unsigned_integer_v<V>) {
-		return compact::MP_UINT;
-	} else if constexpr (std::is_same_v<V, float>) {
+	} else if constexpr (std::is_floating_point_v<V>) {
 		return compact::MP_FLT;
-	} else if constexpr (std::is_same_v<V, double>) {
-		return compact::MP_DBL;
 	} else if constexpr (tnt::is_string_constant_v<V>) {
 		return compact::MP_STR;
 	} else if constexpr (tnt::is_char_ptr_v<V>) {
@@ -352,12 +348,8 @@ template <class RULE, bool IS_FIXED, class FIXED_T, class V>
 constexpr bool can_encode_simple()
 {
 	if constexpr(tnt::is_integral_constant_v<V> || IS_FIXED ||
-		     !has_complex_v<RULE>) {
+		     !RULE::has_complex) {
 		return true;
-	} else if constexpr(!has_simplex_v<RULE>) {
-		static_assert(has_complex_v<RULE>);
-		using types = typename RULE::complex_types;
-		return std::tuple_size_v<types> == 1;
 	} else {
 		return false;
 	}
@@ -373,16 +365,16 @@ constexpr auto getTagValSimple([[maybe_unused]] V value)
 		constexpr char t = static_cast<char>(RULE::simplex_tag);
 		return std::make_pair(tnt::CStr<t>{}, Nothing{});
 	} else if constexpr(IS_FIXED && std::is_same_v<FIXED_T, void>) {
-		static_assert(has_simplex_v<RULE>);
+		static_assert(RULE::has_simplex);
 
 		// Check value.
 		if constexpr(tnt::is_uni_integer_v<V> &&
 			     tnt::is_integral_constant_v<V>) {
 			static_assert(find_simplex_offset<RULE>(V::value) <
-				      SimplexRange<RULE>::length);
+				      RULE::simplex_value_range.count);
 		} else if constexpr(tnt::is_integer_v<V>) {
 			assert(find_simplex_offset<RULE>(value) <
-			       SimplexRange<RULE>::length);
+			       RULE::simplex_value_range.count);
 		}
 
 		if constexpr(tnt::is_integral_constant_v<V>) {
@@ -393,7 +385,7 @@ constexpr auto getTagValSimple([[maybe_unused]] V value)
 			return std::make_pair(t, Nothing{});
 		}
 	} else if constexpr(IS_FIXED) {
-		static_assert(has_complex_v<RULE>);
+		static_assert(RULE::has_complex);
 		using types = typename RULE::complex_types;
 		constexpr uint8_t offset = tnt::tuple_find_v<FIXED_T, types>;
 		static_assert(offset < std::tuple_size_v<types>,
@@ -424,14 +416,8 @@ constexpr auto getTagValSimple([[maybe_unused]] V value)
 		return std::make_pair(tag, enc_val);
 	} else if constexpr(tnt::is_integral_constant_v<V>) {
 		constexpr auto cv = V::value;
-		[[maybe_unused]] constexpr size_t soff =
-			find_simplex_offset<RULE>(V::value);
-		if constexpr (RULE::is_negative &&
-			      tnt::is_signed_integer_v<decltype(cv)> &&
-			      under_int_t<decltype(cv)>(cv) >= 0) {
-			using rule = typename RULE::positive_rule;
-			return getTagValSimple<rule, false, void>(value);
-		} else if constexpr(soff < SimplexRange<RULE>::length) {
+		constexpr size_t soff = find_simplex_offset<RULE>(cv);
+		if constexpr(soff < RULE::simplex_value_range.count) {
 			constexpr uint8_t ut = RULE::simplex_tag + soff;
 			constexpr int8_t t = static_cast<uint8_t>(ut);
 			return std::make_pair(tnt::CStr<t>{}, Nothing{});
@@ -446,21 +432,10 @@ constexpr auto getTagValSimple([[maybe_unused]] V value)
 			return std::make_pair(tnt::CStr<t>{}, enc_val);
 		}
 	} else {
-		static_assert(!has_simplex_v<RULE> || !has_complex_v<RULE>);
-		static_assert(!RULE::is_negative);
-		if constexpr(has_simplex_v<RULE>) {
-			size_t soff = find_simplex_offset<RULE>(value);
-			uint8_t t = RULE::simplex_tag + soff;
-			return std::make_pair(t, Nothing{});
-		} else  {
-			static_assert(has_complex_v<RULE>);
-			using types = typename RULE::complex_types;
-			static_assert(std::tuple_size_v<types> == 1);
-			using type = std::tuple_element_t<0, types>;
-			constexpr char t = static_cast<char>(RULE::complex_tag);
-			auto enc_val = enc_bswap(static_cast<type>(value));
-			return std::make_pair(tnt::CStr<t>{}, enc_val);
-		}
+		static_assert(RULE::has_simplex);
+		size_t soff = find_simplex_offset<RULE>(value);
+		uint8_t t = RULE::simplex_tag + soff;
+		return std::make_pair(t, Nothing{});
 	}
 }
 
@@ -636,7 +611,7 @@ encode(CONT &cont, tnt::CStr<C...> prefix,
 		constexpr bool is_fixed = is_wrapped_fixed_v<T>;
 		using fixed_t = get_fixed_t<T>;
 		constexpr compact::Family family = detectFamily<T>();
-		using rule_t = RuleByFamily_t<family>;
+		using rule_t = rule_by_family_t<family>;
 		auto value = getValue<family>(t, u);
 		using V = decltype(value);
 		auto ext = getExtType<family>(t, u);
@@ -650,25 +625,13 @@ encode(CONT &cont, tnt::CStr<C...> prefix,
 				      as_raw(tag_val.second), as_raw(ext),
 				      as_raw(data), more...);
 		} else {
-			static_assert(has_complex_v<rule_t>);
-			using types = typename rule_t::complex_types;
+			static_assert(rule_t::has_complex);
 			static_assert(!tnt::is_integral_constant_v<V>);
-			if constexpr(rule_t::is_negative &&
-				     tnt::is_signed_integer_v<V> &&
-				     !is_wrapped_family_v<T>) {
-				if (under_int_t<V>(value) >= 0) {
-					return encode(cont, prefix, is,
-						      under_uint_t<V>(value),
-						      more...);
-				}
-			}
-			if constexpr(!rule_t::is_negative &&
-				     tnt::is_signed_integer_v<V>) {
-				assert(under_int_t<V>(value) >= 0);
-			}
-			if constexpr(has_simplex_v<rule_t>) {
+			using types = typename rule_t::complex_types;
+
+			if constexpr(rule_t::has_simplex) {
 				size_t soff = find_simplex_offset<rule_t>(value);
-				if (soff < SimplexRange<rule_t>::length) {
+				if (soff < rule_t::simplex_value_range.count) {
 					uint8_t tag = rule_t::simplex_tag + soff;
 					cont.write(prefix);
 					cont.write(tag);
@@ -677,56 +640,20 @@ encode(CONT &cont, tnt::CStr<C...> prefix,
 						      more...);
 				}
 			}
+
 			auto complex = [&](auto IND) -> bool {
-				constexpr size_t i = decltype(IND)::value;
-				if constexpr(i >= std::tuple_size_v<types>) {
-					return true;
-				} else {
-					using type =
-						std::tuple_element_t<i, types>;
-					constexpr uint8_t utag =
-						rule_t::complex_tag + i;
-					constexpr int8_t tag =
-						static_cast<int8_t>(utag);
-					auto tvalue = static_cast<type>(value);
-					auto enc_val = enc_bswap(tvalue);
-					auto new_prefix =
-						prefix.join(tnt::CStr<tag>{});
-					return encode(cont, new_prefix, is,
-						      as_raw(enc_val),
-						      as_raw(ext), as_raw(data),
-						      more...);
-				}
+				constexpr size_t ind = decltype(IND)::value;
+				using type = std::tuple_element_t<ind, types>;
+				constexpr int8_t tag = static_cast<int8_t>(
+					rule_t::complex_tag + ind);
+				auto tvalue = static_cast<type>(value);
+				auto enc_val = enc_bswap(tvalue);
+				auto new_prefix = prefix.join(tnt::CStr<tag>{});
+				return encode(cont, new_prefix, is,
+					      as_raw(enc_val), as_raw(ext),
+					      as_raw(data), more...);
 			};
-			std::integral_constant<size_t, 0> ind0;
-			std::integral_constant<size_t, 1> ind1;
-			std::integral_constant<size_t, 2> ind2;
-			std::integral_constant<size_t, 3> ind3;
-			static_assert(std::tuple_size_v<types> <= 4);
-			constexpr bool is_signed_negative =
-				rule_t::is_negative &&
-				tnt::is_signed_integer_v<V> &&
-				!is_wrapped_family_v<T>;
-
-			if constexpr(surely_fits<types, 0,
-						 is_signed_negative, V>())
-				return complex(ind0);
-			if (check_fits<types, 0, is_signed_negative>(value))
-				return complex(ind0);
-
-			if constexpr(surely_fits<types, 1,
-				is_signed_negative, V>())
-				return complex(ind1);
-			if (check_fits<types, 1, is_signed_negative>(value))
-				return complex(ind1);
-
-			if constexpr(surely_fits<types, 2,
-				is_signed_negative, V>())
-				return complex(ind2);
-			if (check_fits<types, 2, is_signed_negative>(value))
-				return complex(ind2);
-
-			return complex(ind3);
+			return rule_complex_apply<rule_t>(value, complex);
 		}
 	}
 }
