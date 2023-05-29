@@ -101,7 +101,7 @@ template <class RULE, size_t ...I>
 constexpr uint8_t lowerRangesSumLength(std::index_sequence<I...>)
 {
 	return ((RULE::simplex_ranges[I].second -
-		 RULE::simplex_ranges[I].first) + ... + 0);
+		 RULE::simplex_ranges[I].first + 1) + ... + 0);
 }
 
 struct SubRule {
@@ -160,7 +160,7 @@ constexpr SubRules<X + Y> operator+(SubRules<X> a, SubRules<Y> b)
 
 template <class RULE, size_t I>
 constexpr uint8_t simplex_tag_count_v =
-	RULE::simplex_ranges[I].second - RULE::simplex_ranges[I].first;
+	RULE::simplex_ranges[I].second - RULE::simplex_ranges[I].first + 1;
 
 template <class RULE, size_t I>
 constexpr uint8_t simplex_tag_first_v =
@@ -174,8 +174,7 @@ constexpr uint8_t simplex_tag_last_v =
 template <compact::Family FAMILY, class RULE, size_t ...I>
 constexpr auto getSimplexSubRules(std::index_sequence<I...>)
 {
-	constexpr size_t simplex_count =
-		sizeof(RULE::simplex_ranges) / sizeof(RULE::simplex_ranges[0]);
+	constexpr size_t simplex_count = std::size(RULE::simplex_ranges);
 	return SubRules<simplex_count>{{
 		{
 			FAMILY, true, I,
@@ -191,8 +190,7 @@ constexpr auto getSimplexSubRules()
 	using Rule_t = RuleByFamily_t<FAMILY>;
 	if constexpr (has_simplex_v<Rule_t>) {
 		constexpr size_t simplex_count =
-			sizeof(Rule_t::simplex_ranges) /
-			sizeof(Rule_t::simplex_ranges[0]);
+			std::size(Rule_t::simplex_ranges);
 		constexpr auto is = std::make_index_sequence<simplex_count>{};
 		return getSimplexSubRules<FAMILY, Rule_t>(is);
 	} else {

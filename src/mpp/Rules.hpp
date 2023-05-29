@@ -48,24 +48,24 @@
  *
  * In order to define all terms here's a general representation of any
  * object that is encoded with msgpack:
- * | Tag | Multi bytes | Ext |      Data      | Child0 | Child1 ... |
+ * | Tag |   Suffix    | Ext |      Data      | Child0 | Child1 ... |
  * | <-----Value-----> |
- * | <----------------Token-----------------> |
+ * | <-----------------Item-----------------> |
  * | <---------------------------Object---------------------------> |
- * Tag - first byte of msgpack encoded object, completely describes type of
- *  the object and layout of token. In many cases also contains the value, in
- *  those cases the next `multy byte` part is omitted.
+ * Tag is the first byte of msgpack encoded object, completely describes type
+ *  of the object and layout of item. In many cases also contains the value,
+ *  in those cases the next `suffix` part is omitted.
  * Value - numeric part of object. Is the length of data for str/bin/ext,
- *  the length of array for arr, number k-v part for map, and the value itself
+ *  the length of array for arr, number k-v parts for map, and the value itself
  *  for int/bool/float etc.
- * Multi bytes - big-endian bytes of value if the value it not encoded in tag;
- *  can be of size 0,1,2,4,8, which is specified by preceding tag.
+ * Suffix - big-endian bytes of value if the value is not encoded in tag;
+ *  can be of size 0,1,2,4,8, which is fully specified by preceding tag.
  * Ext - additional byte that is present only for msgpack extension family
  *  and describes the type of that extension.
  * Data - byte sequence for str/bin/ext (absent for other families);
  *  the size of data (if it is present!) is equal to preceding value.
- * Token - unit of msgpack stream, the encoded object without children. The
- *  size of token is specified by tag and value.
+ * Item - unit of msgpack stream, the encoded object without children. The
+ *  size of item is specified by tag and value.
  * Child0... - msgpack independently encoded elements of array or keys-values
  *  of maps. The number of direct children is preceding value of an array of
  *  2 * preceding value of a map.
@@ -74,18 +74,18 @@
  * encoded right in tag OR the tag specifies the number of multi bytes nearby,
  * in which the value is encoded. That gives two ways of value encoding, that
  * are called in this file as Simplex (value is encoded in one byte tag) and
- * Complex (value is encoded in multi bytes with a preceding tag, that specifies
- * the number of multi bytes). Note that not every family can be encoded in
- * both ways, for example MP_BOOL can be only simplex encoded, while MP_BIN
- * can only be complex encoded.
+ * Complex (value is encoded in multi bytes with a preceding tag). Not every
+ * family can be encoded in both ways, for example MP_BOOL can be only simplex
+ * encoded, while MP_BIN can only be complex encoded.
  *
  * Each rule class has a base - BaseRule and thus its members (see the class
  * definition for the list of members). In addition the rule may or may not
  * have Simplex and Complex encoding definition. Absence of one or another
  * part declares that the family cannon be encoded in the corresponding way.
  * Simplex part:
- * simplex_ranges - an array of ranges of values that can be encoded in
- *  simplex way. Note that the ranges can have be negative bounds.
+ * simplex_ranges - an array of ranges (including boundaries) of values that
+ *  can be encoded in simplex way. Note that the ranges can have negative
+ *  boundaries.
  * simplex_tag - the tag by which the first value in the first range is
  *  encoded. The rest values take incrementally sequent tag.
  * Complex part:
@@ -124,29 +124,29 @@ struct BaseRule {
 };
 
 struct NilRule : BaseRule<std::nullptr_t, compact::MP_NIL> {
-	static constexpr std::pair<uint8_t, uint8_t> simplex_ranges[] = {{0, 1}};
+	static constexpr std::pair<uint8_t, uint8_t> simplex_ranges[] = {{0, 0}};
 	static constexpr uint8_t simplex_tag = 0xc0;
 };
 
 struct IgnrRule : BaseRule<decltype(std::ignore), compact::MP_IGNR> {
-	static constexpr std::pair<uint8_t, uint8_t> simplex_ranges[] = {{0, 1}};
+	static constexpr std::pair<uint8_t, uint8_t> simplex_ranges[] = {{0, 0}};
 	static constexpr uint8_t simplex_tag = 0xc1;
 };
 
 struct BoolRule : BaseRule<bool, compact::MP_BOOL> {
-	static constexpr std::pair<uint8_t, uint8_t> simplex_ranges[] = {{0, 2}};
+	static constexpr std::pair<uint8_t, uint8_t> simplex_ranges[] = {{0, 1}};
 	static constexpr uint8_t simplex_tag = 0xc2;
 };
 
 struct UintRule : BaseRule<uint64_t, compact::MP_UINT> {
-	static constexpr std::pair<uint8_t, uint8_t> simplex_ranges[] = {{0, 128}};
+	static constexpr std::pair<uint8_t, uint8_t> simplex_ranges[] = {{0, 127}};
 	static constexpr uint8_t simplex_tag = 0x00;
 	using complex_types = std::tuple<uint8_t, uint16_t, uint32_t, uint64_t>;
 	static constexpr uint8_t complex_tag = 0xcc;
 };
 
 struct IntRule : BaseRule<int64_t, compact::MP_INT> {
-	static constexpr std::pair<int8_t, int8_t> simplex_ranges[] = {{-32, 0}};
+	static constexpr std::pair<int8_t, int8_t> simplex_ranges[] = {{-32, -1}};
 	static constexpr uint8_t simplex_tag = -32;
 	using complex_types = std::tuple<int8_t, int16_t, int32_t, int64_t>;
 	static constexpr uint8_t complex_tag = 0xd0;
@@ -163,7 +163,7 @@ struct DblRule : BaseRule<double, compact::MP_DBL> {
 };
 
 struct StrRule : BaseRule<uint32_t, compact::MP_STR> {
-	static constexpr std::pair<uint8_t, uint8_t> simplex_ranges[] = {{0, 32}};
+	static constexpr std::pair<uint8_t, uint8_t> simplex_ranges[] = {{0, 31}};
 	static constexpr uint8_t simplex_tag = 0xa0;
 	using complex_types = std::tuple<uint8_t, uint16_t, uint32_t>;
 	static constexpr uint8_t complex_tag = 0xd9;
@@ -175,14 +175,14 @@ struct BinRule : BaseRule<uint32_t, compact::MP_BIN> {
 };
 
 struct ArrRule : BaseRule<uint32_t, compact::MP_ARR> {
-	static constexpr std::pair<uint8_t, uint8_t> simplex_ranges[] = {{0, 16}};
+	static constexpr std::pair<uint8_t, uint8_t> simplex_ranges[] = {{0, 15}};
 	static constexpr uint8_t simplex_tag = 0x90;
 	using complex_types = std::tuple<uint16_t, uint32_t>;
 	static constexpr uint8_t complex_tag = 0xdc;
 };
 
 struct MapRule : BaseRule<uint32_t, compact::MP_MAP> {
-	static constexpr std::pair<uint8_t, uint8_t> simplex_ranges[] = {{0, 16}};
+	static constexpr std::pair<uint8_t, uint8_t> simplex_ranges[] = {{0, 15}};
 	static constexpr uint8_t simplex_tag = 0x80;
 	using complex_types = std::tuple<uint16_t, uint32_t>;
 	static constexpr uint8_t complex_tag = 0xde;
@@ -190,7 +190,7 @@ struct MapRule : BaseRule<uint32_t, compact::MP_MAP> {
 
 struct ExtRule : BaseRule<uint32_t, compact::MP_EXT> {
 	static constexpr std::pair<uint8_t, uint8_t> simplex_ranges[] =
-		{{1,  3}, {4,  5}, {8,  9}, {16, 17}};
+		{{1,  2}, {4,  4}, {8,  8}, {16, 16}};
 	static constexpr uint8_t simplex_tag = 0xd4;
 	using complex_types = std::tuple<uint8_t, uint16_t, uint32_t>;
 	static constexpr uint8_t complex_tag = 0xc7;
@@ -270,7 +270,7 @@ template <class RULE, size_t ...I>
 struct SimplexRange_h<RULE, std::index_sequence<I...>> {
 	static constexpr size_t length =
 		((RULE::simplex_ranges[I].second -
-		  RULE::simplex_ranges[I].first) + ...);
+		  RULE::simplex_ranges[I].first + 1) + ...);
 	static constexpr size_t first = RULE::simplex_tag;
 	static constexpr size_t second = first + length;
 };
@@ -316,16 +316,16 @@ constexpr size_t find_simplex_offset_h(V value)
 {
 	if constexpr(std::is_same_v<V, bool> &&
 		     RULE::simplex_ranges[I].first == 0 &&
-		     RULE::simplex_ranges[I].second >= 2) {
+		     RULE::simplex_ranges[I].second >= 1) {
 		return S + value - RULE::simplex_ranges[I].first;
 	} else {
 		if (value >= RULE::simplex_ranges[I].first &&
-		    value < RULE::simplex_ranges[I].second)
+		    value <= RULE::simplex_ranges[I].second)
 			return S + value - RULE::simplex_ranges[I].first;
 	}
 	if constexpr(I + 1 < N) {
 		constexpr size_t rlen = RULE::simplex_ranges[I].second -
-					RULE::simplex_ranges[I].first;
+					RULE::simplex_ranges[I].first + 1;
 		return find_simplex_offset_h<RULE, I + 1, N, S + rlen>(value);
 	} else {
 		return SimplexRange<RULE>::length;
@@ -339,8 +339,7 @@ constexpr size_t find_simplex_offset(V value)
 	if constexpr(!has_simplex_v<RULE>) {
 		return SimplexRange<RULE>::length;
 	} else {
-		constexpr size_t N = sizeof(RULE::simplex_ranges) /
-				     sizeof(RULE::simplex_ranges[0]);
+		constexpr size_t N = std::size(RULE::simplex_ranges);
 		return details::find_simplex_offset_h<RULE, 0, N, 0>(value);
 	}
 }
