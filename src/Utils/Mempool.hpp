@@ -224,7 +224,7 @@ public:
 	explicit MempoolHolder(Base_t &instance) : m_Instance(&instance) {}
 	char *allocate() { return m_Instance->allocate(); }
 	void deallocate(char *ptr) noexcept { m_Instance->deallocate(ptr); }
-	int selfcheck() const { return m_Instance.selfcheck(); } 
+	int selfcheck() const { return m_Instance->selfcheck(); }
 
 	static constexpr size_t REAL_SIZE = Base_t::REAL_SIZE;
 	static constexpr size_t BLOCK_SIZE = Base_t::BLOCK_SIZE;
