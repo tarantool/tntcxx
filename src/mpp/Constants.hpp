@@ -32,6 +32,7 @@
 
 #include <iostream> // TODO - make output to iostream optional?
 #include <variant>
+#include <limits>
 
 namespace mpp {
 
