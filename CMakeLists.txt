@@ -175,6 +175,10 @@ TNTCXX_TEST(NAME ClientPerf.test TYPE perftest
             LIBRARIES ${COMMON_LIB}
 )
 
+TNTCXX_TEST(NAME EncDecGPerf.test TYPE gperftest
+            SOURCES src/mpp/mpp.hpp test/EncDecGPerfTest.cpp test/hints.c
+)
+
 TNTCXX_TEST(NAME SimpleExample TYPE other
             SOURCES examples/Simple.cpp
             LIBRARIES ${COMMON_LIB}
