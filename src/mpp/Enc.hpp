@@ -70,10 +70,8 @@ template <class T>
 constexpr compact::Family detectFamily()
 {
 	using fixed_t = get_fixed_t<T>;
-	constexpr bool is_type_fixed = !std::is_same_v<fixed_t, void>;
-	using CRU = decltype(unwrap(std::declval<const T&>()));
-	using CRUF = std::conditional_t<is_type_fixed, fixed_t, CRU>;
-	using U = std::remove_cv_t<std::remove_reference_t<CRUF>>;
+	constexpr bool is_non_void_fixed = !std::is_same_v<fixed_t, void>;
+	using U = std::conditional_t<is_non_void_fixed, fixed_t, unwrap_t<T>>;
 	using V = std::remove_cv_t<tnt::uni_integral_base_t<U>>;
 	if constexpr (is_wrapped_family_v<T>) {
 		return T::family;
