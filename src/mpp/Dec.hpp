@@ -51,8 +51,7 @@ namespace decode_details {
 template <class T>
 constexpr auto detectFamily()
 {
-	using CRU = decltype(unwrap(std::declval<const T&>()));
-	using U = std::remove_cv_t<std::remove_reference_t<CRU>>;
+	using U = unwrap_t<T>;
 	if constexpr (is_wrapped_family_v<T>) {
 		return family_sequence<T::family>{};
 	} else if constexpr (std::is_same_v<U, std::nullptr_t>) {

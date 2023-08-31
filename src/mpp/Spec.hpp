@@ -94,6 +94,9 @@ constexpr auto& unwrap(T& t)
 }
 
 template <class T>
+using unwrap_t = std::remove_reference_t<decltype(unwrap(std::declval<T&>()))>;
+
+template <class T>
 struct wrapped : wrapped_tag
 {
 	using object_t = std::remove_reference_t<T>;
@@ -162,6 +165,8 @@ constexpr auto as_fixed(T&& t)
 {
 	static_assert(!is_wrapped_fixed_v<T>, "Fixed type is already set");
 	static_assert(!is_wrapped_raw_v<T>, "Incompatible with raw");
+	static_assert(!std::is_reference_v<TYPE>, "Must be a plain type");
+	static_assert(!std::is_const_v<TYPE>, "Must be a plain type");
 	if constexpr(is_wrapped_v<T>) {
 		using WRAP_T = std::remove_reference_t<T>;
 		return wrapped_fixed<TYPE, WRAP_T>{std::forward<T>(t)};
