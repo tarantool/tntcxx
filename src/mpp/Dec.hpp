@@ -34,6 +34,7 @@
 #include <cstdint>
 #include <utility>
 
+#include "ArgPath.hpp"
 #include "Constants.hpp"
 #include "Rules.hpp"
 #include "Spec.hpp"

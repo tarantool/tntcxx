@@ -659,10 +659,92 @@ test_basic()
 	}
 }
 
+struct Unique {
+	Unique() = default;
+	Unique(const Unique&) = delete;
+	Unique& operator=(const Unique&) = delete;
+	int val = 0;
+};
+
+// Passing by values, reference wrappers are expected.
+template <class ...T>
+void
+test_arg_path_uniq3(T ...t)
+{
+	fail_unless(mpp::Path<0>{}(t...).val == 2);
+	fail_unless(mpp::Path<1>{}(t...) == 11);
+	mpp::Path<0>{}(t...).val = 3;
+}
+
+// Passing by values, reference wrappers are expected.
+template <class ...T>
+void
+test_arg_path_uniq2(T ...t)
+{
+	fail_unless(mpp::Path<0>{}(t...).val == 1);
+	fail_unless(mpp::Path<1>{}(t...) == 10);
+	mpp::Path<0>{}(t...).val = 2;
+	mpp::Path<1>{}(t...)++;
+	test_arg_path_uniq3(t...);
+}
+
+// Universal reference to arguments.
+template <class ...T>
+void
+test_arg_path_uniq1(T&& ...t)
+{
+	fail_unless(mpp::Path<0>{}(std::forward<T>(t)...).val == 0);
+	mpp::Path<0>{}(std::forward<T>(t)...).val = 1;
+	test_arg_path_uniq2(std::ref(std::forward<T>(t))..., 10);
+}
+
+void
+test_arg_path()
+{
+	TEST_INIT(0);
+
+	constexpr auto b = std::make_tuple(3, std::make_tuple(4, 5), 6);
+	constexpr auto t = std::make_tuple(std::make_tuple(9),
+					   std::make_tuple(10, 11));
+	constexpr auto c = std::make_tuple(std::make_tuple(7, 8), t);
+	static_assert(mpp::Path<0>{}(0, std::make_tuple(1, 2), b, c) == 0);
+	static_assert(mpp::Path<1, 0>{}(0, std::make_tuple(1, 2), b, c) == 1);
+	static_assert(mpp::Path<1, 1>{}(0, std::make_tuple(1, 2), b, c) == 2);
+	constexpr auto a = std::make_tuple(1, 2);
+	using R = decltype(mpp::Path<1>{}(0, a, b, c));
+	using T = std::remove_reference_t<R>;
+	static_assert(std::tuple_size_v<T> == 2);
+	static_assert(mpp::Path<2, 0>{}(0, a, b, c) == 3);
+	static_assert(mpp::Path<2, 1, 0>{}(0, a, b, c) == 4);
+	static_assert(mpp::Path<2, 1, 1>{}(0, a, b, c) == 5);
+	static_assert(mpp::Path<2, 2>{}(0, a, b, c) == 6);
+	static_assert(mpp::Path<3, 0, 0>{}(0, a, b, c) == 7);
+	static_assert(mpp::Path<3, 0, 1>{}(0, a, b, c) == 8);
+	static_assert(mpp::Path<3, 1, 0, 0>{}(0, a, b, c) == 9);
+	static_assert(mpp::Path<3, 1, 1, 0>{}(0, a, b, c) == 10);
+	static_assert(mpp::Path<3, 1, 1, 1>{}(0, a, b, c) == 11);
+
+	auto d = std::make_tuple(1, std::make_tuple(2, 3));
+	fail_unless(std::get<0>(d) == 1);
+	fail_unless(std::get<0>(std::get<1>(d)) == 2);
+	fail_unless(std::get<1>(std::get<1>(d)) == 3);
+	mpp::Path<0, 0>{}(d) = 4;
+	mpp::Path<0, 1, 0>{}(d) = 5;
+	mpp::Path<0, 1, 1>{}(d) = 6;
+	fail_unless(std::get<0>(d) == 4);
+	fail_unless(std::get<0>(std::get<1>(d)) == 5);
+	fail_unless(std::get<1>(std::get<1>(d)) == 6);
+
+	Unique u;
+	test_arg_path_uniq1(u);
+	fail_unless(u.val == 3);
+}
+
 int main()
 {
 	test_under_ints();
 	test_bswap();
 	test_type_visual();
 	test_basic();
+	test_arg_path();
 }
