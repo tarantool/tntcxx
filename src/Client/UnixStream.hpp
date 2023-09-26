@@ -30,6 +30,7 @@
 */
 #pragma once
 
+#include <fcntl.h>
 #include <poll.h>
 #include <unistd.h>
 #include <sys/socket.h>
@@ -167,10 +168,18 @@ UnixStream::connect(const ConnectOptions &opts_arg)
 			      addr_info.last_error());
 	int socket_errno = 0, connect_errno = 0;
 	for (auto &inf: addr_info) {
-		fd = ::socket(inf.ai_family,
-			      inf.ai_socktype | SOCK_NONBLOCK | SOCK_CLOEXEC,
-			      inf.ai_protocol);
+		fd = ::socket(inf.ai_family, inf.ai_socktype, inf.ai_protocol);
 		if (fd < 0) {
+			socket_errno = errno;
+			continue;
+		}
+		if (fcntl(fd, F_SETFD, FD_CLOEXEC) < 0) {
+			::close(fd);
+			socket_errno = errno;
+			continue;
+		}
+		if (fcntl(fd, F_SETFL, O_NONBLOCK) < 0) {
+			::close(fd);
 			socket_errno = errno;
 			continue;
 		}
