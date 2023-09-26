@@ -207,7 +207,7 @@ main()
 	printResponse<Buf_t>(conn, *response);
 	//doclabel11-2
 	/* Let's wait for both futures at once. */
-	std::vector<rid_t> futures;
+	std::vector<rid_t> futures(2);
 	futures[0] = replace;
 	futures[1] = select;
 	/* No specified timeout means that we poll futures until they are ready.*/
