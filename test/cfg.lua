@@ -22,6 +22,10 @@ function remote_multi()
     return 'Hello', 1, 6.66
 end
 
+function remote_nil()
+    return nil
+end
+
 function bench_func(...)
     return {...}
 end
