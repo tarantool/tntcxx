@@ -546,6 +546,7 @@ single_conn_call(Connector<BUFFER, NetProvider> &client)
 	const static char *return_select  = "remote_select";
 	const static char *return_uint    = "remote_uint";
 	const static char *return_multi   = "remote_multi";
+	const static char *return_nil     = "remote_nil";
 
 	Connection<Buf_t, NetProvider> conn(client);
 	int rc = test_connect(client, conn, localhost, port);
@@ -613,6 +614,13 @@ single_conn_call(Connector<BUFFER, NetProvider> &client)
 	fail_unless(response != std::nullopt);
 	fail_unless(response->body.error_stack != std::nullopt);
 	printResponse<BUFFER, NetProvider>(conn, *response);
+
+	TEST_CASE("call remote_nil");
+	rid_t f9 = conn.call(return_nil, std::make_tuple());
+	client.wait(conn, f9, WAIT_TIMEOUT);
+	fail_unless(conn.futureIsReady(f9));
+	response = conn.getResponse(f9);
+	printResponse<BUFFER, NetProvider>(conn, *response, MULTI_RETURN);
 
 	client.close(conn);
 }

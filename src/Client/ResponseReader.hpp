@@ -151,7 +151,7 @@ struct TupleReader : mpp::ReaderTemplate<BUFFER> {
 
 	TupleReader(mpp::Dec<BUFFER>& d, Data<BUFFER>& dt) : dec(d), data(dt) {}
 	static constexpr mpp::Family VALID_TYPES = mpp::MP_ARR | mpp::MP_UINT |
-		mpp::MP_INT | mpp::MP_BOOL | mpp::MP_DBL | mpp::MP_STR; //| mpp::MP_NIL;
+		mpp::MP_INT | mpp::MP_BOOL | mpp::MP_DBL | mpp::MP_STR | mpp::MP_NIL;
 	void Value(iterator_t<BUFFER>& arg, mpp::compact::Family, mpp::ArrValue u)
 	{
 		data.tuples.emplace_back(arg, u.size);

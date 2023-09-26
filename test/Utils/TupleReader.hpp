@@ -39,13 +39,14 @@ struct UserTuple {
 	uint64_t field1;
 	std::string field2;
 	double field3;
+	void *field4 = reinterpret_cast<void *>(0xDEADBEEF);
 };
 
 std::ostream&
 operator<<(std::ostream& strm, const UserTuple &t)
 {
 	return strm << "Tuple: field1=" << t.field1 << " field2=" << t.field2 <<
-		    " field3=" << t.field3;
+		    " field3=" << t.field3 << " field4=" << t.field4;
 }
 
 using Buf_t = tnt::Buffer<16 * 1024>;
@@ -54,7 +55,8 @@ template <class BUFFER>
 struct TupleValueReader : mpp::DefaultErrorHandler {
 	using BufIter_t = typename BUFFER::iterator;
 	explicit TupleValueReader(mpp::Dec<BUFFER>& d, UserTuple& t) : dec(d), tuple(t) {}
-	static constexpr mpp::Family VALID_TYPES = mpp::MP_UINT | mpp::MP_STR | mpp::MP_DBL;
+	static constexpr mpp::Family VALID_TYPES = mpp::MP_UINT | mpp::MP_STR |
+		mpp::MP_DBL | mpp::MP_NIL;
 	template <class T>
 	void Value(const BufIter_t&, mpp::compact::Family, T v)
 	{
@@ -73,6 +75,10 @@ struct TupleValueReader : mpp::DefaultErrorHandler {
 			++tmp;
 			--v.size;
 		}
+	}
+	void Value(const BufIter_t&, mpp::compact::Family, std::nullptr_t)
+	{
+		tuple.field4 = nullptr;
 	}
 	void WrongType(mpp::Family expected, mpp::Family got)
 	{
