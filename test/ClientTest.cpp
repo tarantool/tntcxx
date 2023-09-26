@@ -547,6 +547,7 @@ single_conn_call(Connector<BUFFER, NetProvider> &client)
 	const static char *return_uint    = "remote_uint";
 	const static char *return_multi   = "remote_multi";
 	const static char *return_nil     = "remote_nil";
+	const static char *return_map     = "remote_map";
 
 	Connection<Buf_t, NetProvider> conn(client);
 	int rc = test_connect(client, conn, localhost, port);
@@ -620,6 +621,13 @@ single_conn_call(Connector<BUFFER, NetProvider> &client)
 	client.wait(conn, f9, WAIT_TIMEOUT);
 	fail_unless(conn.futureIsReady(f9));
 	response = conn.getResponse(f9);
+	printResponse<BUFFER, NetProvider>(conn, *response, MULTI_RETURN);
+
+	TEST_CASE("call remote_map");
+	rid_t f10 = conn.call(return_map, std::make_tuple());
+	client.wait(conn, f10, WAIT_TIMEOUT);
+	fail_unless(conn.futureIsReady(f10));
+	response = conn.getResponse(f10);
 	printResponse<BUFFER, NetProvider>(conn, *response, MULTI_RETURN);
 
 	client.close(conn);

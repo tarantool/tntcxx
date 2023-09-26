@@ -40,23 +40,53 @@ struct UserTuple {
 	std::string field2;
 	double field3;
 	void *field4 = reinterpret_cast<void *>(0xDEADBEEF);
+	std::pair<std::string, uint64_t> field5;
 };
 
 std::ostream&
 operator<<(std::ostream& strm, const UserTuple &t)
 {
 	return strm << "Tuple: field1=" << t.field1 << " field2=" << t.field2 <<
-		    " field3=" << t.field3 << " field4=" << t.field4;
+		    " field3=" << t.field3 << " field4=" << t.field4 <<
+		    " field5.first=" << t.field5.first <<
+		    " field5.second=" << t.field5.second;
 }
 
 using Buf_t = tnt::Buffer<16 * 1024>;
+
+template <class BUFFER>
+struct KeyValueReader : mpp::DefaultErrorHandler {
+	using BufIter_t = typename BUFFER::iterator;
+	explicit KeyValueReader(mpp::Dec<BUFFER>& d, std::pair<std::string, uint64_t>& kv) : dec(d), key_value(kv) {}
+	static constexpr mpp::Family VALID_TYPES = mpp::MP_STR;
+	void Value(BufIter_t& itr, mpp::compact::Family, mpp::StrValue v)
+	{
+		BufIter_t tmp = itr;
+		tmp += v.offset;
+		std::string &dst = key_value.first;
+		while (v.size) {
+			dst.push_back(*tmp);
+			++tmp;
+			--v.size;
+		}
+		dec.SetReader(true, mpp::SimpleReader<BUFFER, mpp::MP_UINT, uint64_t>{key_value.second});
+	}
+	void WrongType(mpp::Family expected, mpp::Family got)
+	{
+		std::cout << "expected type is " << expected << " but got " <<
+			got << std::endl;
+	}
+	BufIter_t* StoreEndIterator() { return nullptr; }
+	mpp::Dec<BUFFER>& dec;
+	std::pair<std::string, uint64_t>& key_value;
+};
 
 template <class BUFFER>
 struct TupleValueReader : mpp::DefaultErrorHandler {
 	using BufIter_t = typename BUFFER::iterator;
 	explicit TupleValueReader(mpp::Dec<BUFFER>& d, UserTuple& t) : dec(d), tuple(t) {}
 	static constexpr mpp::Family VALID_TYPES = mpp::MP_UINT | mpp::MP_STR |
-		mpp::MP_DBL | mpp::MP_NIL;
+		mpp::MP_DBL | mpp::MP_NIL | mpp::MP_MAP;
 	template <class T>
 	void Value(const BufIter_t&, mpp::compact::Family, T v)
 	{
@@ -79,6 +109,11 @@ struct TupleValueReader : mpp::DefaultErrorHandler {
 	void Value(const BufIter_t&, mpp::compact::Family, std::nullptr_t)
 	{
 		tuple.field4 = nullptr;
+	}
+	void Value(const BufIter_t&, mpp::compact::Family, mpp::MapValue v)
+	{
+		assert(v.size == 1);
+		dec.SetReader(false, KeyValueReader{dec, tuple.field5});
 	}
 	void WrongType(mpp::Family expected, mpp::Family got)
 	{

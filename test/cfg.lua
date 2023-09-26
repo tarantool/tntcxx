@@ -26,6 +26,10 @@ function remote_nil()
     return nil
 end
 
+function remote_map()
+    return {key = 777}
+end
+
 function bench_func(...)
     return {...}
 end
