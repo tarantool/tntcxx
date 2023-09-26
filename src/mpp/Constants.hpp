@@ -206,6 +206,25 @@ operator<<(std::ostream& strm, Family t)
 	return strm;
 }
 
+template <compact::Family ...FAMILY>
+struct family_sequence {
+	static constexpr std::size_t size() noexcept
+	{
+		return sizeof ...(FAMILY);
+	}
+};
+
+template <compact::Family ...FAMILY>
+std::ostream&
+operator<<(std::ostream& strm, family_sequence<FAMILY...>)
+{
+	if (sizeof ...(FAMILY) == 0)
+		return strm << FamilyName[compact::Family::MP_END + 1];
+	size_t count = 0;
+	((strm << (count++ ? ", " : "") << FamilyName[FAMILY]), ...);
+	return strm;
+}
+
 inline std::ostream&
 operator<<(std::ostream& strm, ReadError_t t)
 {

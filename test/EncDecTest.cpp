@@ -170,6 +170,12 @@ test_type_visual()
 		  << (MP_UINT | MP_INT) << " "
 		  << (MP_BIN  | MP_STR) << " "
 		  << (MP_UINT | MP_INT | MP_DBL | MP_FLT) << "\n";
+
+	std::cout << "(" << family_sequence<>{} << ") "
+		  << "(" << family_sequence<compact::MP_NIL>{} << ") "
+		  << "(" << family_sequence<compact::MP_INT,
+					    compact::MP_FLT,
+					    compact::MP_NIL>{} << ")\n";
 }
 
 struct TestArrStruct {

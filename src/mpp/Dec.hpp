@@ -48,16 +48,13 @@ namespace literal = tnt::literal;
 
 namespace decode_details {
 
-template <compact::Family ...sequence>
-using family_sequence = std::integer_sequence<std::underlying_type_t<compact::Family>, sequence...>;
-
 template <class T>
 constexpr auto detectFamily()
 {
 	using CRU = decltype(unwrap(std::declval<const T&>()));
 	using U = std::remove_cv_t<std::remove_reference_t<CRU>>;
 	if constexpr (is_wrapped_family_v<T>) {
-		return std::integer_sequence<compact::Family, T::family>{};
+		return family_sequence<T::family>{};
 	} else if constexpr (std::is_same_v<U, std::nullptr_t>) {
 		return family_sequence<compact::MP_NIL>{};
 	} else if constexpr (std::is_same_v<U, bool>) {
@@ -238,7 +235,7 @@ constexpr auto getFamilySubRules()
 }
 
 template <compact::Family ...FAMILY>
-constexpr auto getSubRules(std::integer_sequence<compact::Family, FAMILY...>)
+constexpr auto getSubRules(family_sequence<FAMILY...>)
 {
 	return (getFamilySubRules<FAMILY>() + ...);
 }
@@ -330,7 +327,7 @@ using jumps_t = std::array<jump_t<CONT, T, MORE...>, 256>;
 template <class CONT, class T, class ...MORE, compact::Family ...FAMILY,
         size_t... I, size_t... K>
 constexpr jumps_t<CONT, T, MORE...>
-build_jumps(std::integer_sequence<compact::Family, FAMILY...> family_seq,
+build_jumps(family_sequence<FAMILY...> family_seq,
 	    tnt::iseq<I...>, tnt::iseq<K...>)
 {
 	constexpr auto sub_rules = getSubRules(family_seq);
