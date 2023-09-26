@@ -158,10 +158,15 @@ public:
 	};
 	template <bool LIGHT>
 	class iterator_common
-		: public std::iterator<std::input_iterator_tag, char>,
-		  public std::conditional_t<LIGHT, light_base, SingleLink<iterator_common<LIGHT>>>
+		: public std::conditional_t<LIGHT, light_base, SingleLink<iterator_common<LIGHT>>>
 	{
 	public:
+		using iterator_category = std::input_iterator_tag;
+		using value_type = char;
+		using difference_type = std::ptrdiff_t;
+		using pointer = char *;
+		using reference = char &;
+
 		using Base_t = std::conditional_t<LIGHT, light_base, SingleLink<iterator_common<LIGHT>>>;
 		USING_LIST_LINK_METHODS(Base_t);
 
