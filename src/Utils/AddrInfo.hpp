@@ -60,11 +60,16 @@ private:
 	int rc = 0;
 };
 
-class AddrInfo::iterator :
-	std::iterator<std::input_iterator_tag, const struct addrinfo>
+class AddrInfo::iterator
 {
+public:
+    using iterator_category = std::input_iterator_tag;
+    using value_type = const struct addrinfo;
+    using difference_type = std::ptrdiff_t;
+    using pointer = const struct addrinfo *;
+    using reference = const struct addrinfo &;
 private:
-	using T = const struct addrinfo;
+	using T = value_type;
 public:
 	T &operator*() const { return *info; }
 	T *operator->() const { return info; }
