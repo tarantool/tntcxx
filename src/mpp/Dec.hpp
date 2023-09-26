@@ -90,7 +90,7 @@ constexpr auto detectFamily()
 	}
 }
 
-constexpr auto is256 = std::make_index_sequence<256>{};
+constexpr auto is256 = tnt::make_iseq<256>{};
 
 template <class CONT>
 bool
@@ -126,23 +126,21 @@ struct SubRules {
 	SubRule arr[N ? N : 1];
 	template <size_t M, size_t ...I, size_t ...J>
 	constexpr SubRules<M + N> join(SubRules<M> a,
-				       std::index_sequence<I...>,
-				       std::index_sequence<J...>)
+				       tnt::iseq<I...>, tnt::iseq<J...>)
 	{
 		return {arr[I]..., a.arr[J]...};
 	}
 
 	// Check that the subrules don't overlap in terms of tags.
 	template <size_t ...I, size_t ...J>
-	constexpr bool check(std::index_sequence<I...>,
-			     std::index_sequence<J...>) const
+	constexpr bool check(tnt::iseq<I...>, tnt::iseq<J...>) const
 	{
 		auto checkX = [&](size_t X){ return (true && ... && (X == I || !arr[X].overlaps(arr[I]))); };
 		return (checkX(J) && ...);
 	}
 	constexpr bool check() const
 	{
-		return check(std::make_index_sequence<N>{}, std::make_index_sequence<N>{});
+		return check(tnt::make_iseq<N>{}, tnt::make_iseq<N>{});
 	}
 
 	// Find index of subrule by tag.
@@ -160,8 +158,7 @@ struct SubRules {
 template <size_t X, size_t Y>
 constexpr SubRules<X + Y> operator+(SubRules<X> a, SubRules<Y> b)
 {
-	return a.join(b, std::make_index_sequence<X>{},
-		      std::make_index_sequence<Y>{});
+	return a.join(b, tnt::make_iseq<X>{}, tnt::make_iseq<Y>{});
 }
 
 template <class RULE, size_t I>
@@ -207,7 +204,7 @@ constexpr auto getSimplexSubRules()
 }
 
 template <compact::Family FAMILY, class RULE, size_t ...I>
-constexpr auto getComplexSubRules(std::index_sequence<I...>)
+constexpr auto getComplexSubRules(tnt::iseq<I...>)
 {
 	using types = typename RULE::complex_types;
 	constexpr size_t complex_count = std::tuple_size_v<types>;
@@ -227,7 +224,7 @@ constexpr auto getComplexSubRules()
 	if constexpr (has_complex_v<Rule_t>) {
 		using types = typename Rule_t::complex_types;
 		constexpr size_t complex_count = std::tuple_size_v<types>;
-		constexpr auto is = std::make_index_sequence<complex_count>{};
+		constexpr auto is = tnt::make_iseq<complex_count>{};
 		return getComplexSubRules<FAMILY, Rule_t>(is);
 	} else {
 		return SubRules<0>{};
@@ -247,7 +244,7 @@ constexpr auto getSubRules(std::integer_sequence<compact::Family, FAMILY...>)
 }
 
 template <class CONT, class T, size_t ...I>
-bool decodeElems(CONT &cont, T &t, std::index_sequence<I...>)
+bool decodeElems(CONT &cont, T &t, tnt::iseq<I...>)
 {
 	return decode(cont, tnt::get<I>(t)...);
 }
@@ -265,13 +262,13 @@ bool finishReading([[maybe_unused]] CONT &cont, [[maybe_unused]] V val, T &t)
 		if (size != tnt::tuple_size_v<T>)
 			return false;
 		return decodeElems(cont, t,
-				   std::make_index_sequence<tnt::tuple_size_v<T>>{});
+				   tnt::make_iseq<tnt::tuple_size_v<T>>{});
 	} else if constexpr (RULE::family == compact::MP_MAP) {
 		size_t size = val;
 		if (size * 2 != tnt::tuple_size_v<T>)
 			return false;
 		return decodeElems(cont, t,
-				   std::make_index_sequence<2 * tnt::tuple_size_v<T>>{});
+				   tnt::make_iseq<2 * tnt::tuple_size_v<T>>{});
 	} else if constexpr (RULE::family == compact::MP_NIL) {
 		return true;
 	} else {
@@ -334,7 +331,7 @@ template <class CONT, class T, class ...MORE, compact::Family ...FAMILY,
         size_t... I, size_t... K>
 constexpr jumps_t<CONT, T, MORE...>
 build_jumps(std::integer_sequence<compact::Family, FAMILY...> family_seq,
-	    std::index_sequence<I...>, std::index_sequence<K...>)
+	    tnt::iseq<I...>, tnt::iseq<K...>)
 {
 	constexpr auto sub_rules = getSubRules(family_seq);
 	static_assert(sub_rules.check());
@@ -367,7 +364,7 @@ decode(CONT& cont, T& t, MORE&... more)
 {
 	constexpr auto family_seq = detectFamily<T>();
 	constexpr auto sub_rules = getSubRules(family_seq);
-	constexpr auto is = std::make_index_sequence<sub_rules.N>{};
+	constexpr auto is = tnt::make_iseq<sub_rules.N>{};
 
 	auto& u = unwrap(t);
 	using U = std::remove_reference_t<decltype(u)>;
@@ -1151,7 +1148,7 @@ template <class DEC, class READER, class SEQUENCE>
 struct ReaderMap;
 
 template <class DEC, class READER, size_t ... N>
-struct ReaderMap<DEC, READER, std::index_sequence<N...>> {
+struct ReaderMap<DEC, READER, tnt::iseq<N...>> {
 	using Transition_t = typename DEC::Transition_t;
 	template <size_t I>
 	static constexpr Transition_t get()
@@ -1237,7 +1234,7 @@ Dec<BUFFER>::FillState(State &st, ARGS&&... args)
 	using Reader_t = std::decay_t<READER>;
 	st.objHolder.template create<Reader_t>(std::forward<ARGS>(args)...);
 	st.transitions = ReaderMap<Dec_t, Reader_t,
-		std::make_index_sequence<256>>::transitions;
+		tnt::make_iseq<256>>::transitions;
 	st.storeEndIterator =
 		st.objHolder.template get<Reader_t>().StoreEndIterator();
 }

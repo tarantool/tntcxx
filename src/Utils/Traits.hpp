@@ -52,6 +52,9 @@
  * has_get_by_size_v<I, U>
  * get<T>
  * get<I>
+ * iseq
+ * make_iseq
+ * tuple_iseq
  * is_tuplish_v (standard (tuple, array, pair) + bounded array)
  * is_pairish_v
  * is_tuplish_of_pairish_v
@@ -355,6 +358,19 @@ constexpr std::enable_if_t<!is_bounded_array_v<U> && !has_get_by_size_v<I, U>,
 }
 
 /**
+ * Shortcuts for std::index_sequence and std::make_index_sequence;
+ * and convenient shortcut for std::make_index_sequence<tnt::tuple_size<..>>.
+ */
+template <size_t ...I>
+using iseq = std::index_sequence<I...>;
+
+template <size_t N>
+using make_iseq = std::make_index_sequence<N>;
+
+template <class T>
+using tuple_iseq = make_iseq<tnt::tuple_size_v<T>>;
+
+/**
  * Check whether the type is compatible with std::tuple, that is a fixed-size
  * collection of values. It can be an bounded array or anything that is
  * accessible with std::tuple_size and std::tuple_element. In other words it
@@ -369,7 +385,7 @@ template <class T, class IDXS>
 struct tuplish_types_h;
 
 template <class T, size_t... I>
-struct tuplish_types_h<T, std::index_sequence<I...>> {
+struct tuplish_types_h<T, tnt::iseq<I...>> {
 	using type = std::tuple<tnt::tuple_element_t<I, T>...>;
 };
 
@@ -379,7 +395,7 @@ struct is_tuplish_h : std::false_type {};
 template <class T>
 struct is_tuplish_h<T, std::void_t<
 	char [sizeof(tnt::tuple_size<T>)],
-	typename tuplish_types_h<T, std::make_index_sequence<tnt::tuple_size_v<T>>>::type>>
+	typename tuplish_types_h<T, tnt::tuple_iseq<T>>::type>>
 : std::true_type {};
 } //namespace details {
 
@@ -401,7 +417,7 @@ template <class T>
 struct is_pairish_h<T, std::void_t<
 	char [sizeof(tnt::tuple_size<T>)],
 	std::enable_if_t<tnt::tuple_size_v<T> == 2, void>,
-	typename tuplish_types_h<T, std::make_index_sequence<tnt::tuple_size_v<T>>>::type,
+	typename tuplish_types_h<T, tnt::tuple_iseq<T>>::type,
 	decltype(std::declval<T&>().first),
 	decltype(std::declval<T&>().second)>>
 : std::true_type {};
@@ -419,13 +435,13 @@ template<class T, bool IS_TUPLISH, class IS>
 struct is_tuplish_of_pairish_h : std::false_type {};
 
 template<class T, size_t ...I>
-struct is_tuplish_of_pairish_h<T, true, std::index_sequence<I...>> {
+struct is_tuplish_of_pairish_h<T, true, tnt::iseq<I...>> {
 	static constexpr bool value = (is_pairish_v<tuple_element_t<I, T>> && ...);
 };
 
 template<class T>
 struct is_tuplish_of_pairish_h<T, true, void>
-: is_tuplish_of_pairish_h<T, true, std::make_index_sequence<tuple_size_v<T>>> {};
+: is_tuplish_of_pairish_h<T, true, tnt::tuple_iseq<T>> {};
 } //namespace details {
 
 template <class T>

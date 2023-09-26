@@ -114,7 +114,7 @@ constexpr compact::Family detectFamily()
 
 template <class T, size_t ...I>
 constexpr auto
-tuplishTotalLength32(std::index_sequence<I...>)
+tuplishTotalLength32(tnt::iseq<I...>)
 {
 	constexpr uint32_t total = (0 + ... + sizeof(tnt::tuple_element_t<I, T>));
 	return std::integral_constant<uint32_t, total>{};
@@ -127,7 +127,7 @@ auto uniLength32([[maybe_unused]]const U& u)
 		return std::integral_constant<uint32_t, U::size>{};
 	} else if constexpr(tnt::is_tuplish_v<U>) {
 		constexpr size_t s = tnt::tuple_size_v<U>;
-		return tuplishTotalLength32<U>(std::make_index_sequence<s>{});
+		return tuplishTotalLength32<U>(tnt::make_iseq<s>{});
 	} else {
 		static_assert(tnt::is_contiguous_v<U>);
 		return static_cast<uint32_t>(std::size(u) *
@@ -293,14 +293,14 @@ auto getIS([[maybe_unused]] const T& t, [[maybe_unused]] const U& u)
 {
 	if constexpr (FAMILY == compact::MP_ARR || FAMILY == compact::MP_MAP) {
 		if constexpr(tnt::is_tuplish_v<U>) {
-			return std::make_index_sequence<tnt::tuple_size_v<U>>{};
+			return tnt::tuple_iseq<U>{};
 		} else {
 			static_assert(tnt::is_const_iterable_v<U> ||
 				      tnt::is_contiguous_v<U>);
-			return std::index_sequence<>{};
+			return tnt::iseq<>{};
 		}
 	} else {
-		return std::index_sequence<>{};
+		return tnt::iseq<>{};
 	}
 }
 
@@ -325,7 +325,7 @@ auto getIS([[maybe_unused]] const T& t, [[maybe_unused]] const U& u)
 #endif
 
 template <class T, T V, size_t... I>
-constexpr auto enc_bswap_h(std::integral_constant<T, V>, std::index_sequence<I...>)
+constexpr auto enc_bswap_h(std::integral_constant<T, V>, tnt::iseq<I...>)
 {
 	static_assert(tnt::is_unsigned_integer_v<T>);
 	constexpr size_t R = sizeof...(I) - 1;
@@ -339,7 +339,7 @@ constexpr auto enc_bswap(std::integral_constant<T, V>)
 	using U = std::make_unsigned_t<T>;
 	constexpr U u = static_cast<U>(V);
 	return enc_bswap_h(std::integral_constant<U, u>{},
-			   std::make_index_sequence<sizeof(T)>{});
+			   tnt::make_iseq<sizeof(T)>{});
 }
 
 template <class T>
@@ -526,7 +526,7 @@ bool check_fits([[maybe_unused]] V v)
 /** Terminal encode. */
 template <class CONT, char... C, size_t...I>
 bool
-encode(CONT &cont, tnt::CStr<C...> prefix, std::index_sequence<I...>)
+encode(CONT &cont, tnt::CStr<C...> prefix, tnt::iseq<I...>)
 {
 	static_assert(sizeof...(I) == 0);
 	cont.write(prefix);
@@ -536,7 +536,7 @@ encode(CONT &cont, tnt::CStr<C...> prefix, std::index_sequence<I...>)
 template <class CONT, char... C, size_t... I, class T, class... MORE>
 bool
 encode(CONT &cont, tnt::CStr<C...> prefix,
-       [[maybe_unused]] std::index_sequence<I...> ais,
+       [[maybe_unused]] tnt::iseq<I...> ais,
        const T& t, const MORE&... more)
 {
 	const auto& u = unwrap(t);
@@ -548,7 +548,7 @@ encode(CONT &cont, tnt::CStr<C...> prefix,
 			using V = typename U::type;
 			const V& v = u.v;
 			if constexpr(tnt::is_tuplish_v<V>) {
-				std::index_sequence<> is;
+				tnt::iseq<> is;
 				return encode(cont, prefix, is,
 					      tnt::get<I>(v)..., more...);
 			} else if constexpr(tnt::is_const_iterable_v<V>) {
@@ -583,7 +583,7 @@ encode(CONT &cont, tnt::CStr<C...> prefix,
 			using V = typename U::type;
 			const V& v = u.v;
 			if constexpr(tnt::is_tuplish_v<V>) {
-				std::index_sequence<> is;
+				tnt::iseq<> is;
 				return encode(cont, prefix, is,
 					      tnt::get<I>(v).first...,
 					      tnt::get<I>(v).second...,
@@ -738,7 +738,7 @@ bool
 encode(CONT &cont, const T&... t)
 {
 	// TODO: Guard
-	std::index_sequence<> is;
+	tnt::iseq<> is;
 	bool res = encode_details::encode(cont, tnt::CStr<>{}, is, t...);
 	return res;
 }
