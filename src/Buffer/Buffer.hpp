@@ -77,13 +77,20 @@ private:
 		size_t id;
 
 		/**
+		 * End of useful data in the block and the beginning of
+		 * free space in block.
+		 */
+		char *data_end;
+
+		/**
 		 * Block itself is allocated in the same chunk so the size
 		 * of available memory to keep the data is less than allocator
 		 * provides.
 		 */
-		static constexpr size_t DATA_SIZE = allocator::REAL_SIZE -
-			sizeof(SingleLink<Block>) - sizeof(id);
-		static constexpr size_t DATA_OFFSET = N - DATA_SIZE;
+		static constexpr size_t DATA_OFFSET = sizeof(SingleLink<Block>)
+			+ sizeof(id) + sizeof(data_end);
+		static constexpr size_t DATA_SIZE =
+			allocator::REAL_SIZE - DATA_OFFSET;
 		char data[DATA_SIZE];
 
 		/**
@@ -92,8 +99,8 @@ private:
 		void* operator new(size_t size) = delete;
 		void operator delete(void *ptr) = delete;
 
-		char  *begin() { return data; }
-		char  *end()   { return data + DATA_SIZE; }
+		char *begin() { return data; }
+		char *end()   { return data + DATA_SIZE; }
 		// Find a block by pointer to its data (any byte of it).
 		// The pointer must point to one of characters in data member.
 		static Block *byPtr(const char *p)
@@ -107,14 +114,14 @@ private:
 	Block *newBlock() { return newBlock(m_blocks.last().id + 1); }
 	void delBlock(Block *b);
 	/** Check whether two pointers point to the same block. */
-	bool isSameBlock(const char *ptr1, const char *ptr2);
-	/** Count number of bytes are in block starting from byte @a ptr. */
-	size_t leftInBlock(const char *ptr);
+	static bool isSameBlock(const char *ptr1, const char *ptr2);
+	/** Number of free bytes in @a block. */
+	static size_t freeInBlock(Block& b);
 	/**
 	 * Check whether the pointer points to the end of block, i.e.
 	 * to the next byte after the last valid byte in block.
 	 * */
-	bool isEndOfBlock(const char *ptr);
+	static bool isEndOfBlock(const char *ptr);
 
 public:
 	/** =============== Convenient wrappers =============== */
@@ -270,11 +277,11 @@ public:
 	 * Return iterator pointing to the start/end of buffer.
 	 */
 	template <bool LIGHT>
-	iterator_common<LIGHT> begin() { return iterator_common<LIGHT>(this, m_begin, true); }
+	iterator_common<LIGHT> begin();
 	template <bool LIGHT>
-	iterator_common<LIGHT> end() { return iterator_common<LIGHT>(this, m_end, false); }
-	iterator begin() { return iterator(this, m_begin, true); }
-	iterator end() { return iterator(this, m_end, false); }
+	iterator_common<LIGHT> end();
+	iterator begin();
+	iterator end();
 
 	/**
 	 * Copy content of an object to the buffer's tail (append data).
@@ -356,7 +363,7 @@ public:
 		      struct iovec *vecs, size_t max_size);
 
 	/** Return true if there's no data in the buffer. */
-	bool empty() const { return m_begin == m_end; }
+	bool empty() const { return m_begin == m_blocks.last().data_end; }
 
 	/** Return 0 if everythng is correct. */
 	int debugSelfCheck() const;
@@ -377,11 +384,6 @@ private:
 	 * If buffer is moved, this member is leaved in undefined state.
 	 */
 	char *m_begin;
-	/**
-	 * Last block can be partially filled, so store end border as well.
-	 * If buffer is moved, this member is leaved in undefined state.
-	 */
-	char *m_end;
 
 	/** Instance of an allocator. */
 	allocator m_all;
@@ -434,17 +436,9 @@ Buffer<N, allocator>::isSameBlock(const char *ptr1, const char *ptr2)
 
 template <size_t N, class allocator>
 size_t
-Buffer<N, allocator>::leftInBlock(const char *ptr)
+Buffer<N, allocator>::freeInBlock(Block& b)
 {
-	uintptr_t addr = (uintptr_t)ptr;
-	/*
-	 * Blocks are aligned as N (N is a power of two). That makes pointers
-	 * to block to consist of two pasts - high bits part that describes
-	 * block address and low bits part that describes offset in the block.
-	 * In order to check how many bytes are in block we have to offset in
-	 * block and compare it with block boundary.
-	 */
-	return N - addr % N;
+	return b.end() - b.data_end;
 }
 
 template <size_t N, class allocator>
@@ -653,7 +647,8 @@ Buffer<N, allocator>::Buffer(const allocator &all) : m_all(all)
 		      "DATA_OFFSET must be offset of data");
 
 	Block *b = newBlock(0);
-	m_begin = m_end = b->data;
+	m_begin = b->data;
+	b->data_end = b->data;
 }
 
 template <size_t N, class allocator>
@@ -665,36 +660,71 @@ Buffer<N, allocator>::~Buffer() noexcept
 }
 
 template <size_t N, class allocator>
+template <bool LIGHT>
+typename Buffer<N, allocator>::template iterator_common<LIGHT>
+Buffer<N, allocator>::begin()
+{
+	return iterator_common<LIGHT>(this, m_begin, true);
+}
+
+template <size_t N, class allocator>
+template <bool LIGHT>
+typename Buffer<N, allocator>::template iterator_common<LIGHT>
+Buffer<N, allocator>::end()
+{
+	Block& last_block = m_blocks.last();
+	return iterator_common<LIGHT>(this, last_block.data_end, false);
+}
+
+template <size_t N, class allocator>
+typename Buffer<N, allocator>::iterator
+Buffer<N, allocator>::begin()
+{
+	return iterator(this, m_begin, true);
+}
+
+template <size_t N, class allocator>
+typename Buffer<N, allocator>::iterator
+Buffer<N, allocator>::end()
+{
+	Block& last_block = m_blocks.last();
+	return iterator(this, last_block.data_end, false);
+}
+
+template <size_t N, class allocator>
 void
 Buffer<N, allocator>::write(WData data)
 {
 	assert(data.size != 0);
 
-	char *new_end = m_end + data.size;
-	if (TNT_LIKELY(isSameBlock(m_end, new_end))) {
+	Block& last_block = m_blocks.last();
+	char *new_end = last_block.data_end + data.size;
+	if (TNT_LIKELY(isSameBlock(last_block.data_end, new_end))) {
 		// new_addr is still in block. just copy and advance.
-		memcpy(m_end, data.data, data.size);
-		m_end = new_end;
+		memcpy(last_block.data_end, data.data, data.size);
+		last_block.data_end = new_end;
 		return;
 	}
 
 	EndGuard guard(*this);
 
 	// Flipped out-of-block bit, go to the next block.
-	size_t left_in_block = leftInBlock(m_end);
-	memcpy(m_end, data.data, left_in_block);
+	size_t left_in_block = freeInBlock(last_block);
+	memcpy(last_block.data_end, data.data, left_in_block);
+	last_block.data_end += left_in_block;
 	data.size -= left_in_block;
 	data.data += left_in_block;
 
-	m_end = newBlock()->begin();
+	Block *b = newBlock();
 	while (TNT_UNLIKELY(data.size >= Block::DATA_SIZE)) {
-		memcpy(m_end, data.data, Block::DATA_SIZE);
+		memcpy(b->data, data.data, Block::DATA_SIZE);
+		b->data_end = b->end();
 		data.size -= Block::DATA_SIZE;
 		data.data += Block::DATA_SIZE;
-		m_end = newBlock()->begin();
+		b = newBlock();
 	}
-	memcpy(m_end, data.data, data.size);
-	m_end = m_end + data.size;
+	memcpy(b->data, data.data, data.size);
+	b->data_end = b->data + data.size;
 
 	guard.disarm();
 }
@@ -705,24 +735,27 @@ Buffer<N, allocator>::write(Reserve reserve)
 {
 	assert(reserve.size != 0);
 
-	char *new_end = m_end + reserve.size;
-	if (TNT_LIKELY(isSameBlock(m_end, new_end))) {
-		// new_addr is still in block. just advance.
-		m_end = new_end;
+	Block& last_block = m_blocks.last();
+	char *new_end = last_block.data_end + reserve.size;
+	if (TNT_LIKELY(isSameBlock(last_block.data_end, new_end))) {
+		// new_end is still in block. just advance.
+		last_block.data_end = new_end;
 		return;
 	}
 
 	EndGuard guard(*this);
 
 	// Flipped out-of-block bit, go to the next block.
-	reserve.size -= leftInBlock(m_end);
+	reserve.size -= freeInBlock(last_block);
+	last_block.data_end = last_block.end();
 
-	m_end = newBlock()->begin();
+	Block *b = newBlock();
 	while (TNT_UNLIKELY(reserve.size >= Block::DATA_SIZE)) {
 		reserve.size -= Block::DATA_SIZE;
-		m_end = newBlock()->begin();
+		b->data_end = b->end();
+		b = newBlock();
 	}
-	m_end = m_end + reserve.size;
+	b->data_end = b->data + reserve.size;
 
 	guard.disarm();
 }
@@ -734,30 +767,31 @@ Buffer<N, allocator>::write(const T& t)
 {
 	static_assert(sizeof(T) <= Block::DATA_SIZE,
 		"Please use struct WData for big objects");
+	Block& last_block = m_blocks.last();
 	if constexpr (sizeof(T) == 1) {
-		memcpy(m_end, &t, sizeof(T));
-		++m_end;
-		if (TNT_UNLIKELY(isEndOfBlock(m_end))) {
+		memcpy(last_block.data_end, &t, sizeof(T));
+		if (TNT_UNLIKELY(isEndOfBlock(last_block.data_end + 1))) {
 			// Went out of block, have to go to the next.
-			--m_end; // Set back for the case of exception.
-			m_end = newBlock()->begin();
+			Block *b = newBlock();
+			b->data_end = b->begin();
 		}
+		++last_block.data_end;
 	} else {
-		char *new_end = m_end + sizeof(T);
-		if (TNT_UNLIKELY(!isSameBlock(m_end, new_end))) {
+		char *new_end = last_block.data_end + sizeof(T);
+		if (TNT_UNLIKELY(!isSameBlock(last_block.data_end, new_end))) {
 			// Flipped out-of-block bit, go to the next block.
 			Block *b = newBlock();
-			size_t part1 = leftInBlock(m_end);
+			size_t part1 = freeInBlock(last_block);
 			size_t part2 = sizeof(T) - part1;
 			char data[sizeof(T)];
 			memcpy(data, &t, sizeof(T));
-			memcpy(m_end, data, part1);
-			m_end = b->begin();
-			memcpy(m_end, data + part1, part2);
-			m_end += part2;
+			memcpy(last_block.data_end, data, part1);
+			last_block.data_end += part1;
+			memcpy(b->data, data + part1, part2);
+			b->data_end = b->data + part2;
 		} else {
-			memcpy(m_end, &t, sizeof(T));
-			m_end = new_end;
+			memcpy(last_block.data_end, &t, sizeof(T));
+			last_block.data_end = new_end;
 		}
 	}
 }
@@ -765,23 +799,24 @@ Buffer<N, allocator>::write(const T& t)
 template <size_t N, class allocator>
 template <char... C>
 void
-Buffer<N, allocator>::write(CStr<C...>)
+Buffer<N, allocator>::write(CStr<C...> s)
 {
-	if constexpr (CStr<C...>::size == 0) {
-	} else if constexpr (CStr<C...>::size == 1) {
-		*m_end = CStr<C...>::data[0];
-		++m_end;
-		if (TNT_UNLIKELY(isEndOfBlock(m_end))) {
+	Block& last_block = m_blocks.last();
+	if constexpr (s.size == 0) {
+	} else if constexpr (s.size == 1) {
+		*last_block.data_end = s.data[0];
+		if (TNT_UNLIKELY(isEndOfBlock(last_block.data_end + 1))) {
 			// Went out of block, have to go to the next.
-			--m_end; // Set back for the case of exception.
-			m_end = newBlock()->begin();
+			Block *b = newBlock();
+			b->data_end = b->begin();
 		}
+		++last_block.data_end;
 	} else {
-		if (TNT_LIKELY(leftInBlock(m_end) > CStr<C...>::rnd_size)) {
-			memcpy(m_end, CStr<C...>::data, CStr<C...>::rnd_size);
-			m_end += CStr<C...>::size;
+		if (TNT_LIKELY(freeInBlock(last_block) > s.rnd_size)) {
+			memcpy(last_block.data_end, s.data, s.rnd_size);
+			last_block.data_end += s.size;
 		} else {
-			write({CStr<C...>::data, CStr<C...>::size});
+			write({s.data, s.size});
 		}
 	}
 }
@@ -794,7 +829,7 @@ Buffer<N, allocator>::dropBack(size_t size)
 	assert(!m_blocks.isEmpty());
 
 	Block *block = &m_blocks.last();
-	size_t left_in_block = m_end - block->begin();
+	size_t left_in_block = block->data_end - block->begin();
 
 	/* Do not delete the block if it is empty after drop. */
 	while (TNT_UNLIKELY(size > left_in_block)) {
@@ -809,21 +844,21 @@ Buffer<N, allocator>::dropBack(size_t size)
 		delBlock(block);
 		block = &m_blocks.last();
 
-		m_end = block->end();
+		block->data_end = block->end();
 		size -= left_in_block;
 		left_in_block = Block::DATA_SIZE;
 	}
-	m_end -= size;
+	block->data_end -= size;
 #ifndef NDEBUG
-	assert(m_end >= block->begin());
+	assert(block->data_end >= block->begin());
 	/*
 	 * Two sanity checks: there's no iterators pointing to the dropped
 	 * part of block; end of buffer does not cross start of buffer.
 	 */
 	if (!m_iterators.isEmpty() && m_iterators.last().getBlock() == block)
-		assert(m_iterators.last().m_position <= m_end);
+		assert(m_iterators.last().m_position <= block->data_end);
 	if (&m_blocks.first() == block)
-		assert(m_end >= m_begin);
+		assert(block->data_end >= m_begin);
 #endif
 }
 
@@ -859,7 +894,7 @@ Buffer<N, allocator>::dropFront(size_t size)
 	if (!m_iterators.isEmpty() && m_iterators.last().getBlock() == block)
 		assert(m_iterators.last().m_position >= m_begin);
 	if (&m_blocks.last() == block)
-		assert(m_begin <= m_end);
+		assert(m_begin <= getEnd());
 #endif
 }
 
@@ -867,21 +902,22 @@ template <size_t N, class allocator>
 char *
 Buffer<N, allocator>::getEnd() noexcept
 {
-	return m_end;
+	return m_blocks.last().data_end;
 }
 
 template <size_t N, class allocator>
 void
 Buffer<N, allocator>::setEnd(char *ptr) noexcept
 {
-	while (TNT_UNLIKELY(!isSameBlock(m_end, ptr))) {
+	char *cur_end = m_blocks.last().data_end;
+	while (TNT_UNLIKELY(!isSameBlock(cur_end, ptr))) {
 		while (!m_iterators.empty() &&
-		       isSameBlock(m_end, m_iterators.last().m_position))
+		       isSameBlock(cur_end, m_iterators.last().m_position))
 			m_iterators.last().remove();
 		delBlock(&m_blocks.last());
-		m_end = m_blocks.last().begin();
+		cur_end = m_blocks.last().begin();
 	}
-	m_end = ptr;
+	m_blocks.last().data_end = ptr;
 }
 
 template <size_t N, class allocator>
@@ -899,7 +935,7 @@ Buffer<N, allocator>::insert(const iterator &itr, size_t size)
 	//TODO: rewrite without iterators.
 	/* Remember last block before extending the buffer. */
 	Block *src_block = &m_blocks.last();
-	char *src_block_end = m_end;
+	char *src_block_end = src_block->data_end;
 	write(Reserve{size});
 	Block *dst_block = &m_blocks.last();
 	char *src = nullptr;
@@ -911,16 +947,16 @@ Buffer<N, allocator>::insert(const iterator &itr, size_t size)
 	 */
 #define src_block_begin ((src_block == itr.getBlock()) ? itr.m_position : src_block->begin())
 	/* Firstly move data in blocks. */
-	size_t left_in_dst_block = m_end - dst_block->begin();
+	size_t left_in_dst_block = dst_block->data_end - dst_block->begin();
 	size_t left_in_src_block = src_block_end - src_block_begin;
 	if (left_in_dst_block > left_in_src_block) {
 		src = src_block_begin;
-		dst = m_end - left_in_src_block;
+		dst = dst_block->data_end - left_in_src_block;
 	} else {
 		src = src_block_end - left_in_dst_block;
 		dst = dst_block->begin();
 	}
-	assert(dst <= m_end);
+	assert(dst <= dst_block->data_end);
 	size_t copy_chunk_sz = std::min(left_in_src_block, left_in_dst_block);
 	for (;;) {
 		/*
@@ -1285,11 +1321,9 @@ template <bool LIGHT>
 bool
 Buffer<N, allocator>::has(const iterator_common<LIGHT>& itr, size_t size)
 {
-	const char *pos = itr.m_position;
-	uintptr_t itr_addr = (uintptr_t) pos;
-	const char *block_end = (const char *)((itr_addr | (N - 1)) + 1);
-	const char *bound = isSameBlock(pos, m_end) ? m_end : block_end;
-	if (TNT_LIKELY(pos + size <= bound))
+	Block *b = itr.getBlock();
+	const char *bound = b->data_end;
+	if (TNT_LIKELY(itr.m_position + size <= bound))
 		return true;
 	else
 		return size <= end<true>() - itr;
