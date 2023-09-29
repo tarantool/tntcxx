@@ -202,7 +202,12 @@ public:
 		bool operator  < (const iterator_common<OTHER_LIGHT> &a) const;
 		template <bool OTHER_LIGHT>
 		size_t operator - (const iterator_common<OTHER_LIGHT> &a) const;
-		bool has_contiguous(size_t size) const;
+
+		/**
+		 * Check whether there's at least @a size of useful data in
+		 * this buffer that the iterator points to.
+		 */
+		bool has(size_t size) const;
 
 		/**
 		 * Copy content of @a buf of size @a size (or object @a t) to
@@ -249,6 +254,13 @@ public:
 		void read(Skip data) { operator+=(data.size); }
 
 	private:
+		/**
+		 * Check that the iterator points to at least  @a size of
+		 * accessible data (note that it can be not used data, so
+		 * it can contain some garbage).
+		 */
+		bool has_contiguous(size_t size) const;
+
 		/** Adjust iterator_common's position in list of iterators after
 		 * moveForward. */
 		void adjustPositionForward();
@@ -282,6 +294,11 @@ public:
 	iterator_common<LIGHT> end();
 	iterator begin();
 	iterator end();
+
+	/**
+	 * Total number of useful bytes in the buffer.
+	 */
+	 size_t size() const;
 
 	/**
 	 * Copy content of an object to the buffer's tail (append data).
@@ -335,6 +352,11 @@ public:
 
 	/** Resize memory chunk @a itr pointing to. */
 	void resize(const iterator &itr, size_t old_size, size_t new_size);
+
+	/**
+	 * Determine whether the buffer has @a size bytes.
+	 */
+	bool has(size_t size) const;
 
 	/**
 	 * Determine whether the buffer has @a size bytes after @ itr.
@@ -585,6 +607,24 @@ Buffer<N, allocator>::iterator_common<LIGHT>::operator-(const iterator_common<OT
 template <size_t N, class allocator>
 template <bool LIGHT>
 bool
+Buffer<N, allocator>::iterator_common<LIGHT>::has(size_t size) const
+{
+	const char *pos = m_position;
+	Block *b = getBlock();
+	while (true) {
+		if (TNT_LIKELY(pos + size <= b->data_end))
+			return true;
+		if (b->isLast())
+			return false;
+		size -= b->data_end - pos;
+		b = &b->next();
+		pos = b->begin();
+	}
+}
+
+template <size_t N, class allocator>
+template <bool LIGHT>
+bool
 Buffer<N, allocator>::iterator_common<LIGHT>::has_contiguous(const size_t size) const
 {
 	return size <= N - (uintptr_t) m_position % N;
@@ -689,6 +729,17 @@ Buffer<N, allocator>::end()
 {
 	Block& last_block = m_blocks.last();
 	return iterator(this, last_block.data_end, false);
+}
+
+template <size_t N, class allocator>
+size_t
+Buffer<N, allocator>::size() const
+{
+	size_t res = (m_blocks.last().id - m_blocks.first().id)
+		     * Block::DATA_SIZE;
+	res += (uintptr_t) m_blocks.last().data_end % N;
+	res -= (uintptr_t) m_begin % N;
+	return res;
 }
 
 template <size_t N, class allocator>
@@ -1314,6 +1365,18 @@ Buffer<N, allocator>::iterator_common<LIGHT>::read()
 	T t;
 	read(t);
 	return t;
+}
+
+template <size_t N, class allocator>
+bool
+Buffer<N, allocator>::has(size_t size) const
+{
+	Block *b = Block::byPtr(m_begin);
+	const char *bound = b->data_end;
+	if (TNT_LIKELY(m_begin + size <= bound))
+		return true;
+	else
+		return size <= this->size();
 }
 
 template <size_t N, class allocator>

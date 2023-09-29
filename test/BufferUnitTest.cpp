@@ -635,11 +635,20 @@ buffer_move()
 		fail_unless(*itr1 == expect1);
 		fail_unless(*itr2 == expect2);
 		fail_unless(*itr3 == expect3);
+		fail_unless(buf1.has(S + ins_cnt));
+		fail_unless(!buf1.has(S + ins_cnt + 1));
 		fail_unless(buf1.has(buf1.begin(), S + ins_cnt));
 		fail_unless(!buf1.has(buf1.begin(), S + ins_cnt + 1));
+		fail_unless(buf1.begin().has(S + ins_cnt));
+		fail_unless(!buf1.begin().has(S + ins_cnt + 1));
+
 		buf1.flush();
+		fail_unless(buf1.has(S + ins_cnt));
+		fail_unless(!buf1.has(S + ins_cnt + 1));
 		fail_unless(buf1.has(buf1.begin(), S + ins_cnt));
 		fail_unless(!buf1.has(buf1.begin(), S + ins_cnt + 1));
+		fail_unless(buf1.begin().has(S + ins_cnt));
+		fail_unless(!buf1.begin().has(S + ins_cnt + 1));
 
 		/* It is ok to move to itself. */
 		buf1 = std::move(buf1);
@@ -650,11 +659,19 @@ buffer_move()
 		fail_unless(*itr1 == expect1);
 		fail_unless(*itr2 == expect2);
 		fail_unless(*itr3 == expect3);
+		fail_unless(buf1.has(S + ins_cnt));
+		fail_unless(!buf1.has(S + ins_cnt + 1));
 		fail_unless(buf1.has(buf1.begin(), S + ins_cnt));
 		fail_unless(!buf1.has(buf1.begin(), S + ins_cnt + 1));
+		fail_unless(buf1.begin().has(S + ins_cnt));
+		fail_unless(!buf1.begin().has(S + ins_cnt + 1));
 		buf1.flush();
+		fail_unless(buf1.has(S + ins_cnt));
+		fail_unless(!buf1.has(S + ins_cnt + 1));
 		fail_unless(buf1.has(buf1.begin(), S + ins_cnt));
 		fail_unless(!buf1.has(buf1.begin(), S + ins_cnt + 1));
+		fail_unless(buf1.begin().has(S + ins_cnt));
+		fail_unless(!buf1.begin().has(S + ins_cnt + 1));
 
 		/*
 		 * If we insert some data to the beginning of buffer, the
@@ -672,11 +689,19 @@ buffer_move()
 		fail_unless(*itr1 == expect1);
 		fail_unless(*itr2 == expect2);
 		fail_unless(*itr3 == expect3);
+		fail_unless(buf1.has(S + ins_cnt));
+		fail_unless(!buf1.has(S + ins_cnt + 1));
 		fail_unless(buf1.has(buf1.begin(), S + ins_cnt));
 		fail_unless(!buf1.has(buf1.begin(), S + ins_cnt + 1));
+		fail_unless(buf1.begin().has(S + ins_cnt));
+		fail_unless(!buf1.begin().has(S + ins_cnt + 1));
 		buf1.flush();
+		fail_unless(buf1.has(S + ins_cnt));
+		fail_unless(!buf1.has(S + ins_cnt + 1));
 		fail_unless(buf1.has(buf1.begin(), S + ins_cnt));
 		fail_unless(!buf1.has(buf1.begin(), S + ins_cnt + 1));
+		fail_unless(buf1.begin().has(S + ins_cnt));
+		fail_unless(!buf1.begin().has(S + ins_cnt + 1));
 
 		/*
 		 * Move constructor to new buffer.
@@ -690,11 +715,19 @@ buffer_move()
 		fail_unless(*itr1 == expect1);
 		fail_unless(*itr2 == expect2);
 		fail_unless(*itr3 == expect3);
+		fail_unless(buf2.has(S + ins_cnt));
+		fail_unless(!buf2.has(S + ins_cnt + 1));
 		fail_unless(buf2.has(buf2.begin(), S + ins_cnt));
 		fail_unless(!buf2.has(buf2.begin(), S + ins_cnt + 1));
+		fail_unless(buf2.begin().has(S + ins_cnt));
+		fail_unless(!buf2.begin().has(S + ins_cnt + 1));
 		buf2.flush();
+		fail_unless(buf2.has(S + ins_cnt));
+		fail_unless(!buf2.has(S + ins_cnt + 1));
 		fail_unless(buf2.has(buf2.begin(), S + ins_cnt));
 		fail_unless(!buf2.has(buf2.begin(), S + ins_cnt + 1));
+		fail_unless(buf2.begin().has(S + ins_cnt));
+		fail_unless(!buf2.begin().has(S + ins_cnt + 1));
 
 		/*
 		 * If we insert some data to the beginning of buffer, the
@@ -709,11 +742,19 @@ buffer_move()
 		fail_unless(*itr1 == expect1);
 		fail_unless(*itr2 == expect2);
 		fail_unless(*itr3 == expect3);
+		fail_unless(buf2.has(S + ins_cnt));
+		fail_unless(!buf2.has(S + ins_cnt + 1));
 		fail_unless(buf2.has(buf2.begin(), S + ins_cnt));
 		fail_unless(!buf2.has(buf2.begin(), S + ins_cnt + 1));
+		fail_unless(buf2.begin().has(S + ins_cnt));
+		fail_unless(!buf2.begin().has(S + ins_cnt + 1));
 		buf2.flush();
+		fail_unless(buf2.has(S + ins_cnt));
+		fail_unless(!buf2.has(S + ins_cnt + 1));
 		fail_unless(buf2.has(buf2.begin(), S + ins_cnt));
 		fail_unless(!buf2.has(buf2.begin(), S + ins_cnt + 1));
+		fail_unless(buf2.begin().has(S + ins_cnt));
+		fail_unless(!buf2.begin().has(S + ins_cnt + 1));
 
 		{
 			/*
@@ -731,11 +772,19 @@ buffer_move()
 			fail_unless(*itr1 == expect1);
 			fail_unless(*itr2 == expect2);
 			fail_unless(*itr3 == expect3);
+			fail_unless(buf3.has(S + ins_cnt));
+			fail_unless(!buf3.has(S + ins_cnt + 1));
 			fail_unless(buf3.has(buf3.begin(), S + ins_cnt));
 			fail_unless(!buf3.has(buf3.begin(), S + ins_cnt + 1));
+			fail_unless(buf3.begin().has(S + ins_cnt));
+			fail_unless(!buf3.begin().has(S + ins_cnt + 1));
 			buf3.flush();
+			fail_unless(buf3.has(S + ins_cnt));
+			fail_unless(!buf3.has(S + ins_cnt + 1));
 			fail_unless(buf3.has(buf3.begin(), S + ins_cnt));
 			fail_unless(!buf3.has(buf3.begin(), S + ins_cnt + 1));
+			fail_unless(buf3.begin().has(S + ins_cnt));
+			fail_unless(!buf3.begin().has(S + ins_cnt + 1));
 
 			/*
 			 * If we insert some data to the beginning of buffer,
@@ -751,11 +800,19 @@ buffer_move()
 			fail_unless(*itr1 == expect1);
 			fail_unless(*itr2 == expect2);
 			fail_unless(*itr3 == expect3);
+			fail_unless(buf3.has(S + ins_cnt));
+			fail_unless(!buf3.has(S + ins_cnt + 1));
 			fail_unless(buf3.has(buf3.begin(), S + ins_cnt));
 			fail_unless(!buf3.has(buf3.begin(), S + ins_cnt + 1));
+			fail_unless(buf3.begin().has(S + ins_cnt));
+			fail_unless(!buf3.begin().has(S + ins_cnt + 1));
 			buf3.flush();
+			fail_unless(buf3.has(S + ins_cnt));
+			fail_unless(!buf3.has(S + ins_cnt + 1));
 			fail_unless(buf3.has(buf3.begin(), S + ins_cnt));
 			fail_unless(!buf3.has(buf3.begin(), S + ins_cnt + 1));
+			fail_unless(buf3.begin().has(S + ins_cnt));
+			fail_unless(!buf3.begin().has(S + ins_cnt + 1));
 		}
 	}
 }
