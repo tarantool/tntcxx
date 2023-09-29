@@ -34,9 +34,6 @@ ENDIF() # IF (TNTCXX_ENABLE_SSL)
 SET(CMAKE_CXX_STANDARD 17)
 SET(CMAKE_C_STANDARD 11)
 ADD_COMPILE_OPTIONS(-Wall -Wextra -Werror)
-CONFIGURE_FILE(./test/cfg.lua test_cfg.lua COPYONLY)
-CONFIGURE_FILE(./test/cfg_ssl.lua test_cfg_ssl.lua COPYONLY)
-CONFIGURE_FILE(./test/gen_ssl.sh test_gen_ssl.sh COPYONLY)
 
 INCLUDE_DIRECTORIES(.)
 INCLUDE_DIRECTORIES(./src)
@@ -44,50 +41,132 @@ INCLUDE_DIRECTORIES(./third_party/libev)
 ADD_LIBRARY(ev STATIC third_party/libev/ev.c)
 TARGET_COMPILE_DEFINITIONS(ev PRIVATE EV_STANDALONE=1)
 TARGET_COMPILE_OPTIONS(ev PRIVATE -w)
-ADD_EXECUTABLE(MempoolUnitTest.test src/Utils/Mempool.hpp test/MempoolUnitTest.cpp)
-ADD_EXECUTABLE(CStrUnit.test src/Utils/CStr.hpp test/CStrUnitTest.cpp)
-ADD_EXECUTABLE(CommonUnit.test src/Utils/Common.hpp test/CommonUnitTest.cpp)
-ADD_EXECUTABLE(TraitsUnit.test src/Utils/Traits.hpp test/TraitsUnitTest.cpp)
-ADD_EXECUTABLE(RefVectorUnit.test src/Utils/RefVector.hpp test/RefVectorUnitTest.cpp)
-ADD_EXECUTABLE(ItrRangeUnit.test src/Utils/ItrRange.hpp test/ItrRangeUnitTest.cpp)
-ADD_EXECUTABLE(Base64Unit.test src/Utils/Base64.hpp test/Base64UnitTest.cpp)
-ADD_EXECUTABLE(BufferUnit.test src/Buffer/Buffer.hpp test/BufferUnitTest.cpp)
-ADD_EXECUTABLE(BufferPerf.test src/Buffer/Buffer.hpp test/BufferPerfTest.cpp)
-ADD_EXECUTABLE(RingUnit.test src/Utils/Ring.hpp test/RingUnitTest.cpp)
-ADD_EXECUTABLE(ListUnit.test src/Utils/List.hpp test/ListUnitTest.cpp)
-ADD_EXECUTABLE(RulesUnit.test src/mpp/Rules.hpp test/RulesUnitTest.cpp)
-ADD_EXECUTABLE(EncDecUnit.test src/mpp/mpp.hpp test/EncDecTest.cpp)
-ADD_EXECUTABLE(Client.test src/Client/Connector.hpp test/ClientTest.cpp)
-ADD_EXECUTABLE(ClientPerfTest.test src/Client/Connector.hpp test/ClientPerfTest.cpp)
-ADD_EXECUTABLE(SimpleExample examples/Simple.cpp)
-TARGET_LINK_LIBRARIES(SimpleExample ${COMMON_LIB})
-TARGET_LINK_LIBRARIES(ClientPerfTest.test ${COMMON_LIB})
-TARGET_LINK_LIBRARIES(Client.test ${COMMON_LIB})
+
+# Compensating the lack of PROJECT_IS_TOP_LEVEL for older cmake version.
+IF (CMAKE_VERSION VERSION_LESS 3.21)
+    # Strictly speaking it is not equivalent but suitable for us.
+    IF (CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR})
+        SET(PROJECT_IS_TOP_LEVEL ON)
+    ENDIF()
+ENDIF()
+
+SET(TNTCXX_BUILD_TESTING_DEFAULT OFF)
+
+IF (PROJECT_IS_TOP_LEVEL)
+    SET(TNTCXX_BUILD_TESTING_DEFAULT ON)
+ENDIF()
+
+OPTION(TNTCXX_BUILD_TESTING
+    "If ON, tntcxx will build all of tntcxx's own tests."
+    ${TNTCXX_BUILD_TESTING_DEFAULT})
+
+IF (TNTCXX_BUILD_TESTING)
+    INCLUDE(CTest)
+    CONFIGURE_FILE(./test/cfg.lua test_cfg.lua COPYONLY)
+    CONFIGURE_FILE(./test/cfg_ssl.lua test_cfg_ssl.lua COPYONLY)
+    CONFIGURE_FILE(./test/gen_ssl.sh test_gen_ssl.sh COPYONLY)
+ENDIF()
+
+FUNCTION (TNTCXX_TEST)
+    IF (NOT TNTCXX_BUILD_TESTING)
+        RETURN()
+    ENDIF()
+
+    CMAKE_PARSE_ARGUMENTS(TNTCXX_TEST
+            ""
+            "NAME"
+            "SOURCES;LIBRARIES;DEFINES"
+            ${ARGN}
+    )
+
+    SET(_NAME "${TNTCXX_TEST_NAME}.test")
+
+    MESSAGE(STATUS "Creating unit test ${_NAME}")
+    ADD_EXECUTABLE(${_NAME})
+    TARGET_SOURCES(${_NAME} PRIVATE ${TNTCXX_TEST_SOURCES})
+    TARGET_LINK_LIBRARIES(${_NAME} PRIVATE ${TNTCXX_TEST_LIBRARIES})
+    TARGET_COMPILE_DEFINITIONS(${_NAME} PRIVATE ${TNTCXX_TEST_DEFINES})
+    ADD_TEST(NAME ${_NAME} COMMAND ${_NAME})
+ENDFUNCTION()
+
+TNTCXX_TEST(NAME MempoolUnitTest
+            SOURCES src/Utils/Mempool.hpp test/MempoolUnitTest.cpp
+)
+
+TNTCXX_TEST(NAME CStrUnit
+            SOURCES src/Utils/CStr.hpp test/CStrUnitTest.cpp
+)
+
+TNTCXX_TEST(NAME CommonUnit
+            SOURCES src/Utils/Common.hpp test/CommonUnitTest.cpp
+)
+
+TNTCXX_TEST(NAME TraitsUnit
+            SOURCES src/Utils/Traits.hpp test/TraitsUnitTest.cpp
+)
+
+TNTCXX_TEST(NAME RefVectorUnit
+            SOURCES src/Utils/RefVector.hpp test/RefVectorUnitTest.cpp
+)
+
+TNTCXX_TEST(NAME ItrRangeUnit
+            SOURCES src/Utils/ItrRange.hpp test/ItrRangeUnitTest.cpp
+)
+
+TNTCXX_TEST(NAME Base64Unit
+            SOURCES src/Utils/Base64.hpp test/Base64UnitTest.cpp
+)
+
+TNTCXX_TEST(NAME BufferUnit
+            SOURCES src/Buffer/Buffer.hpp test/BufferUnitTest.cpp
+)
+
+TNTCXX_TEST(NAME BufferPerf
+            SOURCES src/Buffer/Buffer.hpp test/BufferPerfTest.cpp
+)
+
+TNTCXX_TEST(NAME RingUnit
+            SOURCES src/Utils/Ring.hpp test/RingUnitTest.cpp
+)
+
+TNTCXX_TEST(NAME ListUnit
+            SOURCES src/Utils/List.hpp test/ListUnitTest.cpp
+)
+
+TNTCXX_TEST(NAME RulesUnit
+            SOURCES src/mpp/Rules.hpp test/RulesUnitTest.cpp
+)
+
+TNTCXX_TEST(NAME EncDecUnit
+            SOURCES src/mpp/mpp.hpp test/EncDecTest.cpp
+)
+
+TNTCXX_TEST(NAME Client
+            SOURCES src/Client/Connector.hpp test/ClientTest.cpp
+            LIBRARIES ${COMMON_LIB}
+)
+
+TNTCXX_TEST(NAME ClientPerfTest
+            SOURCES src/Client/Connector.hpp test/ClientPerfTest.cpp
+            LIBRARIES ${COMMON_LIB}
+)
+
+TNTCXX_TEST(NAME SimpleExample
+            SOURCES examples/Simple.cpp
+            LIBRARIES ${COMMON_LIB}
+)
+
 IF (TNTCXX_ENABLE_SSL)
-    ADD_EXECUTABLE(ClientSSL.test src/Client/Connector.hpp test/ClientTest.cpp)
-    TARGET_LINK_LIBRARIES(ClientSSL.test ${COMMON_LIB})
-    TARGET_COMPILE_DEFINITIONS(ClientSSL.test PUBLIC TNTCXX_ENABLE_SSL)
+    TNTCXX_TEST(NAME ClientSSL
+                SOURCES src/Client/Connector.hpp test/ClientTest.cpp
+                LIBRARIES ${COMMON_LIB}
+                DEFINES TNTCXX_ENABLE_SSL
+    )
 ENDIF()
 
 IF (benchmark_FOUND)
-    ADD_EXECUTABLE(BufferGPerf.test src/Buffer/Buffer.hpp test/BufferGPerfTest.cpp)
-    TARGET_LINK_LIBRARIES (BufferGPerf.test benchmark::benchmark)
-ENDIF()
-
-ENABLE_TESTING()
-ADD_TEST(NAME MempoolUnitTest.test COMMAND MempoolUnitTest.test)
-ADD_TEST(NAME CStrUnit.test COMMAND CStrUnit.test)
-ADD_TEST(NAME CommonUnit.test COMMAND CommonUnit.test)
-ADD_TEST(NAME TraitsUnit.test COMMAND TraitsUnit.test)
-ADD_TEST(NAME RefVectorUnit.test COMMAND RefVectorUnit.test)
-ADD_TEST(NAME ItrRangeUnit.test COMMAND ItrRangeUnit.test)
-ADD_TEST(NAME Base64Unit.test COMMAND Base64Unit.test)
-ADD_TEST(NAME BufferUnit.test COMMAND BufferUnit.test)
-ADD_TEST(NAME RingUnit.test COMMAND RingUnit.test)
-ADD_TEST(NAME ListUnit.test COMMAND ListUnit.test)
-ADD_TEST(NAME RulesUnit.test COMMAND RulesUnit.test)
-ADD_TEST(NAME EncDecUnit.test COMMAND EncDecUnit.test)
-ADD_TEST(NAME Client.test COMMAND Client.test)
-IF (TNTCXX_ENABLE_SSL)
-    ADD_TEST(NAME ClientSSL.test COMMAND ClientSSL.test)
+    TNTCXX_TEST(NAME BufferGPerf
+                SOURCES src/Buffer/Buffer.hpp test/BufferGPerfTest.cpp
+                LIBRARIES benchmark::benchmark
+    )
 ENDIF()

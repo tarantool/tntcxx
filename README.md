@@ -1,6 +1,94 @@
-# tntcxx
+# tntcxx — Tarantool C++ Connector
 
-Tarantool C++ connector
+This repository contains the tntcxx Tarantool C++ connector code. tntcxx is an 
+open-source Tarantool C++ connector (compliant to C++17) designed with high 
+efficiency in mind.
+
+## Building tntcxx
+
+[CMake](https://cmake.org/) is the official build system for tntcxx.
+
+### CMake Build Instructions
+
+tntcxx comes with a CMake build script ([CMakeLists.txt](./CMakeLists.txt))
+that can be used on a wide range of platforms ("C" stands for cross-platform.).
+If you don't have CMake installed already, you can download it for free from
+<https://www.cmake.org/>.
+CMake works by generating native makefiles or build projects that can
+be used in the compiler environment of your choice.
+For API/ABI compatibility reasons, we strongly recommend building tntcxx in a
+subdirectory of your project or as an embedded dependency.
+
+#### Incorporating tntcxx Into a Cmake Project
+
+##### Step-by-Step Instructions
+
+1. Make tntcxx's source code available to the main build. This can be done a few
+different ways:
+    * Download the tntcxx source code manually and place it at a known location. 
+    This is the least flexible approach and can make it more difficult to use
+    with continuous integration systems, etc.
+    * Embed the tntcxx source code as a direct copy in the main project's source
+    tree. This is often the simplest approach, but is also the hardest to keep 
+    up to date. Some organizations may not permit this method.
+    * Add tntcxx as a [git submodule](https://git-scm.com/docs/git-submodule) or
+    equivalent. This may not always be possible or appropriate. Git submodules,
+    for example, have their own set of advantages and drawbacks.
+    * Use the CMake [`FetchContent`](https://cmake.org/cmake/help/latest/module/FetchContent.html)
+    commands to download tntcxx as part of the build's configure step. This 
+    approach doesn't have the limitations of the other methods.
+
+The last of the above methods is implemented with a small piece of CMake code 
+that downloads and pulls the tntcxx code into the main build.
+
+Just add the following snippet to your CMakeLists.txt:
+```cmake
+include(FetchContent)
+FetchContent_Declare(tntcxx
+  GIT_REPOSITORY https://github.com/tarantool/tntcxx.git
+)
+FetchContent_GetProperties(tntcxx)
+if(NOT tntcxx_POPULATED)
+    FetchContent_Populate(tntcxx)
+endif()
+```
+
+2. You can then use the following CMake snippet to incorporate tntcxx into your 
+CMake project:
+```cmake
+add_subdirectory(${TNTCXX_SOURCE_DIR} ${TNTCXX_BINARY_DIR})
+
+target_link_libraries(${PROJECT_NAME}
+    PRIVATE ev
+)
+
+target_include_directories(${PROJECT_NAME}
+    PRIVATE ${tntcxx_SOURCE_DIR}
+    PRIVATE ${tntcxx_SOURCE_DIR}/third_party/libev
+)
+```
+
+##### Running tntcxx Tests with CMake
+
+Use the `-DTNTCXX_BUILD_TESTING=ON` option to run the tntcxx tests. This option 
+is enabled by default if the tntcxx project is determined to be the top level 
+project. Note that `BUILD_TESTING` must also be on (the default).
+
+For example, to run the tntcxx tests, you could use this script:
+```console
+cd path/to/tntcxx
+mkdir build
+cd build
+cmake -DTNTCXX_BUILD_TESTING=ON ..
+make -j
+ctest
+```
+
+### CMake Option Synopsis
+
+- `-DTNTCXX_BUILD_TESTING=ON` must be set to enable testing. This option is 
+enabled by default if the tntcxx project is determined to be the top level 
+project.
 
 ## Internals
 
@@ -17,19 +105,6 @@ as template parameter of buffer.
 ### Client API
 
 **TODO: see src/Client/Connection.hpp and src/Client/Connector.hpp**
-
-
-## Build
-
-To build C++ connector from sources one should have pre-installed compiler
-complied with C++17 standard, cmake/make utilities. Currently supported
-OS is Linux.
-
-Steps to build:
-```
-cmake .  
-make
-```
 
 ## Usage
 
