@@ -110,7 +110,9 @@ struct TupleValueReader : mpp::DefaultErrorHandler {
 	{
 		tuple.field4 = nullptr;
 	}
-	void Value(const BufIter_t&, mpp::compact::Family, mpp::MapValue v)
+
+	void Value(const BufIter_t&, mpp::compact::Family,
+		   [[maybe_unused]] mpp::MapValue v)
 	{
 		assert(v.size == 1);
 		dec.SetReader(false, KeyValueReader{dec, tuple.field5});
