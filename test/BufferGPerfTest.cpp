@@ -10,26 +10,19 @@
 #include "Utils/PerfTimer.hpp"
 #include "../src/Buffer/Buffer.hpp"
 
-constexpr size_t N = 16 * 1024 * 1024;
+constexpr size_t MAX_N = 1024 * 1024;
 
-struct alignas(2) SimpleData_t : std::tuple<uint8_t> {};
+struct SimpleData_t : std::tuple<uint8_t> {};
 using ComplexData_t = std::tuple<uint8_t,uint16_t,uint32_t,uint64_t>;
 struct VariadicData_t { uint8_t size; char data[15]; };
 constexpr size_t MAX_SIZE = std::max(
 	{sizeof(SimpleData_t), sizeof(ComplexData_t), sizeof(VariadicData_t)});
 
-static_assert(sizeof(SimpleData_t) == 2, "Just for understanding");
+static_assert(sizeof(SimpleData_t) == 1, "Just for understanding");
 static_assert(sizeof(ComplexData_t) == 16, "Just for understanding");
 static_assert(sizeof(VariadicData_t) == 16, "Just for understanding");
 
-SimpleData_t simpleDataIn[N];
-SimpleData_t simpleDataOut[N];
-ComplexData_t complexDataIn[N];
-ComplexData_t complexDataOut[N];
-VariadicData_t variadicDataIn[N];
-VariadicData_t variadicDataOut[N];
-
-char staticBuffer[N * MAX_SIZE];
+char staticBuffer[MAX_N * MAX_SIZE];
 
 struct StaticBuffer {
 	char *p = staticBuffer;
@@ -273,9 +266,10 @@ void reconstruct(T& t, U&& u)
 }
 
 template <class CONT, class DATA, bool IS_LIGHT>
-static void BM_write_test(benchmark::State& state)
+static void BM_write(benchmark::State& state)
 {
 	constexpr size_t N = 64 * 1024;
+	static_assert(N <= MAX_N);
 	constexpr size_t K = 16;
 	std::unique_ptr<CONT> cont;
 	DATA wr_data[N];
@@ -333,9 +327,10 @@ static void BM_write_test(benchmark::State& state)
 }
 
 template <class CONT, class DATA, bool IS_LIGHT>
-static void BM_read_test(benchmark::State& state)
+static void BM_read(benchmark::State& state)
 {
 	constexpr size_t N = 64 * 1024;
+	static_assert(N <= MAX_N);
 	constexpr size_t K = 16;
 	std::unique_ptr<CONT> cont(new CONT);
 	auto itr = cont->template begin<IS_LIGHT>();
@@ -352,11 +347,7 @@ static void BM_read_test(benchmark::State& state)
 		for (size_t i = 0; i < N; i++)
 			write(*cont, wr_data[i]);
 		p = rd_data;
-		// Can't execute simple:
-		//itr = cont->begin();
-		// .. because operator=() expects iterator from the same buffer.
-		// Use some magic instead.
-		reconstruct(itr, cont->template begin<IS_LIGHT>());
+		itr = cont->template begin<IS_LIGHT>();
 	};
 
 	auto check = [&]() {
@@ -396,23 +387,36 @@ static void BM_read_test(benchmark::State& state)
 	state.SetBytesProcessed(total_size);
 }
 
-constexpr bool Common = false;
+constexpr bool NA = false;
+constexpr bool Heavy = true;
 constexpr bool Light = true;
 
-BENCHMARK_TEMPLATE(BM_write_test, StaticBuffer, SimpleData_t, Common);
-BENCHMARK_TEMPLATE(BM_read_test, StaticBuffer, SimpleData_t, Common);
-BENCHMARK_TEMPLATE(BM_write_test, tnt::Buffer<>, SimpleData_t, Common);
-BENCHMARK_TEMPLATE(BM_read_test, tnt::Buffer<>, SimpleData_t, Common);
-BENCHMARK_TEMPLATE(BM_read_test, tnt::Buffer<>, SimpleData_t, Light);
-BENCHMARK_TEMPLATE(BM_write_test, StaticBuffer, ComplexData_t, Common);
-BENCHMARK_TEMPLATE(BM_read_test, StaticBuffer, ComplexData_t, Common);
-BENCHMARK_TEMPLATE(BM_write_test, tnt::Buffer<>, ComplexData_t, Common);
-BENCHMARK_TEMPLATE(BM_read_test, tnt::Buffer<>, ComplexData_t, Common);
-BENCHMARK_TEMPLATE(BM_read_test, tnt::Buffer<>, ComplexData_t, Light);
-BENCHMARK_TEMPLATE(BM_write_test, StaticBuffer, VariadicData_t, Common);
-BENCHMARK_TEMPLATE(BM_read_test, StaticBuffer, VariadicData_t, Common);
-BENCHMARK_TEMPLATE(BM_write_test, tnt::Buffer<>, VariadicData_t, Common);
-BENCHMARK_TEMPLATE(BM_read_test, tnt::Buffer<>, VariadicData_t, Common);
-BENCHMARK_TEMPLATE(BM_read_test, tnt::Buffer<>, VariadicData_t, Light);
+using Ref = StaticBuffer;
+using TNT = tnt::Buffer<>;
+
+using Byte = SimpleData_t;
+using Struct = ComplexData_t;
+using String = VariadicData_t;
+
+BENCHMARK_TEMPLATE(BM_write, Ref, Byte, NA);
+BENCHMARK_TEMPLATE(BM_write, TNT, Byte, NA);
+
+BENCHMARK_TEMPLATE(BM_read, Ref, Byte, NA);
+BENCHMARK_TEMPLATE(BM_read, TNT, Byte, Heavy);
+BENCHMARK_TEMPLATE(BM_read, TNT, Byte, Light);
+
+BENCHMARK_TEMPLATE(BM_write, Ref, Struct, NA);
+BENCHMARK_TEMPLATE(BM_write, TNT, Struct, NA);
+
+BENCHMARK_TEMPLATE(BM_read, Ref, Struct, NA);
+BENCHMARK_TEMPLATE(BM_read, TNT, Struct, Heavy);
+BENCHMARK_TEMPLATE(BM_read, TNT, Struct, Light);
+
+BENCHMARK_TEMPLATE(BM_write, Ref, String, NA);
+BENCHMARK_TEMPLATE(BM_write, TNT, String, NA);
+
+BENCHMARK_TEMPLATE(BM_read, Ref, String, NA);
+BENCHMARK_TEMPLATE(BM_read, TNT, String, Heavy);
+BENCHMARK_TEMPLATE(BM_read, TNT, String, Light);
 
 BENCHMARK_MAIN();
