@@ -45,7 +45,7 @@ TARGET_COMPILE_OPTIONS(ev PRIVATE -w)
 # Compensating the lack of PROJECT_IS_TOP_LEVEL for older cmake version.
 IF (CMAKE_VERSION VERSION_LESS 3.21)
     # Strictly speaking it is not equivalent but suitable for us.
-    IF (CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR})
+    IF (CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
         SET(PROJECT_IS_TOP_LEVEL ON)
     ENDIF()
 ENDIF()
@@ -67,106 +67,115 @@ IF (TNTCXX_BUILD_TESTING)
     CONFIGURE_FILE(./test/gen_ssl.sh test_gen_ssl.sh COPYONLY)
 ENDIF()
 
+# Common function for building tests.
+# Arguments are NAME, TYPE, SOURCES, LIBRARIES, DEFINES.
+# TYPE should be one of:
+#  "ctest" (the test is added to ctest list with ADD_TEST call)
+#  "perftest" (nothing special but for future purposes)
+#  "gperftest" (built only if benchmark_FOUND, linked to benchmark::benchmark)
+#  "other"
 FUNCTION (TNTCXX_TEST)
-    IF (NOT TNTCXX_BUILD_TESTING)
-        RETURN()
-    ENDIF()
-
     CMAKE_PARSE_ARGUMENTS(TNTCXX_TEST
             ""
-            "NAME"
+            "NAME;TYPE"
             "SOURCES;LIBRARIES;DEFINES"
             ${ARGN}
     )
 
-    SET(_NAME "${TNTCXX_TEST_NAME}.test")
+    IF (NOT TNTCXX_BUILD_TESTING)
+        RETURN()
+    ENDIF()
+    IF ((${TNTCXX_TEST_TYPE} STREQUAL "gperftest") AND NOT benchmark_FOUND)
+        RETURN()
+    ENDIF()
 
-    MESSAGE(STATUS "Creating unit test ${_NAME}")
-    ADD_EXECUTABLE(${_NAME})
-    TARGET_SOURCES(${_NAME} PRIVATE ${TNTCXX_TEST_SOURCES})
-    TARGET_LINK_LIBRARIES(${_NAME} PRIVATE ${TNTCXX_TEST_LIBRARIES})
-    TARGET_COMPILE_DEFINITIONS(${_NAME} PRIVATE ${TNTCXX_TEST_DEFINES})
-    ADD_TEST(NAME ${_NAME} COMMAND ${_NAME})
+    ADD_EXECUTABLE(${TNTCXX_TEST_NAME})
+    TARGET_SOURCES(${TNTCXX_TEST_NAME} PRIVATE ${TNTCXX_TEST_SOURCES})
+    TARGET_LINK_LIBRARIES(${TNTCXX_TEST_NAME} PRIVATE ${TNTCXX_TEST_LIBRARIES})
+    IF (${TNTCXX_TEST_TYPE} STREQUAL "gperftest")
+        TARGET_LINK_LIBRARIES(${TNTCXX_TEST_NAME} PRIVATE benchmark::benchmark)
+    ENDIF()
+    TARGET_COMPILE_DEFINITIONS(${TNTCXX_TEST_NAME} PRIVATE ${TNTCXX_TEST_DEFINES})
+    IF (${TNTCXX_TEST_TYPE} STREQUAL "ctest")
+        ADD_TEST(NAME ${TNTCXX_TEST_NAME} COMMAND ${TNTCXX_TEST_NAME})
+    ENDIF()
 ENDFUNCTION()
 
-TNTCXX_TEST(NAME MempoolUnitTest
+TNTCXX_TEST(NAME MempoolUnit.test TYPE ctest
             SOURCES src/Utils/Mempool.hpp test/MempoolUnitTest.cpp
 )
 
-TNTCXX_TEST(NAME CStrUnit
+TNTCXX_TEST(NAME CStrUnit.test TYPE ctest
             SOURCES src/Utils/CStr.hpp test/CStrUnitTest.cpp
 )
 
-TNTCXX_TEST(NAME CommonUnit
+TNTCXX_TEST(NAME CommonUnit.test TYPE ctest
             SOURCES src/Utils/Common.hpp test/CommonUnitTest.cpp
 )
 
-TNTCXX_TEST(NAME TraitsUnit
+TNTCXX_TEST(NAME TraitsUnit.test TYPE ctest
             SOURCES src/Utils/Traits.hpp test/TraitsUnitTest.cpp
 )
 
-TNTCXX_TEST(NAME RefVectorUnit
+TNTCXX_TEST(NAME RefVectorUnit.test TYPE ctest
             SOURCES src/Utils/RefVector.hpp test/RefVectorUnitTest.cpp
 )
 
-TNTCXX_TEST(NAME ItrRangeUnit
+TNTCXX_TEST(NAME ItrRangeUnit.test TYPE ctest
             SOURCES src/Utils/ItrRange.hpp test/ItrRangeUnitTest.cpp
 )
 
-TNTCXX_TEST(NAME Base64Unit
+TNTCXX_TEST(NAME Base64Unit.test TYPE ctest
             SOURCES src/Utils/Base64.hpp test/Base64UnitTest.cpp
 )
 
-TNTCXX_TEST(NAME BufferUnit
+TNTCXX_TEST(NAME BufferUnit.test TYPE ctest
             SOURCES src/Buffer/Buffer.hpp test/BufferUnitTest.cpp
 )
 
-TNTCXX_TEST(NAME BufferPerf
-            SOURCES src/Buffer/Buffer.hpp test/BufferPerfTest.cpp
-)
-
-TNTCXX_TEST(NAME RingUnit
+TNTCXX_TEST(NAME RingUnit.test TYPE ctest
             SOURCES src/Utils/Ring.hpp test/RingUnitTest.cpp
 )
 
-TNTCXX_TEST(NAME ListUnit
+TNTCXX_TEST(NAME ListUnit.test TYPE ctest
             SOURCES src/Utils/List.hpp test/ListUnitTest.cpp
 )
 
-TNTCXX_TEST(NAME RulesUnit
+TNTCXX_TEST(NAME RulesUnit.test TYPE ctest
             SOURCES src/mpp/Rules.hpp test/RulesUnitTest.cpp
 )
 
-TNTCXX_TEST(NAME EncDecUnit
+TNTCXX_TEST(NAME EncDecUnit.test TYPE ctest
             SOURCES src/mpp/mpp.hpp test/EncDecTest.cpp
 )
 
-TNTCXX_TEST(NAME Client
+TNTCXX_TEST(NAME Client.test TYPE ctest
             SOURCES src/Client/Connector.hpp test/ClientTest.cpp
             LIBRARIES ${COMMON_LIB}
 )
 
-TNTCXX_TEST(NAME ClientPerfTest
+IF (TNTCXX_ENABLE_SSL)
+    TNTCXX_TEST(NAME ClientSSL.test TYPE ctest
+               SOURCES src/Client/Connector.hpp test/ClientTest.cpp
+               LIBRARIES ${COMMON_LIB}
+               DEFINES TNTCXX_ENABLE_SSL
+    )
+ENDIF()
+
+TNTCXX_TEST(NAME BufferPerf.test TYPE perftest
+           SOURCES src/Buffer/Buffer.hpp test/BufferPerfTest.cpp
+)
+
+TNTCXX_TEST(NAME BufferGPerf.test TYPE gperftest
+            SOURCES src/Buffer/Buffer.hpp test/BufferGPerfTest.cpp
+)
+
+TNTCXX_TEST(NAME ClientPerf.test TYPE perftest
             SOURCES src/Client/Connector.hpp test/ClientPerfTest.cpp
             LIBRARIES ${COMMON_LIB}
 )
 
-TNTCXX_TEST(NAME SimpleExample
+TNTCXX_TEST(NAME SimpleExample TYPE other
             SOURCES examples/Simple.cpp
             LIBRARIES ${COMMON_LIB}
 )
-
-IF (TNTCXX_ENABLE_SSL)
-    TNTCXX_TEST(NAME ClientSSL
-                SOURCES src/Client/Connector.hpp test/ClientTest.cpp
-                LIBRARIES ${COMMON_LIB}
-                DEFINES TNTCXX_ENABLE_SSL
-    )
-ENDIF()
-
-IF (benchmark_FOUND)
-    TNTCXX_TEST(NAME BufferGPerf
-                SOURCES src/Buffer/Buffer.hpp test/BufferGPerfTest.cpp
-                LIBRARIES benchmark::benchmark
-    )
-ENDIF()
