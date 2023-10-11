@@ -37,6 +37,7 @@
 
 const char *localhost = "127.0.0.1";
 int port = 3301;
+int dummy_server_port = 3302;
 const char *unixsocket = "./tnt.sock";
 int WAIT_TIMEOUT = 1000; //milliseconds
 
@@ -693,6 +694,30 @@ test_auth(Connector<BUFFER, NetProvider> &client)
 	printResponse<BUFFER, NetProvider>(conn, *response);
 }
 
+/** Single connection, write to closed connection. */
+template <class BUFFER, class NetProvider>
+void
+test_sigpipe(Connector<BUFFER, NetProvider> &client)
+{
+	TEST_INIT(0);
+
+	int rc = ::launchDummyServer(localhost, dummy_server_port);
+	fail_unless(rc == 0);
+
+	Connection<Buf_t, NetProvider> conn(client);
+	rc = ::test_connect(client, conn, localhost, dummy_server_port);
+	fail_unless(rc == 0);
+
+	/*
+	 * Create a large payload so that request needs at least 2 `send`s, the
+	 * latter being written to a closed socket.
+	 */
+	rid_t f = conn.space[0].replace(std::vector<uint64_t>(100000, 777));
+	fail_if(client.wait(conn, f, WAIT_TIMEOUT) == 0);
+	fail_unless(conn.getError().saved_errno == EPIPE);
+	fail_if(conn.futureIsReady(f));
+}
+
 int main()
 {
 	if (cleanDir() != 0)
@@ -723,5 +748,12 @@ int main()
 	single_conn_call<Buf_t, NetProvider>(client);
 	replace_unix_socket(client);
 	test_auth(client);
+	/*
+	 * Testing this for SSL is hard, since the connection starts to involve
+	 * an a lot more complex state machine.
+	 */
+#ifndef TNTCXX_ENABLE_SSL
+	::test_sigpipe(client);
+#endif
 	return 0;
 }

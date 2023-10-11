@@ -29,10 +29,13 @@
  * THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
+#include <arpa/inet.h>
+#include <netinet/in.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/wait.h>
+#include <sys/socket.h>
 #include <signal.h>
 #ifdef __linux__
 #include <sys/prctl.h>
@@ -128,4 +131,82 @@ genSSLCert() {
 			strerror(errno));
 	}
 	exit(EXIT_FAILURE);
+}
+
+/**
+ * Fork a dummy server that accepts one connection on
+ * `localhost:dummy_server_port`, reads 1 byte and exits.
+ */
+int
+launchDummyServer(const char *addr, int port)
+{
+	pid_t ppid_before_fork = ::getpid();
+	pid_t pid = ::fork();
+	if (pid < 0) {
+		::perror("fork failed");
+		return -1;
+	} else if (pid != 0) {
+		::sleep(1);
+		return 0;
+	}
+
+	set_parent_death_signal(ppid_before_fork, "dummy server");
+
+	int sock = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (sock < 0) {
+		::perror("socket failed");
+		::exit(EXIT_FAILURE);
+	}
+
+	int opt = 1;
+	if (::setsockopt(sock, SOL_SOCKET, SO_REUSEADDR,
+		       &opt, sizeof(opt)) != 0) {
+		::perror("setsockopt failed");
+		::exit(EXIT_FAILURE);
+	}
+	if (::setsockopt(sock, SOL_SOCKET, SO_REUSEPORT,
+		       &opt, sizeof(opt)) != 0) {
+		::perror("setsockopt failed");
+		::exit(EXIT_FAILURE);
+	}
+
+	struct sockaddr_in sock_address = {
+		.sin_family = AF_INET,
+		.sin_port = htons(port),
+	};
+	if (::inet_aton(addr, &sock_address.sin_addr) != 1) {
+		::perror("inet_aton failed");
+		::exit(EXIT_FAILURE);
+	}
+
+	if (::bind(sock,
+		   reinterpret_cast<const struct sockaddr *>(&sock_address),
+		   sizeof(sockaddr)) != 0) {
+		::perror("bind failed");
+		::exit(EXIT_FAILURE);
+	}
+
+	if (::listen(sock, 1) != 0) {
+		::perror("listen failed");
+		::exit(EXIT_FAILURE);
+	}
+
+	int accepted_sock = ::accept(sock, nullptr, nullptr);
+	if (accepted_sock < 0) {
+		::perror("accept failed");
+		::exit(EXIT_FAILURE);
+	}
+
+	::close(sock);
+
+	/* Allow first `send` call to this socket to succeed. */
+	char buf[1];
+	if (::read(accepted_sock, buf, sizeof(buf)) < 0) {
+		::perror("read failed");
+		::exit(EXIT_FAILURE);
+	}
+
+	::close(accepted_sock);
+
+	::exit(EXIT_SUCCESS);
 }

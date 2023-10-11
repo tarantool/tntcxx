@@ -106,7 +106,7 @@ UnixPlainStream::send(struct iovec *iov, size_t iov_count)
 	remove_status(SS_NEED_EVENT_FOR_WRITE);
 	struct msghdr msg = internal::create_msghdr(iov, iov_count);
 	while (true) {
-		int flags = MSG_DONTWAIT;
+		int flags = MSG_DONTWAIT | MSG_NOSIGNAL;
 		ssize_t sent = sendmsg(get_fd(), &msg, flags);
 
 		if (sent > 0)

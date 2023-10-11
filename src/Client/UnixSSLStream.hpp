@@ -354,6 +354,12 @@ int UnixSSLStream::connect(const ConnectOptions &opts_arg)
 		return 0;
 	assert(opts.transport == STREAM_SSL);
 
+	int opt = 1;
+	if (::setsockopt(get_fd(), SOL_SOCKET, SO_NOSIGPIPE,
+			 &opt, sizeof(opt)) != 0) {
+		return US_DIE("setsockopt failed", strerror(errno));
+	}
+
 	if (ssl_context.create(opts) != 0)
 		return US_DIE("SSL_context create failed",
 			      ssl_context.get_last_error());
