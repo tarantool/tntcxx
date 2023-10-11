@@ -185,7 +185,8 @@ Connector<BUFFER, NetProvider>::wait(Connection<BUFFER, NetProvider> &conn,
 	timer.start();
 	if (connectionDecodeResponses(conn, result) != 0)
 		return -1;
-	while (! conn.futureIsReady(future) && !timer.isExpired()) {
+	while (!conn.hasError() && !conn.futureIsReady(future) &&
+	       !timer.isExpired()) {
 		if (m_NetProvider.wait(timeout - timer.elapsed()) != 0) {
 			conn.setError("Failed to poll: " + std::to_string(errno));
 			return -1;
@@ -201,6 +202,10 @@ Connector<BUFFER, NetProvider>::wait(Connection<BUFFER, NetProvider> &conn,
 			if (!hasDataToDecode(conn))
 				m_ReadyToDecode.erase(conn);
 		}
+	}
+	if (conn.hasError()) {
+		LOG_ERROR("Connection got an error: ", conn.getError().msg);
+		return -1;
 	}
 	if (! conn.futureIsReady(future)) {
 		LOG_ERROR("Connection has been timed out: future ", future,
@@ -220,7 +225,7 @@ Connector<BUFFER, NetProvider>::waitAll(Connection<BUFFER, NetProvider> &conn,
 	Timer timer{timeout};
 	timer.start();
 	size_t last_not_ready = 0;
-	while (!timer.isExpired()) {
+	while (!conn.hasError() && !timer.isExpired()) {
 		if (m_NetProvider.wait(timeout - timer.elapsed()) != 0) {
 			conn.setError("Failed to poll: " + std::to_string(errno));
 			return -1;
@@ -242,6 +247,10 @@ Connector<BUFFER, NetProvider>::waitAll(Connection<BUFFER, NetProvider> &conn,
 		}
 		if (finish)
 			return 0;
+	}
+	if (conn.hasError()) {
+		LOG_ERROR("Connection got an error: ", conn.getError().msg);
+		return -1;
 	}
 	LOG_ERROR("Connection has been timed out: not all futures are ready");
 	return -1;
@@ -276,7 +285,7 @@ Connector<BUFFER, NetProvider>::waitCount(Connection<BUFFER, NetProvider> &conn,
 	Timer timer{timeout};
 	timer.start();
 	size_t ready_futures = conn.getFutureCount();
-	while (!timer.isExpired()) {
+	while (!conn.hasError() && !timer.isExpired()) {
 		if (m_NetProvider.wait(timeout - timer.elapsed()) != 0) {
 			conn.setError("Failed to poll: " + std::to_string(errno));
 			return -1;
@@ -290,6 +299,10 @@ Connector<BUFFER, NetProvider>::waitCount(Connection<BUFFER, NetProvider> &conn,
 		}
 		if ((conn.getFutureCount() - ready_futures) >= future_count)
 			return 0;
+	}
+	if (conn.hasError()) {
+		LOG_ERROR("Connection got an error: ", conn.getError().msg);
+		return -1;
 	}
 	LOG_ERROR("Connection has been timed out: only ",
 		   conn.getFutureCount() - ready_futures, " are ready");

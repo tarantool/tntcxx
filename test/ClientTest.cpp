@@ -718,6 +718,37 @@ test_sigpipe(Connector<BUFFER, NetProvider> &client)
 	fail_if(conn.futureIsReady(f));
 }
 
+/** Single connection, wait response from closed connection. */
+template <class BUFFER, class NetProvider>
+void
+test_dead_connection_wait(Connector<BUFFER, NetProvider> &client)
+{
+	TEST_INIT(0);
+
+	int rc = ::launchDummyServer(localhost, dummy_server_port);
+	fail_unless(rc == 0);
+
+	Connection<Buf_t, NetProvider> conn(client);
+	rc = ::test_connect(client, conn, localhost, dummy_server_port);
+	fail_unless(rc == 0);
+
+	rid_t f = conn.ping();
+	fail_if(client.wait(conn, f) == 0);
+	fail_if(conn.futureIsReady(f));
+
+	fail_if(client.waitAll(conn, std::vector<rid_t>(f)) == 0);
+	fail_if(conn.futureIsReady(f));
+
+	fail_if(client.waitCount(conn, 1) == 0);
+	fail_if(conn.futureIsReady(f));
+
+	/* FIXME(gh-51) */
+#if 0
+	fail_if(client.waitAny() != std::nullopt);
+	fail_if(conn.futureIsReady(f));
+#endif
+}
+
 int main()
 {
 	if (cleanDir() != 0)
@@ -755,5 +786,6 @@ int main()
 #ifndef TNTCXX_ENABLE_SSL
 	::test_sigpipe(client);
 #endif
+	::test_dead_connection_wait(client);
 	return 0;
 }
