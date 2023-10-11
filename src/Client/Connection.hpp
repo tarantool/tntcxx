@@ -46,6 +46,11 @@ static constexpr size_t CONN_READAHEAD = 64 * 1024;
 static constexpr size_t IOVEC_MAX_SIZE = 32;
 
 struct ConnectionError {
+	ConnectionError(const std::string &msg, int errno_ = 0) :
+		msg(msg), saved_errno(errno_)
+	{
+	}
+
 	std::string msg;
 	//Saved in case connection fails due to system error.
 	int saved_errno = 0;
@@ -87,7 +92,7 @@ public:
 	//It is useful to store connection objects in stl containers for example.
 	ssize_t refs;
 	//Members below can be default-initialized.
-	ConnectionError error;
+	std::optional<ConnectionError> error;
 	Greeting greeting;
 	bool is_greeting_received;
 	bool is_auth_required;
@@ -173,6 +178,7 @@ public:
 	rid_t ping();
 
 	void setError(const std::string &msg, int errno_ = 0);
+	bool hasError() const;
 	ConnectionError& getError();
 	void reset();
 	BUFFER& getInBuf();
@@ -408,22 +414,29 @@ template<class BUFFER, class NetProvider>
 void
 Connection<BUFFER, NetProvider>::setError(const std::string &msg, int errno_)
 {
-	impl->error.msg = msg;
-	impl->error.saved_errno = errno_;
+	impl->error.emplace(msg, errno_);
+}
+
+template<class BUFFER, class NetProvider>
+bool
+Connection<BUFFER, NetProvider>::hasError() const
+{
+	return impl->error.has_value();
 }
 
 template<class BUFFER, class NetProvider>
 ConnectionError&
 Connection<BUFFER, NetProvider>::getError()
 {
-	return impl->error;
+	assert(hasError());
+	return impl->error.value();
 }
 
 template<class BUFFER, class NetProvider>
 void
 Connection<BUFFER, NetProvider>::reset()
 {
-	impl->error = ConnectionError{};
+	impl->error.reset();
 }
 
 template<class BUFFER, class NetProvider>
