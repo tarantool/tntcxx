@@ -204,9 +204,14 @@ private:
 	// iterator and const_iterator below.
 	template <class IElem, class IRing>
 	class iterator_common
-		: std::iterator<std::bidirectional_iterator_tag, IElem>
 	{
 	public:
+		using iterator_category = std::bidirectional_iterator_tag;
+		using value_type = IElem;
+		using difference_type = std::ptrdiff_t;
+		using pointer = IElem *;
+		using reference = IElem &;
+
 		IElem& operator*() const noexcept;
 		IElem *operator->() const noexcept;
 		bool operator==(const iterator_common& aItr) const noexcept;
