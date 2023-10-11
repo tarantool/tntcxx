@@ -195,11 +195,15 @@ connectionSend(Connection<BUFFER,  LibevNetProvider<BUFFER, Stream>> &conn)
 					    iov, IOVEC_MAX_SIZE);
 
 		ssize_t sent = conn.get_strm().send(iov, iov_cnt);
-		hasSentBytes(conn, (sent < 0 ? 0 : sent));
 		if (sent < 0) {
 			conn.setError(std::string("Failed to send request: ") +
 				      strerror(errno));
 			return -1;
+		} else if (sent == 0) {
+			assert(conn.get_strm().has_status(SS_NEED_WRITE_EVENT_FOR_WRITE));
+			return 1;
+		} else {
+			hasSentBytes(conn, sent);
 		}
 	}
 	/* All data from connection has been successfully written. */
