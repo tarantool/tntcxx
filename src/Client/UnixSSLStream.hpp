@@ -99,7 +99,7 @@ private:
 class UnixSSLStream : public UnixPlainStream {
 public:
 	UnixSSLStream() noexcept = default;
-	inline ~UnixSSLStream() noexcept;
+	inline ~UnixSSLStream();
 	UnixSSLStream(const UnixSSLStream&) = delete;
 	UnixSSLStream &operator=(const UnixSSLStream&) = delete;
 	UnixSSLStream(UnixSSLStream &&a) noexcept = default;
