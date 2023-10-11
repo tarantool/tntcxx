@@ -38,6 +38,27 @@
 #include <sys/prctl.h>
 #endif
 
+void
+set_parent_death_signal(pid_t ppid_before_fork, const char *child_program_name)
+{
+	/**
+	 * Kill the child (the current process) when the test (the parent
+	 * process) is finished.
+	 */
+#ifdef __linux__
+	if (prctl(PR_SET_PDEATHSIG, SIGTERM) == -1) {
+		fprintf(stderr, "Can't launch %s: %s", child_program_name,
+			strerror(errno));
+		exit(EXIT_FAILURE);
+	}
+#endif
+	if (getppid() != ppid_before_fork) {
+		fprintf(stderr, "Can't launch %s: parent process exited "
+				"just before prctl call", child_program_name);
+		exit(EXIT_FAILURE);
+	}
+}
+
 inline int
 launchTarantool(bool enable_ssl = false)
 {
@@ -51,21 +72,7 @@ launchTarantool(bool enable_ssl = false)
 	/* Returning from parent. */
 	if (pid != 0)
 		return 0;
-	/*
-	 * Kill child (i.e. Tarantool process) when the test is finished.
-	 * Doesn't work on MacOS tho.
-	 */
-#ifdef __linux__
-	if (prctl(PR_SET_PDEATHSIG, SIGTERM) == -1) {
-		fprintf(stderr, "Can't launch Tarantool: %s", strerror(errno));
-		exit(EXIT_FAILURE);
-	}
-#endif
-	if (getppid() != ppid_before_fork) {
-		fprintf(stderr, "Can't launch Tarantool: parent process exited "\
-				"just before prctl call");
-		exit(EXIT_FAILURE);
-	}
+	set_parent_death_signal(ppid_before_fork, "Tarantool");
 	const char *script = enable_ssl ? "test_cfg_ssl.lua" : "test_cfg.lua";
 	if (execlp("tarantool", "tarantool", script, NULL) == -1) {
 		fprintf(stderr, "Can't launch Tarantool: execlp failed! %s\n",
