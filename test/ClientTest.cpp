@@ -48,6 +48,12 @@ constexpr bool enable_ssl = false;
 constexpr StreamTransport transport = STREAM_PLAIN;
 #endif
 
+#ifdef __linux__
+using NetProvider = EpollNetProvider<Buf_t, DefaultStream>;
+#else
+using NetProvider = LibevNetProvider<Buf_t, DefaultStream>;
+#endif
+
 template <class Connector, class Connection>
 static int
 test_connect(Connector &client, Connection &conn, const std::string &addr,
@@ -701,40 +707,21 @@ int main()
 		return -1;
 
 	sleep(1);
-#ifdef __linux__
-	using NetEpoll_t = EpollNetProvider<Buf_t, DefaultStream>;
-	Connector<Buf_t, NetEpoll_t> client;
-	trivial<Buf_t, NetEpoll_t>(client);
-	single_conn_ping<Buf_t, NetEpoll_t>(client);
-	auto_close<Buf_t, NetEpoll_t>(client);
-	many_conn_ping<Buf_t, NetEpoll_t>(client);
-	single_conn_error<Buf_t, NetEpoll_t>(client);
-	single_conn_replace<Buf_t, NetEpoll_t>(client);
-	single_conn_insert<Buf_t, NetEpoll_t>(client);
-	single_conn_update<Buf_t, NetEpoll_t>(client);
-	single_conn_delete<Buf_t, NetEpoll_t>(client);
-	single_conn_upsert<Buf_t, NetEpoll_t>(client);
-	single_conn_select<Buf_t, NetEpoll_t>(client);
-	single_conn_call<Buf_t, NetEpoll_t>(client);
+
+	Connector<Buf_t, NetProvider> client;
+	trivial<Buf_t, NetProvider>(client);
+	single_conn_ping<Buf_t, NetProvider>(client);
+	auto_close<Buf_t, NetProvider>(client);
+	many_conn_ping<Buf_t, NetProvider>(client);
+	single_conn_error<Buf_t, NetProvider>(client);
+	single_conn_replace<Buf_t, NetProvider>(client);
+	single_conn_insert<Buf_t, NetProvider>(client);
+	single_conn_update<Buf_t, NetProvider>(client);
+	single_conn_delete<Buf_t, NetProvider>(client);
+	single_conn_upsert<Buf_t, NetProvider>(client);
+	single_conn_select<Buf_t, NetProvider>(client);
+	single_conn_call<Buf_t, NetProvider>(client);
 	replace_unix_socket(client);
 	test_auth(client);
-#endif
-	/* LibEv network provide */
-	using NetLibEv_t = LibevNetProvider<Buf_t, DefaultStream>;
-	Connector<Buf_t, NetLibEv_t > another_client;
-	trivial<Buf_t, NetLibEv_t >(another_client);
-	single_conn_ping<Buf_t, NetLibEv_t>(another_client);
-	auto_close<Buf_t, NetLibEv_t>(another_client);
-	many_conn_ping<Buf_t, NetLibEv_t>(another_client);
-	single_conn_error<Buf_t, NetLibEv_t>(another_client);
-	single_conn_replace<Buf_t, NetLibEv_t>(another_client);
-	single_conn_insert<Buf_t, NetLibEv_t>(another_client);
-	single_conn_update<Buf_t, NetLibEv_t>(another_client);
-	single_conn_delete<Buf_t, NetLibEv_t>(another_client);
-	single_conn_upsert<Buf_t, NetLibEv_t>(another_client);
-	single_conn_select<Buf_t, NetLibEv_t>(another_client);
-	single_conn_call<Buf_t, NetLibEv_t>(another_client);
-	replace_unix_socket(another_client);
-	test_auth(another_client);
 	return 0;
 }
