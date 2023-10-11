@@ -49,7 +49,7 @@ namespace literal = tnt::literal;
 namespace decode_details {
 
 template <compact::Family ...sequence>
-using family_sequence = std::integer_sequence<compact::Family, sequence...>;
+using family_sequence = std::integer_sequence<std::underlying_type_t<compact::Family>, sequence...>;
 
 template <class T>
 constexpr auto detectFamily()
