@@ -170,10 +170,9 @@ launchDummyServer(const char *addr, int port)
 		::exit(EXIT_FAILURE);
 	}
 
-	struct sockaddr_in sock_address = {
-		.sin_family = AF_INET,
-		.sin_port = htons(port),
-	};
+	struct sockaddr_in sock_address{};
+	sock_address.sin_family = AF_INET;
+	sock_address.sin_port = htons(port);
 	if (::inet_aton(addr, &sock_address.sin_addr) != 1) {
 		::perror("inet_aton failed");
 		::exit(EXIT_FAILURE);

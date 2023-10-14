@@ -63,16 +63,14 @@ private:
 class AddrInfo::iterator
 {
 public:
-    using iterator_category = std::input_iterator_tag;
-    using value_type = const struct addrinfo;
-    using difference_type = std::ptrdiff_t;
-    using pointer = const struct addrinfo *;
-    using reference = const struct addrinfo &;
-private:
-	using T = value_type;
-public:
-	T &operator*() const { return *info; }
-	T *operator->() const { return info; }
+	using iterator_category = std::input_iterator_tag;
+	using value_type = const struct addrinfo;
+	using difference_type = std::ptrdiff_t;
+	using pointer = const struct addrinfo *;
+	using reference = const struct addrinfo&;
+
+	value_type &operator*() const { return *info; }
+	value_type *operator->() const { return info; }
 	bool operator==(const iterator &a) { return info == a.info; }
 	bool operator!=(const iterator &a) { return info != a.info; }
 	inline iterator &operator++();
@@ -80,7 +78,7 @@ public:
 private:
 	friend class AddrInfo;
 	explicit iterator(const struct addrinfo *ainfo) : info(ainfo) {}
-	T *info;
+	value_type *info;
 };
 
 /////////////////////////////////////////////////////////////////////
