@@ -354,11 +354,14 @@ int UnixSSLStream::connect(const ConnectOptions &opts_arg)
 		return 0;
 	assert(opts.transport == STREAM_SSL);
 
+#ifdef __FreeBSD__
+	// SO_NOSIGPIPE is great, but only defined on FreeBSD platforms.
 	int opt = 1;
 	if (::setsockopt(get_fd(), SOL_SOCKET, SO_NOSIGPIPE,
 			 &opt, sizeof(opt)) != 0) {
 		return US_DIE("setsockopt failed", strerror(errno));
 	}
+#endif
 
 	if (ssl_context.create(opts) != 0)
 		return US_DIE("SSL_context create failed",

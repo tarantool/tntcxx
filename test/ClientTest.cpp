@@ -751,6 +751,14 @@ test_dead_connection_wait(Connector<BUFFER, NetProvider> &client)
 
 int main()
 {
+#ifdef TNTCXX_ENABLE_SSL
+#ifndef __FreeBSD__
+	// There's no way to disable SIGPIPE for SSL on non-FreeBSD platforms,
+	// so it is needed to disable signal handling.
+	signal(SIGPIPE, SIG_IGN);
+#endif
+#endif
+
 	if (cleanDir() != 0)
 		return -1;
 

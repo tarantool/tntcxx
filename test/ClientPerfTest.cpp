@@ -272,6 +272,14 @@ testBuffer(std::index_sequence<I...>)
 
 int main()
 {
+#ifdef TNTCXX_ENABLE_SSL
+#ifndef __FreeBSD__
+	// There's no way to disable SIGPIPE for SSL on non-FreeBSD platforms,
+	// so it is needed to disable signal handling.
+	signal(SIGPIPE, SIG_IGN);
+#endif
+#endif
+
 	greetings();
 	if (cleanDir() != 0) {
 		std::cerr << "Failed to clean-up current directory" << std::endl;
