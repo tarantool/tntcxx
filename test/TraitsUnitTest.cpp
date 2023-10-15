@@ -573,6 +573,7 @@ test_tuple_pair_traits()
 	static_assert(!tnt::is_tuplish_of_pairish_v<std::tuple<int>>);
 	static_assert(tnt::is_tuplish_of_pairish_v<std::tuple<std::pair<int, int>>>);
 	static_assert(tnt::is_tuplish_of_pairish_v<std::tuple<std::pair<int, int>, CustomPair>>);
+	static_assert(tnt::is_tuplish_of_pairish_v<std::tuple<std::pair<int, int>&, CustomPair&&>>);
 	static_assert(!tnt::is_tuplish_of_pairish_v<std::tuple<int, std::pair<int, int>>>);
 	static_assert(!tnt::is_tuplish_of_pairish_v<std::tuple<std::pair<int, int>, int>>);
 	static_assert(tnt::is_tuplish_of_pairish_v<std::tuple<std::pair<int, int>, const std::pair<float &, int>>>);
@@ -582,7 +583,6 @@ test_tuple_pair_traits()
 	static_assert(tnt::is_tuplish_of_pairish_v<volatile std::tuple<std::pair<int, int>>>);
 	static_assert(!tnt::is_tuplish_of_pairish_v<std::tuple<>&&>);
 	static_assert(!tnt::is_tuplish_of_pairish_v<std::tuple<std::pair<int, int>>&>);
-	static_assert(!tnt::is_tuplish_of_pairish_v<std::tuple<std::pair<int, int>&>>);
 
 	static_assert(!tnt::is_tuplish_of_pairish_v<std::array<int, 5>>);
 	static_assert(!tnt::is_tuplish_of_pairish_v<int[5]>);
@@ -796,6 +796,8 @@ struct BrandNewArray {
 	const int *end() const noexcept;
 	int *data() noexcept;
 	const int *data() const noexcept;
+	int &back();
+	const int &back() const;
 	int size() const noexcept;
 	using value_type = int;
 	void push_back(int);
@@ -813,6 +815,7 @@ struct BrandNewSet {
 	int size() const noexcept;
 	using value_type = int;
 	void insert(int);
+	void clear();
 };
 
 struct BrandNewMap {
@@ -874,7 +877,7 @@ test_container_traits()
 }
 
 template <class CONT, bool RESIZABLE, bool BACK_PUSHABLE, bool BACK_EMPLACABLE,
-	bool INSERTABLE, bool EMPLACABLE>
+	bool INSERTABLE, bool EMPLACABLE, bool BACK_ACCESSIBLE, bool CLEARABLE>
 void check_rw_cont()
 {
 	static_assert(tnt::is_resizable_v<CONT> == RESIZABLE);
@@ -882,29 +885,42 @@ void check_rw_cont()
 	static_assert(tnt::is_back_emplacable_v<CONT> == BACK_EMPLACABLE);
 	static_assert(tnt::is_insertable_v<CONT> == INSERTABLE);
 	static_assert(tnt::is_emplacable_v<CONT> == EMPLACABLE);
+	static_assert(tnt::is_back_accessible_v<CONT> == BACK_ACCESSIBLE);
+	static_assert(tnt::is_clearable_v<CONT> == CLEARABLE);
 }
 
 void
 test_rw_container_traits()
 {
-	check_rw_cont<std::vector<int>, true, true, true, false, false>();
-	check_rw_cont<std::vector<int>&, true, true, true, false, false>();
-	check_rw_cont<const std::vector<int>, true, true, true, false, false>();
-	check_rw_cont<const std::vector<int>&, true, true, true, false, false>();
+	check_rw_cont<std::vector<int>, true, true, true, false, false, true, true>();
+	check_rw_cont<std::vector<int>&, true, true, true, false, false, true, true>();
+	check_rw_cont<const std::vector<int>, true, true, true, false, false, true, true>();
+	check_rw_cont<const std::vector<int>&, true, true, true, false, false, true, true>();
 
-	check_rw_cont<std::set<int>, false, false, false, true, true>();
-	check_rw_cont<std::set<int>&, false, false, false, true, true>();
-	check_rw_cont<const std::set<int>, false, false, false, true, true>();
-	check_rw_cont<const std::set<int>&, false, false, false, true, true>();
+	check_rw_cont<std::set<int>, false, false, false, true, true, false, true>();
+	check_rw_cont<std::set<int>&, false, false, false, true, true, false, true>();
+	check_rw_cont<const std::set<int>, false, false, false, true, true, false, true>();
+	check_rw_cont<const std::set<int>&, false, false, false, true, true, false, true>();
 
-	check_rw_cont<std::map<int, int>, false, false, false, true, true>();
-	check_rw_cont<std::map<int, int>&, false, false, false, true, true>();
-	check_rw_cont<const std::map<int, int>, false, false, false, true, true>();
-	check_rw_cont<const std::map<int, int>&, false, false, false, true, true>();
+	check_rw_cont<std::map<int, int>, false, false, false, true, true, false, true>();
+	check_rw_cont<std::map<int, int>&, false, false, false, true, true, false, true>();
+	check_rw_cont<const std::map<int, int>, false, false, false, true, true, false, true>();
+	check_rw_cont<const std::map<int, int>&, false, false, false, true, true, false, true>();
 
-	check_rw_cont<BrandNewArray, true, true, true, false, false>();
-	check_rw_cont<BrandNewSet, false, false, false, true, false>();
-	check_rw_cont<BrandNewMap, false, false, false, false, true>();
+	check_rw_cont<BrandNewArray, true, true, true, false, false, true, false>();
+	check_rw_cont<BrandNewSet, false, false, false, true, false, false, true>();
+	check_rw_cont<BrandNewMap, false, false, false, false, true, false, false>();
+
+	using t1 = float[10];
+	using t2 = bool[10];
+	static_assert(std::is_same_v<tnt::value_type_t<std::set<int>>, int>);
+	static_assert(std::is_same_v<tnt::value_type_t<std::set<int>&>, int>);
+	static_assert(std::is_same_v<tnt::value_type_t<t1>, float>);
+	static_assert(std::is_same_v<tnt::value_type_t<const t1&>, float>);
+	static_assert(std::is_same_v<tnt::value_type_t<t2>, bool>);
+	static_assert(std::is_same_v<tnt::value_type_t<volatile t2>, bool>);
+	static_assert(std::is_same_v<tnt::value_type_t<t1*>, void>);
+	static_assert(std::is_same_v<tnt::value_type_t<double>, void>);
 }
 
 MAKE_IS_METHOD_CALLABLE_CHECKER(set);
