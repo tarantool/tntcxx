@@ -76,6 +76,9 @@
  * is_back_emplacable_v
  * is_insertable
  * is_emplacable
+ * value_type_t
+ * is_back_accessible_v
+ * is_clearable_v
  * is_limited_v (has static static_capacity member)
  * MAKE_IS_METHOD_CALLABLE_CHECKER (makes is_##ARG##_callable_v)
  */
@@ -437,7 +440,8 @@ struct is_tuplish_of_pairish_h : std::false_type {};
 
 template<class T, size_t ...I>
 struct is_tuplish_of_pairish_h<T, true, tnt::iseq<I...>> {
-	static constexpr bool value = (is_pairish_v<tuple_element_t<I, T>> && ...);
+	static constexpr bool value =
+		(is_pairish_v<std::remove_reference_t<tuple_element_t<I, T>>> && ...);
 };
 
 template<class T>
@@ -748,6 +752,63 @@ struct is_emplacable_h<T,
 template <class T>
 constexpr bool is_emplacable_v =
 	details::is_emplacable_h<details::remove_cvref_t<T>>::value;
+
+/**
+ * Get T::value_type is present, get element type for arrays and void otherwise.
+ */
+namespace details {
+template <class, class _ = void>
+struct value_type_h {
+	using type = void;
+};
+
+template <class T>
+struct value_type_h<T, std::void_t<typename T::value_type>> {
+	using type = typename T::value_type;
+};
+
+template <class T>
+using value_type_t =
+	std::conditional_t<std::is_array_v<T>, std::remove_extent_t<T>,
+			   typename details::value_type_h<T>::type>;
+} //namespace details
+
+template <class T>
+using value_type_t = details::value_type_t<details::remove_cvref_t<T>>;
+
+/**
+ * Checker that a type has back method.
+ */
+namespace details {
+template <class, class _ = void>
+struct is_back_accessible_h : std::false_type {};
+template <class T>
+struct is_back_accessible_h<T,
+	std::void_t<
+		decltype(std::declval<T>().back())
+	>> : std::true_type { };
+} //namespace details {
+
+template <class T>
+constexpr bool is_back_accessible_v =
+	details::is_back_accessible_h<details::remove_cvref_t<T>>::value;
+
+/**
+ * Checker that a type has clear method.
+ */
+namespace details {
+template <class, class _ = void>
+struct is_clearable_h : std::false_type {};
+template <class T>
+struct is_clearable_h<T,
+	std::void_t<
+		decltype(std::declval<T>().clear())
+	>> : std::true_type { };
+} //namespace details {
+
+template <class T>
+constexpr bool is_clearable_v =
+	details::is_clearable_h<details::remove_cvref_t<T>>::value;
 
 /**
  * Check whether the type has static static_capacity member.
