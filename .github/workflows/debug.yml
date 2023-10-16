@@ -1,0 +1,39 @@
+name: debug
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: [ "master" ]
+    tags: [ "*" ]
+
+jobs:
+  ubuntu_20_04:
+    runs-on: ubuntu-20.04
+
+    strategy:
+      fail-fast: false
+      matrix:
+        tarantool:
+          - '2.11'
+        mode:
+          - Debug
+          - Release
+
+    steps:
+      - name: Clone the connector
+        uses: actions/checkout@v3
+
+      - name: Setup tarantool ${{ matrix.tarantool }}
+        uses: tarantool/setup-tarantool@v1
+        with:
+          tarantool-version: ${{ matrix.tarantool }}
+
+      - name: build
+        run: |
+          mkdir build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=${{ matrix.mode }} -DTNTCXX_BUILD_TESTING=ON -DTNTCXX_ENABLE_SSL=OFF .. 
+          make -j
+      - name: test
+        run: cd build && ctest --output-on-failure
