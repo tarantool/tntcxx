@@ -1,4 +1,4 @@
-name: ubuntu
+name: testing
 
 on:
   workflow_dispatch:
@@ -15,8 +15,8 @@ jobs:
         runs-on:
           - ubuntu-20.04
           - ubuntu-22.04
-        tarantool:
-          - '2.11'
+          - macos-11
+          - macos-12
         mode:
           - Debug
           - Release
@@ -27,10 +27,15 @@ jobs:
       - name: Clone the connector
         uses: actions/checkout@v3
 
-      - name: Setup tarantool ${{ matrix.tarantool }}
+      - name: Setup tarantool 2.11
+        if: startsWith(matrix.runs-on, 'ubuntu')
         uses: tarantool/setup-tarantool@v1
         with:
-          tarantool-version: ${{ matrix.tarantool }}
+          tarantool-version: '2.11'
+
+      - name: Setup stable tarantool from brew
+        if: startsWith(matrix.runs-on, 'macos')
+        run: brew install tarantool
 
       - name: build
         run: |
@@ -38,5 +43,6 @@ jobs:
           cd build
           cmake -DCMAKE_BUILD_TYPE=${{ matrix.mode }} -DTNTCXX_BUILD_TESTING=ON -DTNTCXX_ENABLE_SSL=OFF .. 
           make -j
+
       - name: test
         run: cd build && ctest --output-on-failure
