@@ -170,11 +170,21 @@ recv_cb(struct ev_loop *loop, struct ev_io *watcher, int /* revents */)
 	Connection<BUFFER, NetProvider_t> conn = waitWatcher->connection;
 	assert(waitWatcher->in.fd == conn.get_strm().get_fd());
 
+	if (conn.get_strm().has_status(SS_NEED_READ_EVENT_FOR_WRITE))
+		ev_feed_fd_event(loop, conn.get_strm().get_fd(), EV_WRITE);
+
 	timerDisable(loop, waitWatcher->timer);
 	int rc = connectionReceive(conn);
 	Connector_t *connector = waitWatcher->connector;
-	if (rc != 0)
+	if (rc < 0)
 		return;
+	if (rc > 0) {
+		/* Recv is not complete, setting the write watcher if needed. */
+		if (conn.get_strm().has_status(SS_NEED_WRITE_EVENT_FOR_READ))
+			if (!ev_is_active(&waitWatcher->out))
+				ev_io_start(loop, &waitWatcher->out);
+		return;
+	}
 	if (hasDataToDecode(conn))
 		connector->readyToDecode(conn);
 }
@@ -200,7 +210,7 @@ connectionSend(Connection<BUFFER,  LibevNetProvider<BUFFER, Stream>> &conn)
 				      strerror(errno));
 			return -1;
 		} else if (sent == 0) {
-			assert(conn.get_strm().has_status(SS_NEED_WRITE_EVENT_FOR_WRITE));
+			assert(conn.get_strm().has_status(SS_NEED_EVENT_FOR_WRITE));
 			return 1;
 		} else {
 			hasSentBytes(conn, sent);
@@ -224,6 +234,9 @@ send_cb(struct ev_loop *loop, struct ev_io *watcher, int /* revents */)
 	Connection<BUFFER, NetProvider_t> &conn = waitWatcher->connection;
 	assert(watcher->fd == conn.get_strm().get_fd());
 
+	if (conn.get_strm().has_status(SS_NEED_WRITE_EVENT_FOR_READ))
+		ev_feed_fd_event(loop, conn.get_strm().get_fd(), EV_READ);
+
 	timerDisable(loop, waitWatcher->timer);
 	int rc = connectionSend(conn);
 	if (rc < 0) {
@@ -233,7 +246,9 @@ send_cb(struct ev_loop *loop, struct ev_io *watcher, int /* revents */)
 	if (rc > 0) {
 		/* Send is not complete, setting the write watcher. */
 		LOG_DEBUG("Send is not complete, setting the write watcher");
-		ev_io_start(loop, watcher);
+		if (conn.get_strm().has_status(SS_NEED_WRITE_EVENT_FOR_WRITE))
+			if (!ev_is_active(&waitWatcher->out))
+				ev_io_start(loop, &waitWatcher->out);
 		return;
 	}
 	/*

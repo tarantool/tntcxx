@@ -200,6 +200,12 @@ EpollNetProvider<BUFFER, Stream>::recv(Conn_t &conn)
 		return -1;
 	}
 
+	if (rcvd == 0) {
+		assert(conn.get_strm().has_status(SS_NEED_EVENT_FOR_READ));
+		if (conn.get_strm().has_status(SS_NEED_WRITE_EVENT_FOR_READ))
+			setPollSetting(conn, EPOLLIN | EPOLLOUT);
+	}
+
 	if (!conn.getImpl()->is_greeting_received) {
 		if ((size_t) rcvd < Iproto::GREETING_SIZE)
 			return 0;
@@ -237,7 +243,9 @@ EpollNetProvider<BUFFER, Stream>::send(Conn_t &conn)
 				      strerror(errno));
 			return -1;
 		} else if (sent == 0) {
-			assert(conn.get_strm().has_status(SS_NEED_WRITE_EVENT_FOR_WRITE));
+			assert(conn.get_strm().has_status(SS_NEED_EVENT_FOR_WRITE));
+			if (conn.get_strm().has_status(SS_NEED_WRITE_EVENT_FOR_WRITE))
+				setPollSetting(conn, EPOLLIN | EPOLLOUT);
 			return 1;
 		} else {
 			hasSentBytes(conn, sent);
@@ -278,12 +286,17 @@ EpollNetProvider<BUFFER, Stream>::wait(int timeout)
 			LOG_DEBUG("Registered poll event ", i, ": ",
 				  conn.get_strm().get_fd(),
 				  " socket is ready to read");
+			if (conn.get_strm().has_status(SS_NEED_READ_EVENT_FOR_WRITE)) {
+				int rc = send(conn);
+				if (rc < 0)
+					return -1;
+			}
 			/*
 			 * Once we read all bytes from socket connection
 			 * becomes ready to decode.
 			 */
 			int rc = recv(conn);
-			if (rc != 0)
+			if (rc < 0)
 				return -1;
 			if (hasDataToDecode(conn))
 				m_Connector.readyToDecode(conn);
@@ -293,6 +306,11 @@ EpollNetProvider<BUFFER, Stream>::wait(int timeout)
 			LOG_DEBUG("Registered poll event ", i, ": ",
 				  conn.get_strm().get_fd(),
 				  " socket is ready to write");
+			if (conn.get_strm().has_status(SS_NEED_WRITE_EVENT_FOR_READ)) {
+				int rc = recv(conn);
+				if (rc < 0)
+					return -1;
+			}
 			int rc = send(conn);
 			if (rc < 0)
 				return -1;
