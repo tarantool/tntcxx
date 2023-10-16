@@ -1,4 +1,4 @@
-name: debug
+name: ubuntu
 
 on:
   workflow_dispatch:
@@ -8,17 +8,20 @@ on:
     tags: [ "*" ]
 
 jobs:
-  ubuntu_20_04:
-    runs-on: ubuntu-20.04
-
+  ubuntu:
     strategy:
       fail-fast: false
       matrix:
+        runs-on:
+          - ubuntu-20.04
+          - ubuntu-22.04
         tarantool:
           - '2.11'
         mode:
           - Debug
           - Release
+
+    runs-on: ${{ matrix.runs-on }}
 
     steps:
       - name: Clone the connector
