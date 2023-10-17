@@ -106,7 +106,7 @@ constexpr compact::Family detectFamily()
 	}
 }
 
-template <class T, size_t ...I>
+template <class T, size_t... I>
 constexpr auto
 tuplishTotalLength32(tnt::iseq<I...>)
 {
@@ -497,7 +497,7 @@ bool check_fits([[maybe_unused]] V v)
 }
 
 /** Terminal encode. */
-template <class CONT, char... C, size_t...I>
+template <class CONT, char... C, size_t... I>
 bool
 encode(CONT &cont, tnt::CStr<C...> prefix, tnt::iseq<I...>)
 {

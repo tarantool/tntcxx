@@ -54,6 +54,7 @@
  * get<I>
  * iseq
  * make_iseq
+ * iseq_for
  * tuple_iseq
  * is_tuplish_v (standard (tuple, array, pair) + bounded array)
  * is_pairish_v
@@ -362,14 +363,94 @@ constexpr std::enable_if_t<!is_bounded_array_v<U> && !has_get_by_size_v<I, U>,
 }
 
 /**
- * Shortcuts for std::index_sequence and std::make_index_sequence;
- * and convenient shortcut for std::make_index_sequence<tnt::tuple_size<..>>.
+ * Extended implementation of std::index_sequence<...>;
+ * Is supposed to be created with make_iseq or iseq_for or tuple_iseq, like
+ *  in standard sequence or obviously similar.
+ * Also provides join and other access/modification methods.
  */
-template <size_t ...I>
-using iseq = std::index_sequence<I...>;
+template <size_t... I>
+struct iseq {
+	static constexpr size_t size() { return sizeof...(I); }
+	static constexpr size_t data[size() + 1] = {I...};
+
+	static constexpr size_t last_idx = size() > 0 ? size() - 1 : 0;
+	using lower_idx = std::make_index_sequence<last_idx>;
+
+	template <size_t J>
+	static constexpr size_t get()
+	{
+		return data[J];
+	}
+
+	static constexpr size_t first()
+	{
+		return data[0];
+	}
+
+	static constexpr size_t last()
+	{
+		return data[last_idx];
+	}
+
+	constexpr bool operator==(iseq) { return true; }
+
+	constexpr bool operator!=(iseq) { return false; }
+
+	template <size_t... J>
+	constexpr bool operator==(iseq<J...>) { return false; }
+
+	template <size_t... J>
+	constexpr bool operator!=(iseq<J...>) { return true; }
+
+	template <size_t... J>
+	constexpr iseq<I..., J...> operator+(iseq<J...>) const
+	{
+		return {};
+	}
+
+	template <size_t... J>
+	static constexpr iseq<data[J]...> subseq(std::index_sequence<J...>)
+	{
+		return {};
+	}
+
+	template <size_t J>
+	using add_back_t = iseq<I..., J>;
+
+	using pop_back_t = decltype(subseq(lower_idx{}));
+
+	template <size_t J>
+	using set_back_t = typename pop_back_t::template add_back_t<J>;
+
+	using inc_back_t = set_back_t<last() + 1>;
+
+	template <size_t J>
+	static constexpr add_back_t<J> add_back() { return {}; }
+
+	static constexpr pop_back_t pop_back() { return {}; }
+
+	template <size_t J>
+	static constexpr set_back_t<J> set_back() { return {}; }
+
+	static constexpr inc_back_t inc_back() { return {}; }
+};
+
+namespace details {
+template <class T>
+struct iseq_converter;
+
+template <class T, T... I>
+struct iseq_converter<std::integer_sequence<T, I...>> {
+	using type = iseq<I...>;
+};
+} // namespace details
 
 template <size_t N>
-using make_iseq = std::make_index_sequence<N>;
+using make_iseq =
+	typename details::iseq_converter<std::make_index_sequence<N>>::type;
+
+template <class... T>
+using iseq_for = make_iseq<sizeof...(T)>;
 
 template <class T>
 using tuple_iseq = make_iseq<tnt::tuple_size_v<T>>;

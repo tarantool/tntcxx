@@ -107,7 +107,7 @@ template <size_t TN>
 struct SubRules {
 	static constexpr size_t N = TN;
 	SubRule arr[N ? N : 1];
-	template <size_t M, size_t ...I, size_t ...J>
+	template <size_t M, size_t... I, size_t... J>
 	constexpr SubRules<M + N> join(SubRules<M> a,
 				       tnt::iseq<I...>, tnt::iseq<J...>)
 	{
@@ -115,7 +115,7 @@ struct SubRules {
 	}
 
 	// Check that the subrules don't overlap in terms of tags.
-	template <size_t ...I, size_t ...J>
+	template <size_t... I, size_t... J>
 	constexpr bool check(tnt::iseq<I...>, tnt::iseq<J...>) const
 	{
 		auto checkX = [&](size_t X){ return (true && ... && (X == I || !arr[X].overlaps(arr[I]))); };
@@ -169,7 +169,7 @@ constexpr auto getSimplexSubRules()
 	}
 }
 
-template <compact::Family FAMILY, class RULE, size_t ...I>
+template <compact::Family FAMILY, class RULE, size_t... I>
 constexpr auto getComplexSubRules(tnt::iseq<I...>)
 {
 	using types = typename RULE::complex_types;
@@ -209,7 +209,7 @@ constexpr auto getSubRules(family_sequence<FAMILY...>)
 	return (getFamilySubRules<FAMILY>() + ...);
 }
 
-template <class CONT, class T, size_t ...I>
+template <class CONT, class T, size_t... I>
 bool decodeElems(CONT &cont, T &t, tnt::iseq<I...>)
 {
 	return decode(cont, tnt::get<I>(t)...);
@@ -291,7 +291,7 @@ template <class CONT, class T, class ...MORE>
 using jumps_t = std::array<jump_t<CONT, T, MORE...>, 256>;
 
 template <class CONT, class T, class ...MORE, compact::Family ...FAMILY,
-        size_t... I, size_t... K>
+	size_t... I, size_t... K>
 constexpr jumps_t<CONT, T, MORE...>
 build_jumps(family_sequence<FAMILY...> family_seq,
 	    tnt::iseq<I...>, tnt::iseq<K...>)
@@ -1109,7 +1109,7 @@ Dec<BUFFER>::SkipCommon()
 template <class DEC, class READER, class SEQUENCE>
 struct ReaderMap;
 
-template <class DEC, class READER, size_t ... N>
+template <class DEC, class READER, size_t... N>
 struct ReaderMap<DEC, READER, tnt::iseq<N...>> {
 	using Transition_t = typename DEC::Transition_t;
 	template <size_t I>

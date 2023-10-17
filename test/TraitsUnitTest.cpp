@@ -954,6 +954,81 @@ test_is_method_callable()
 	static_assert(!is_set_callable_v<A7<int*>, int, float>); // can't convert.
 }
 
+void
+test_common()
+{
+	static_assert(tnt::iseq<42, 0, 10>{} == tnt::iseq<42, 0, 10>{});
+	static_assert(!(tnt::iseq<42, 0, 10>{} != tnt::iseq<42, 0, 10>{}));
+	static_assert(!(tnt::iseq<42, 0, 10>{} == tnt::iseq<42, 1, 10>{}));
+	static_assert(tnt::iseq<42, 0, 10>{} != tnt::iseq<42, 1, 10>{});
+
+	static_assert(tnt::iseq<>::add_back_t<30>{} == tnt::iseq<30>{});
+	static_assert(tnt::iseq<>::pop_back_t{} == tnt::iseq<>{});
+	static_assert(tnt::iseq<>::set_back_t<30>{} == tnt::iseq<30>{});
+	static_assert(tnt::iseq<>::inc_back_t{} == tnt::iseq<1>{});
+
+	static_assert(tnt::iseq<>::add_back<30>() == tnt::iseq<30>{});
+	static_assert(tnt::iseq<>::pop_back() == tnt::iseq<>{});
+	static_assert(tnt::iseq<>::set_back<30>() == tnt::iseq<30>{});
+	static_assert(tnt::iseq<>::inc_back() == tnt::iseq<1>{});
+
+	static_assert(tnt::iseq<10, 20>::add_back_t<30>{} == tnt::iseq<10, 20, 30>{});
+	static_assert(tnt::iseq<10, 20>::pop_back_t{} == tnt::iseq<10>{});
+	static_assert(tnt::iseq<10, 20>::set_back_t<30>{} == tnt::iseq<10, 30>{});
+	static_assert(tnt::iseq<10, 20>::inc_back_t{} == tnt::iseq<10, 21>{});
+
+	static_assert(tnt::iseq<10, 20>::add_back<30>() == tnt::iseq<10, 20, 30>{});
+	static_assert(tnt::iseq<10, 20>::pop_back() == tnt::iseq<10>{});
+	static_assert(tnt::iseq<10, 20>::set_back<30>() == tnt::iseq<10, 30>{});
+	static_assert(tnt::iseq<10, 20>::inc_back() == tnt::iseq<10, 21>{});
+
+	auto s1 = tnt::iseq<42, 0, 10>{};
+	static_assert(s1.size() == 3);
+	static_assert(s1.get<0>() == 42);
+	static_assert(s1.get<1>() == 0);
+	static_assert(s1.get<2>() == 10);
+	static_assert(s1.first() == 42);
+	static_assert(s1.last() == 10);
+
+	static_assert(s1.add_back<20>() == tnt::iseq<42, 0, 10, 20>{});
+	static_assert(s1.pop_back() == tnt::iseq<42, 0>{});
+	static_assert(s1.set_back<20>() == tnt::iseq<42, 0, 20>{});
+	static_assert(s1.inc_back() == tnt::iseq<42, 0, 11>{});
+
+	static_assert(s1.pop_back().size() == 2);
+	static_assert(s1.pop_back().first() == 42);
+	static_assert(s1.pop_back().last() == 0);
+
+	auto s2 = tnt::make_iseq<5>{};
+	static_assert(s2.size() == 5);
+	static_assert(s2.get<0>() == 0);
+	static_assert(s2.get<1>() == 1);
+	static_assert(s2.get<2>() == 2);
+	static_assert(s2.get<3>() == 3);
+	static_assert(s2.get<4>() == 4);
+
+	auto s3 = tnt::make_iseq<2>{} + tnt::make_iseq<3>{};
+	static_assert(s3.size() == 5);
+	static_assert(s3.get<0>() == 0);
+	static_assert(s3.get<1>() == 1);
+	static_assert(s3.get<2>() == 0);
+	static_assert(s3.get<3>() == 1);
+	static_assert(s3.get<4>() == 2);
+
+	auto s4 = tnt::iseq_for<int, char>{};
+	static_assert(s4.size() == 2);
+	static_assert(s4.get<0>() == 0);
+	static_assert(s4.get<1>() == 1);
+
+	using T = int[4];
+	auto s5 = tnt::tuple_iseq<T>{};
+	static_assert(s5.size() == 4);
+	static_assert(s5.get<0>() == 0);
+	static_assert(s5.get<1>() == 1);
+	static_assert(s5.get<2>() == 2);
+	static_assert(s5.get<3>() == 3);
+}
+
 int main()
 {
 	test_integer_traits();
@@ -967,4 +1042,5 @@ int main()
 	test_container_traits();
 	test_rw_container_traits();
 	test_is_method_callable();
+	test_common();
 }
