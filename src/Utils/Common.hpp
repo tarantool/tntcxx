@@ -44,6 +44,8 @@
  */
 
 #include <cassert>
+#include <cstddef>
+#include <cstdint>
 #include <tuple>
 
 namespace tnt {
