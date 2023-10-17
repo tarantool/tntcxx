@@ -36,9 +36,9 @@
 
 /** Corresponds to data stored in _space[512]. */
 struct UserTuple {
-	uint64_t field1;
+	uint64_t field1 = 0;
 	std::string field2;
-	double field3;
+	double field3 = 0.0;
 	void *field4 = reinterpret_cast<void *>(0xDEADBEEF);
 	std::pair<std::string, uint64_t> field5;
 };
