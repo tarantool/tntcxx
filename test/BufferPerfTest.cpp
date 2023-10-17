@@ -280,7 +280,7 @@ bench(T (&in)[N], T (&out)[N])
 	std::cout << "---------------------------------------" << std::endl;
 	std::cout << "Bench of " << contName(cont) << (LIGHT ? " (light)" : "")
 		  << " with " << dataName(in[0]) << std::endl;
-	memset(out, 0, sizeof(out));
+	std::fill(std::begin(out), std::end(out), T());
 	PerfTimer timer;
 
 	// Write
