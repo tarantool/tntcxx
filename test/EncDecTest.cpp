@@ -33,6 +33,7 @@
 
 #include <set>
 #include <map>
+#include <vector>
 
 #include "Utils/Helpers.hpp"
 #include "Utils/RefVector.hpp"
