@@ -62,6 +62,8 @@ set_parent_death_signal(pid_t ppid_before_fork, const char *child_program_name)
 	}
 }
 
+#ifdef __linux__
+
 inline int
 launchTarantool(bool enable_ssl = false)
 {
@@ -84,6 +86,64 @@ launchTarantool(bool enable_ssl = false)
 	}
 	exit(EXIT_FAILURE);
 }
+
+#else
+
+/**
+ * Launches intermediate process, connected with parent by pipe.
+ * The intermediate process lauches another process, running tarantool, and then
+ * falls asleep on reading from pipe. When parent process is dead, the pipe
+ * will be closed, and the intermediate process will read EOF. Right after, it
+ * will kill its child process, which is Tarantool, and exit.
+ * In the case, when the intermediate process fails to fork Tarantool, it kills
+ * the parent process and terminates.
+ */
+inline int
+launchTarantool(bool enable_ssl = false)
+{
+	pid_t ppid_before_fork = getpid();
+	int p[2];
+	pipe(p);
+	pid_t pid = fork();
+	if (pid == -1) {
+		fprintf(stderr, "Can't launch Tarantool: fork failed! %s",
+			strerror(errno));
+		return -1;
+	}
+	/* Returning from parent. */
+	if (pid != 0)
+		return 0;
+
+	/*
+	 * It is necessary to close write end of pipe here if we want to read
+	 * EOF when the parent process is dead.
+	 */
+	close(p[1]);
+	pid = fork();
+	if (pid == -1) {
+		/*
+		 * We've already returned OK in the parent, so let's kill it if
+		 * the intermediate process fails to fork Tarantool.
+		 */
+		kill(ppid_before_fork, SIGKILL);
+		exit(EXIT_FAILURE);
+	}
+	if (pid == 0) {
+		close(p[0]);
+		const char *script = enable_ssl ? "test_cfg_ssl.lua" : "test_cfg.lua";
+		if (execlp("tarantool", "tarantool", script, NULL) == -1) {
+			fprintf(stderr, "Can't launch Tarantool: execlp failed! %s\n",
+			strerror(errno));
+			kill(getppid(), SIGKILL);
+		}
+	}
+	char buf[1];
+	read(p[0], buf, 1);
+	kill(pid, SIGTERM);
+	exit(0);
+}
+
+#endif
 
 inline int
 cleanDir() {
