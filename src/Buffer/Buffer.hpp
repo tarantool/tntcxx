@@ -509,7 +509,8 @@ Buffer<N, allocator>::iterator_common<LIGHT>::operator= (iterator_common& other)
 	if (TNT_UNLIKELY(this == &other))
 		return *this;
 	m_position = other.m_position;
-	other.insert(*this);
+	if constexpr (!LIGHT)
+		other.insert(*this);
 	return *this;
 }
 
