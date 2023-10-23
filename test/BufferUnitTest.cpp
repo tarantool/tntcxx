@@ -340,6 +340,10 @@ buffer_iterator()
 	buf.write(end_marker);
 	fail_if(buf.debugSelfCheck());
 	auto itr = buf.begin();
+	{
+		auto itr_test = itr;
+		itr_test = itr;
+	}
 	char res = 'x';
 	/* Iterator to the start of buffer should not change. */
 	for (int i = 0; i < SAMPLES_CNT; ++i) {
@@ -375,6 +379,10 @@ buffer_iterator()
 	typename tnt::Buffer<N>::iterator itr2(itr);
 
 	auto litr1 = itr.enlight();
+	{
+		auto itr_test = litr1;
+		itr_test = litr1;
+	}
 	const auto litr2 = citr.enlight();
 	auto litr3 = litr1.enlight();
 	auto litr4 = litr2.enlight();
