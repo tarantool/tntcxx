@@ -20,8 +20,12 @@ jobs:
         mode:
           - Debug
           - Release
+        test-ssl:
+          - Disabled
 
     runs-on: ${{ matrix.runs-on }}
+
+    name: ${{ matrix.runs-on }} (${{ matrix.mode }}, ${{ matrix.test-ssl }} ssl test)
 
     steps:
       - name: Clone the connector
@@ -41,8 +45,13 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake -DCMAKE_BUILD_TYPE=${{ matrix.mode }} -DTNTCXX_BUILD_TESTING=ON -DTNTCXX_ENABLE_SSL=OFF .. 
+          cmake -DCMAKE_BUILD_TYPE=${{ matrix.mode }} -DTNTCXX_BUILD_TESTING=ON -DTNTCXX_ENABLE_SSL=ON ..
           make -j
 
+      - name: test without SSL
+        if: matrix.test-ssl == 'Disabled'
+        run: cd build && ctest --output-on-failure -E ClientSSL.test
+
       - name: test
+        if: matrix.test-ssl == 'Enabled'
         run: cd build && ctest --output-on-failure
