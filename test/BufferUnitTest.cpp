@@ -288,6 +288,11 @@ buffer_add_read()
 			char data1[16];
 			for (size_t j = 0; j < sz; j++)
 				data1[j] = rand();
+			fail_unless(itr1.startsWith({data1, sz}));
+			unsigned char last_char = data1[sz - 1];
+			data1[sz - 1] = last_char + 1;
+			fail_if(itr1.startsWith({data1, sz}));
+			data1[sz - 1] = last_char;
 			char data2[16];
 			itr1.read({data2, sz});
 			fail_unless(memcmp(data1, data2, sz) == 0);
