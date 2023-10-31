@@ -58,32 +58,24 @@ using Buf_t = tnt::Buffer<16 * 1024>;
 using Net_t = LibevNetProvider<Buf_t, DefaultStream>;
 //doclabel02-2
 
-//doclabel16-1
+//doclabel14-1
 template <class BUFFER>
 std::vector<UserTuple>
-decodeUserTuple(BUFFER &buf, Data<BUFFER> &data)
+decodeUserTuple(Data<BUFFER> &data)
 {
 	std::vector<UserTuple> results;
-	for(auto& t: data.tuples) {
-		UserTuple tuple;
-		mpp::Dec dec(buf);
-		dec.SetPosition(t.begin);
-		dec.SetReader(false, UserTupleReader<BUFFER>{dec, tuple});
-		mpp::ReadResult_t res = dec.Read();
-		assert(res == mpp::READ_SUCCESS);
-		(void) res;
-		results.push_back(tuple);
-	}
+	bool ok = data.decode(results);
+	assert(ok);
 	return results;
 }
-//doclabel16-2
+//doclabel14-2
 
 template<class BUFFER>
 void
-printResponse(Connection<BUFFER, Net_t> &conn, Response<BUFFER> &response)
+printResponse(Response<BUFFER> &response)
 {
 	if (response.body.error_stack != std::nullopt) {
-		Error err = (*response.body.error_stack).error;
+		Error err = (*response.body.error_stack)[0];
 		std::cout << "RESPONSE ERROR: msg=" << err.msg <<
 			  " line=" << err.file << " file=" << err.file <<
 			  " errno=" << err.saved_errno <<
@@ -92,12 +84,11 @@ printResponse(Connection<BUFFER, Net_t> &conn, Response<BUFFER> &response)
 	}
 	if (response.body.data != std::nullopt) {
 		Data<BUFFER>& data = *response.body.data;
-		if (data.tuples.empty()) {
+		std::vector<UserTuple> tuples = decodeUserTuple(data);
+		if (tuples.empty()) {
 			std::cout << "Empty result" << std::endl;
 			return;
 		}
-		std::vector<UserTuple> tuples =
-			decodeUserTuple(conn.getInBuf(), data);
 		for (auto const& t : tuples) {
 			std::cout << t << std::endl;
 		}
@@ -204,7 +195,7 @@ main()
 	 * rely on response code storing in the header or check
 	 * Response->body.data and Response->body.error_stack members.
 	 */
-	printResponse<Buf_t>(conn, *response);
+	printResponse<Buf_t>(*response);
 	//doclabel11-2
 	/* Let's wait for both futures at once. */
 	std::vector<rid_t> futures(2);
@@ -216,7 +207,7 @@ main()
 		assert(conn.futureIsReady(futures[i]));
 		response = conn.getResponse(futures[i]);
 		assert(response != std::nullopt);
-		printResponse<Buf_t>(conn, *response);
+		printResponse<Buf_t>(*response);
 	}
 	//doclabel11-3
 	/* Let's create another connection. */

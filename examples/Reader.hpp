@@ -41,6 +41,9 @@ struct UserTuple {
 	uint64_t field1;
 	std::string field2;
 	double field3;
+
+	static constexpr auto mpp = std::make_tuple(
+		&UserTuple::field1, &UserTuple::field2, &UserTuple::field3);
 };
 //doclabel13-2
 
@@ -50,59 +53,3 @@ operator<<(std::ostream& strm, const UserTuple &t)
 	return strm << "Tuple: field1=" << t.field1 << " field2=" << t.field2 <<
 		       " field3=" << t.field3;
 }
-
-using Buf_t = tnt::Buffer<16 * 1024>;
-using BufIter_t = typename Buf_t::iterator;
-
-//doclabel14-1
-struct UserTupleValueReader : mpp::DefaultErrorHandler {
-	explicit UserTupleValueReader(UserTuple& t) : tuple(t) {}
-	static constexpr mpp::Family VALID_TYPES = mpp::MP_INT | mpp::MP_STR | mpp::MP_FLT;
-	template <class T>
-	void Value(BufIter_t&, mpp::compact::Family, T v)
-	{
-		if constexpr (std::is_integral_v<T>) {
-			tuple.field1 = v;
-		} else {
-			static_assert(std::is_floating_point_v<T>);
-			tuple.field3 = v;
-		}
-	}
-	void Value(BufIter_t& itr, mpp::compact::Family, mpp::StrValue v)
-	{
-		BufIter_t tmp = itr;
-		tmp += v.offset;
-		std::string &dst = tuple.field2;
-		while (v.size) {
-			dst.push_back(*tmp);
-			++tmp;
-			--v.size;
-		}
-	}
-	void WrongType(mpp::Family expected, mpp::Family got)
-	{
-		std::cout << "expected type is " << expected <<
-			     " but got " << got << std::endl;
-	}
-
-	BufIter_t* StoreEndIterator() { return nullptr; }
-	UserTuple& tuple;
-};
-//doclabel14-2
-
-//doclabel15-1
-template <class BUFFER>
-struct UserTupleReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_ARR> {
-
-	UserTupleReader(mpp::Dec<BUFFER>& d, UserTuple& t) : dec(d), tuple(t) {}
-
-	void Value(const iterator_t<BUFFER>&, mpp::compact::Family, mpp::ArrValue u)
-	{
-		assert(u.size == 3);
-		(void) u;
-		dec.SetReader(false, UserTupleValueReader{tuple});
-	}
-	mpp::Dec<BUFFER>& dec;
-	UserTuple& tuple;
-};
-//doclabel15-2
