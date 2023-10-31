@@ -247,8 +247,12 @@ getServerRps(Connector<BUFFER, NetProvider> &client,
 		abort();
 	}
 	Data<BUFFER>& data = *response.body.data;
-	std::vector<UserTuple> tuples = decodeMultiReturn(conn.getInBuf(), data);
-	return tuples[0].field1;
+	std::tuple<int> rps_tuple;
+	if (!data.decode(rps_tuple)) {
+		std::cerr << "Failed to retrieve rps from server: cannot decode data" << std::endl;
+		abort();
+	}
+	return std::get<0>(rps_tuple);
 }
 
 void

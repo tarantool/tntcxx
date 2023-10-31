@@ -51,7 +51,8 @@ static constexpr size_t MP_RESPONSE_SIZE = 5;
 template<class BUFFER>
 class ResponseDecoder {
 public:
-	ResponseDecoder(BUFFER &buf) : m_Dec(buf) {};
+	ResponseDecoder(BUFFER &buf) : it(buf.begin()) {};
+	ResponseDecoder(iterator_t<BUFFER> &itr) : it(itr) {};
 	~ResponseDecoder() { };
 	ResponseDecoder() = delete;
 	ResponseDecoder(const ResponseDecoder& decoder) = delete;
@@ -62,9 +63,7 @@ public:
 	void reset(iterator_t<BUFFER> &itr);
 
 private:
-	int decodeHeader(Header &header);
-	int decodeBody(Body<BUFFER> &body);
-	mpp::Dec<BUFFER> m_Dec;
+	iterator_t<BUFFER> it;
 };
 
 template<class BUFFER>
@@ -72,47 +71,23 @@ int
 ResponseDecoder<BUFFER>::decodeResponseSize()
 {
 	int size = -1;
-	m_Dec.SetReader(false, mpp::SimpleReader<BUFFER, mpp::MP_INT, int>{size});
-	mpp::ReadResult_t res = m_Dec.Read();
+	bool ok = mpp::decode(it, size);
 	//TODO: raise more detailed error
-	if (res != mpp::READ_SUCCESS)
+	if (!ok)
 		return -1;
 	return size;
 }
 
 template<class BUFFER>
 int
-ResponseDecoder<BUFFER>::decodeHeader(Header &header)
-{
-	m_Dec.SetReader(false, HeaderReader{m_Dec, header});
-	mpp::ReadResult_t res = m_Dec.Read();
-	if (res != mpp::READ_SUCCESS)
-		return -1;
-	return 0;
-}
-
-template<class BUFFER>
-int
-ResponseDecoder<BUFFER>::decodeBody(Body<BUFFER> &body)
-{
-	m_Dec.SetReader(false, BodyReader{m_Dec, body});
-	mpp::ReadResult_t res = m_Dec.Read();
-	if (res != mpp::READ_SUCCESS)
-		return -1;
-	if (body.data != std::nullopt)
-		body.data->end = m_Dec.getPosition();
-	return 0;
-}
-
-template<class BUFFER>
-int
 ResponseDecoder<BUFFER>::decodeResponse(Response<BUFFER> &response)
 {
-	if (decodeHeader(response.header) != 0) {
+	/* Decode header and body separately to get more detailed error. */
+	if (!mpp::decode(it, response.header)) {
 		LOG_ERROR("Failed to decode header");
 		return -1;
 	}
-	if (decodeBody(response.body) != 0) {
+	if (!mpp::decode(it, response.body)) {
 		LOG_ERROR("Failed to decode body");
 		return -1;
 	}
@@ -123,7 +98,7 @@ template<class BUFFER>
 void
 ResponseDecoder<BUFFER>::reset(iterator_t<BUFFER> &itr)
 {
-	m_Dec.SetPosition(itr);
+	it = itr;
 }
 
 static inline uint32_t

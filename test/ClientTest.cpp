@@ -71,19 +71,51 @@ test_connect(Connector &client, Connection &conn, const std::string &addr,
 	});
 }
 
-enum ResultFormat {
-	TUPLES = 0,
-	MULTI_RETURN,
-	SELECT_RETURN
-};
-
-template <class BUFFER, class NetProvider>
+template <class Datum>
 void
-printResponse(Connection<BUFFER, NetProvider> &conn, Response<BUFFER> &response,
-	       enum ResultFormat format = TUPLES)
+printDatum(const Datum &datum)
+{
+	if constexpr (tnt::is_pairish_v<Datum>) {
+		std::cout << datum.first << ": " << datum.second << std::endl;
+	} else if constexpr (tnt::is_tuplish_v<Datum>) {
+		std::apply([&](auto&... datums){(
+			...,
+			[&](auto& child_datum) {
+				printDatum(child_datum);
+			}(datums));
+		}, datum);
+	} else if constexpr (tnt::is_optional_v<Datum>) {
+		if (datum.has_value())
+			std::cout << datum.value() << std::endl;
+		else
+			std::cout << "Nil" << std::endl;
+	} else if constexpr (tnt::is_contiguous_v<Datum> &&
+			     !tnt::is_contiguous_char_v<Datum>) {
+		/* Consider as vector. */
+		if (datum.empty()) {
+			std::cout << "Empty result" << std::endl;
+			return;
+		}
+		for (auto const& child_datum : datum) {
+			printDatum(child_datum);
+		}
+	} else {
+		std::cout << datum << std::endl;
+	}
+
+}
+
+/**
+ * Prints the response.
+ * The last argument is a container to which received data will be decoded.
+ * It is passed by value to assign the default argument.
+ */
+template <class BUFFER, class Data = std::vector<UserTuple>>
+void
+printResponse(Response<BUFFER> &response, Data data = std::vector<UserTuple>()) 
 {
 	if (response.body.error_stack != std::nullopt) {
-		Error err = (*response.body.error_stack).error;
+		Error err = (*response.body.error_stack)[0];
 		std::cout << "RESPONSE ERROR: msg=" << err.msg <<
 			  " line=" << err.file << " file=" << err.file <<
 			  " errno=" << err.saved_errno <<
@@ -92,28 +124,11 @@ printResponse(Connection<BUFFER, NetProvider> &conn, Response<BUFFER> &response,
 		return;
 	}
 	assert(response.body.data != std::nullopt);
-	Data<BUFFER>& data = *response.body.data;
-	if (data.tuples.empty()) {
-		std::cout << "Empty result" << std::endl;
-		return;
+	if (!response.body.data->decode(data)) {
+		std::cerr << "FAILED TO DECODE DATA" << std::endl;
+		abort();
 	}
-	std::vector<UserTuple> tuples;
-	switch (format) {
-		case TUPLES:
-			tuples = decodeUserTuple(conn.getInBuf(), data);
-			break;
-		case MULTI_RETURN:
-			tuples = decodeMultiReturn(conn.getInBuf(), data);
-			break;
-		case SELECT_RETURN:
-			tuples = decodeSelectReturn(conn.getInBuf(), data);
-			break;
-		default:
-			assert(0);
-	}
-	for (auto const& t : tuples) {
-		std::cout << t << std::endl;
-	}
+	printDatum(data);
 }
 
 template<class BUFFER, class NetProvider>
@@ -317,7 +332,7 @@ single_conn_replace(Connector<BUFFER, NetProvider> &client)
 	client.wait(conn, f1, WAIT_TIMEOUT);
 	fail_unless(conn.futureIsReady(f1));
 	std::optional<Response<Buf_t>> response = conn.getResponse(f1);
-	printResponse<BUFFER, NetProvider>(conn, *response);
+	printResponse<BUFFER>(*response);
 	fail_unless(response != std::nullopt);
 	fail_unless(response->body.data != std::nullopt);
 	fail_unless(response->body.error_stack == std::nullopt);
@@ -325,7 +340,7 @@ single_conn_replace(Connector<BUFFER, NetProvider> &client)
 	client.wait(conn, f2, WAIT_TIMEOUT);
 	fail_unless(conn.futureIsReady(f2));
 	response = conn.getResponse(f2);
-	printResponse<BUFFER, NetProvider>(conn, *response);
+	printResponse<BUFFER>(*response);
 	fail_unless(response != std::nullopt);
 	fail_unless(response->body.data != std::nullopt);
 	fail_unless(response->body.error_stack == std::nullopt);
@@ -352,7 +367,7 @@ single_conn_insert(Connector<BUFFER, NetProvider> &client)
 	client.wait(conn, f1, WAIT_TIMEOUT);
 	fail_unless(conn.futureIsReady(f1));
 	std::optional<Response<Buf_t>> response = conn.getResponse(f1);
-	printResponse<BUFFER, NetProvider>(conn, *response);
+	printResponse<BUFFER>(*response);
 	fail_unless(response != std::nullopt);
 	fail_unless(response->body.data != std::nullopt);
 	fail_unless(response->body.error_stack == std::nullopt);
@@ -372,7 +387,7 @@ single_conn_insert(Connector<BUFFER, NetProvider> &client)
 	response = conn.getResponse(f3);
 	fail_unless(response != std::nullopt);
 	fail_unless(response->body.error_stack != std::nullopt);
-	printResponse<BUFFER, NetProvider>(conn, *response);
+	printResponse<BUFFER>(*response);
 
 	client.close(conn);
 }
@@ -431,7 +446,7 @@ single_conn_delete(Connector<BUFFER, NetProvider> &client)
 	client.wait(conn, f1, WAIT_TIMEOUT);
 	fail_unless(conn.futureIsReady(f1));
 	std::optional<Response<Buf_t>> response = conn.getResponse(f1);
-	printResponse<BUFFER, NetProvider>(conn, *response);
+	printResponse<BUFFER>(*response);
 	fail_unless(response != std::nullopt);
 	fail_unless(response->body.data != std::nullopt);
 	fail_unless(response->body.error_stack == std::nullopt);
@@ -451,7 +466,7 @@ single_conn_delete(Connector<BUFFER, NetProvider> &client)
 	response = conn.getResponse(f3);
 	fail_unless(response != std::nullopt);
 	fail_unless(response->body.data != std::nullopt);
-	printResponse<BUFFER, NetProvider>(conn, *response);
+	printResponse<BUFFER>(*response);
 
 	client.close(conn);
 }
@@ -514,7 +529,7 @@ single_conn_select(Connector<BUFFER, NetProvider> &client)
 	fail_unless(response != std::nullopt);
 	fail_unless(response->body.data != std::nullopt);
 	fail_unless(response->body.error_stack == std::nullopt);
-	printResponse<BUFFER, NetProvider>(conn, *response);
+	printResponse<BUFFER>(*response);
 
 	client.wait(conn, f2, WAIT_TIMEOUT);
 	fail_unless(conn.futureIsReady(f2));
@@ -522,7 +537,7 @@ single_conn_select(Connector<BUFFER, NetProvider> &client)
 	fail_unless(response != std::nullopt);
 	fail_unless(response->body.data != std::nullopt);
 	fail_unless(response->body.error_stack == std::nullopt);
-	printResponse<BUFFER, NetProvider>(conn, *response);
+	printResponse<BUFFER>(*response);
 
 	client.wait(conn, f3, WAIT_TIMEOUT);
 	fail_unless(conn.futureIsReady(f3));
@@ -530,7 +545,7 @@ single_conn_select(Connector<BUFFER, NetProvider> &client)
 	fail_unless(response != std::nullopt);
 	fail_unless(response->body.data != std::nullopt);
 	fail_unless(response->body.error_stack == std::nullopt);
-	printResponse<BUFFER, NetProvider>(conn, *response);
+	printResponse<BUFFER>(*response);
 
 	client.wait(conn, f4, WAIT_TIMEOUT);
 	fail_unless(conn.futureIsReady(f4));
@@ -538,7 +553,7 @@ single_conn_select(Connector<BUFFER, NetProvider> &client)
 	fail_unless(response != std::nullopt);
 	fail_unless(response->body.data != std::nullopt);
 	fail_unless(response->body.error_stack == std::nullopt);
-	printResponse<BUFFER, NetProvider>(conn, *response);
+	printResponse<BUFFER>(*response);
 
 	client.close(conn);
 }
@@ -568,7 +583,7 @@ single_conn_call(Connector<BUFFER, NetProvider> &client)
 	fail_unless(conn.futureIsReady(f1));
 	std::optional<Response<Buf_t>> response = conn.getResponse(f1);
 	fail_unless(response != std::nullopt);
-	printResponse<BUFFER, NetProvider>(conn, *response);
+	printResponse<BUFFER>(*response);
 	fail_unless(response->body.data != std::nullopt);
 	fail_unless(response->body.error_stack == std::nullopt);
 
@@ -576,7 +591,7 @@ single_conn_call(Connector<BUFFER, NetProvider> &client)
 	fail_unless(conn.futureIsReady(f2));
 	response = conn.getResponse(f2);
 	fail_unless(response != std::nullopt);
-	printResponse<BUFFER, NetProvider>(conn, *response);
+	printResponse<BUFFER>(*response);
 	fail_unless(response->body.data != std::nullopt);
 	fail_unless(response->body.error_stack == std::nullopt);
 
@@ -585,21 +600,21 @@ single_conn_call(Connector<BUFFER, NetProvider> &client)
 	client.wait(conn, f4, WAIT_TIMEOUT);
 	fail_unless(conn.futureIsReady(f4));
 	response = conn.getResponse(f4);
-	printResponse<BUFFER, NetProvider>(conn, *response, MULTI_RETURN);
+	printResponse<BUFFER>(*response, std::make_tuple(0));
 
 	TEST_CASE("call remote_multi");
 	rid_t f5 = conn.call(return_multi, std::make_tuple());
 	client.wait(conn, f5, WAIT_TIMEOUT);
 	fail_unless(conn.futureIsReady(f5));
 	response = conn.getResponse(f5);
-	printResponse<BUFFER, NetProvider>(conn, *response, MULTI_RETURN);
+	printResponse<BUFFER>(*response, std::make_tuple(std::string(), 0, 0.0));
 
 	TEST_CASE("call remote_select");
 	rid_t f6 = conn.call(return_select, std::make_tuple());
 	client.wait(conn, f6, WAIT_TIMEOUT);
 	fail_unless(conn.futureIsReady(f6));
 	response = conn.getResponse(f6);
-	printResponse<BUFFER, NetProvider>(conn, *response, SELECT_RETURN);
+	printResponse<BUFFER>(*response, std::make_tuple(std::vector<UserTuple>()));
 
 	/*
 	 * Also test that errors during call are handled properly:
@@ -612,7 +627,7 @@ single_conn_call(Connector<BUFFER, NetProvider> &client)
 	response = conn.getResponse(f7);
 	fail_unless(response != std::nullopt);
 	fail_unless(response->body.error_stack != std::nullopt);
-	printResponse<BUFFER, NetProvider>(conn, *response);
+	printResponse<BUFFER>(*response);
 
 	TEST_CASE("call function with wrong number of arguments");
 	rid_t f8 = conn.call(return_replace, std::make_tuple(7));
@@ -621,21 +636,22 @@ single_conn_call(Connector<BUFFER, NetProvider> &client)
 	response = conn.getResponse(f8);
 	fail_unless(response != std::nullopt);
 	fail_unless(response->body.error_stack != std::nullopt);
-	printResponse<BUFFER, NetProvider>(conn, *response);
+	printResponse<BUFFER>(*response);
 
 	TEST_CASE("call remote_nil");
 	rid_t f9 = conn.call(return_nil, std::make_tuple());
 	client.wait(conn, f9, WAIT_TIMEOUT);
 	fail_unless(conn.futureIsReady(f9));
 	response = conn.getResponse(f9);
-	printResponse<BUFFER, NetProvider>(conn, *response, MULTI_RETURN);
+	printResponse<BUFFER>(*response, std::make_tuple(std::optional<int>()));
 
 	TEST_CASE("call remote_map");
 	rid_t f10 = conn.call(return_map, std::make_tuple());
 	client.wait(conn, f10, WAIT_TIMEOUT);
 	fail_unless(conn.futureIsReady(f10));
 	response = conn.getResponse(f10);
-	printResponse<BUFFER, NetProvider>(conn, *response, MULTI_RETURN);
+	printResponse<BUFFER>(*response,
+		std::make_tuple(std::make_tuple(std::make_pair("key", int()))));
 
 	client.close(conn);
 }
@@ -662,7 +678,7 @@ replace_unix_socket(Connector<BUFFER, NetProvider> &client)
 	fail_unless(response != std::nullopt);
 	fail_unless(response->body.data != std::nullopt);
 	fail_unless(response->body.error_stack == std::nullopt);
-	printResponse<BUFFER, NetProvider>(conn, *response);
+	printResponse<BUFFER>(*response);
 
 	client.close(conn);
 }
@@ -691,7 +707,7 @@ test_auth(Connector<BUFFER, NetProvider> &client)
 	fail_unless(response != std::nullopt);
 	fail_unless(response->body.data != std::nullopt);
 	fail_unless(response->body.error_stack == std::nullopt);
-	printResponse<BUFFER, NetProvider>(conn, *response);
+	printResponse<BUFFER>(*response);
 }
 
 /** Single connection, write to closed connection. */
