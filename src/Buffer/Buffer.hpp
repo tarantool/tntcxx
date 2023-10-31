@@ -241,6 +241,12 @@ public:
 		T read();
 		void read(Skip data) { operator+=(data.size); }
 
+		/**
+		 * Check that content that the iterator points to is equal
+		 * to given data.
+		 */
+		bool startsWith(WData data) const;
+
 	private:
 		/** Adjust iterator_common's position in list of iterators after
 		 * moveForward. */
@@ -1279,6 +1285,27 @@ Buffer<N, allocator>::iterator_common<LIGHT>::read()
 	T t;
 	read(t);
 	return t;
+}
+
+template <size_t N, class allocator>
+template <bool LIGHT>
+bool
+Buffer<N, allocator>::iterator_common<LIGHT>::startsWith(WData data) const
+{
+	if (data.size <= 0)
+		return true;
+
+	const char *pos = m_position;
+	size_t left_in_block = N - (uintptr_t) pos % N;
+	while (TNT_UNLIKELY(data.size >= left_in_block)) {
+		if (memcmp(data.data, pos, left_in_block) != 0)
+			return false;
+		data.size -= left_in_block;
+		data.data += left_in_block;
+		pos = Block::byPtr(pos)->next().data;
+		left_in_block = Block::DATA_SIZE;
+	}
+	return memcmp(data.data, pos, data.size) == 0;
 }
 
 template <size_t N, class allocator>
