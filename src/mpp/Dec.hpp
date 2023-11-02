@@ -35,6 +35,7 @@
 #include <cstdint>
 #include <utility>
 
+#include "ClassRule.hpp"
 #include "Constants.hpp"
 #include "Rules.hpp"
 #include "Spec.hpp"
