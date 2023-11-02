@@ -169,7 +169,7 @@ test_type_visual()
 	std::cout << MP_NIL << " "
 		  << MP_BOOL << " "
 		  << (MP_INT) << " "
-		  << (MP_BIN  | MP_STR) << " "
+		  << (MP_BIN | MP_STR) << " "
 		  << (MP_INT | MP_FLT) << "\n";
 
 	std::cout << "(" << family_sequence<>{} << ") "
@@ -413,16 +413,23 @@ test_basic()
 	mpp::encode(buf, std::integral_constant<bool, true>{});
 	// Strings.
 	mpp::encode(buf, "abc");
-	const char* bbb = "defg";
+	const char *bbb = "defg";
 	mpp::encode(buf, bbb);
 	mpp::encode(buf, TNT_CON_STR("1234567890"));
 	// Array.
 	mpp::encode(buf, std::make_tuple());
 	mpp::encode(buf, std::make_tuple(1., 2.f, "test", nullptr, false));
 	// Map.
+	// Integer keys.
 	mpp::encode(buf, mpp::as_map(
 		std::forward_as_tuple(10, true, 11, "val",
 				      12, std::make_tuple(1, 2, 3))));
+	// String keys.
+	mpp::encode(buf, mpp::as_map(std::make_tuple("key1", "val1",
+						     "key2", "val2")));
+	// Mixed keys.
+	mpp::encode(buf, mpp::as_map(std::make_tuple(1, "val1",
+						     "key2", "val2")));
 	// std::array
 	std::array<int, 3> add_arr = {1, 2, 3};
 	mpp::encode(buf, add_arr);
@@ -589,11 +596,12 @@ test_basic()
 	fail_if(run != run_end);
 
 	// Map.
+	// Integer keys.
 	run_save = run;
 	std::vector<int> map_arr;
 	std::vector<int> map_arr_expect{1, 2, 3};
 	std::tuple<int, std::vector<int>&, int8_t, bool, size_t, std::string>
-	        map1(12, map_arr, 10, false, 11, "");
+		map1(12, map_arr, 10, false, 11, "");
 	fail_unless(mpp::decode(run, mpp::as_map(map1)));
 	fail_if(std::get<0>(map1) != 12);
 	fail_if(map_arr != map_arr_expect);
@@ -622,6 +630,142 @@ test_basic()
 		std::make_pair(mpp::as_int(12), mpp::as_arr(map_arr)))));
 	fail_if(map_bool != true);
 	fail_if(map_arr != map_arr_expect);
+
+	// String keys.
+	run_save = run;
+	{
+		std::string k1 = "key1", k2 = "key2";
+		std::string v1, v2;
+		fail_unless(mpp::decode(run, mpp::as_map(
+			std::forward_as_tuple(k1, v1, k2, v2))));
+		fail_if(v1 != "val1");
+		fail_if(v2 != "val2");
+	}
+	run_end = run;
+
+	run = run_save;
+	{
+		std::string v1;
+		char v2[16] = {};
+		fail_unless(mpp::decode(run, mpp::as_map(
+			std::forward_as_tuple("key1", v1, "key2", v2))));
+		fail_if(v1 != "val1");
+		fail_if(std::string_view(v2) != "val2");
+		fail_if(run != run_end);
+	}
+
+	run = run_save;
+	{
+		std::string v1;
+		std::array<char, 16> v2 = {};
+		fail_unless(mpp::decode(run, mpp::as_map(
+			std::forward_as_tuple("key1", v1, "key2", v2))));
+		fail_if(v1 != "val1");
+		fail_if(std::string_view(v2.data()) != "val2");
+		fail_if(run != run_end);
+	}
+
+	run = run_save;
+	{
+		std::string v1, v2;
+		fail_unless(mpp::decode(run, mpp::as_map(
+			std::forward_as_tuple(TNT_CON_STR("key1"), v1,
+					      TNT_CON_STR("key2"), v2))));
+		fail_if(v1 != "val1");
+		fail_if(v2 != "val2");
+		fail_if(run != run_end);
+	}
+
+	run = run_save;
+	{
+		const char *k1 = "key1";
+		std::string v1, v2;
+		fail_unless(mpp::decode(run, mpp::as_map(
+			std::forward_as_tuple(k1, v1,
+					      std::string_view("key2"), v2))));
+		fail_if(v1 != "val1");
+		fail_if(v2 != "val2");
+		fail_if(run != run_end);
+	}
+
+	run = run_save;
+	{
+		std::string v1, v2;
+		fail_unless(mpp::decode(run, mpp::as_map(
+			std::forward_as_tuple(TNT_CON_STR("key1"), v1,
+					      TNT_CON_STR("key666"), v2))));
+		fail_if(v1 != "val1");
+		fail_if(v2 != "");
+		fail_if(run != run_end);
+	}
+
+	run = run_save;
+	{
+		std::string v1, v2;
+		fail_unless(mpp::decode(run, mpp::as_map(
+			std::forward_as_tuple("key1", v1,
+					      "key666", v2))));
+		fail_if(v1 != "val1");
+		fail_if(v2 != "");
+		fail_if(run != run_end);
+	}
+
+	run = run_save;
+	{
+		std::string v1, v2;
+		fail_unless(mpp::decode(run, mpp::as_map(
+			std::forward_as_tuple(TNT_CON_STR("key1"), v1,
+					      TNT_CON_STR("key666"), v2))));
+		fail_if(v1 != "val1");
+		fail_if(v2 != "");
+		fail_if(run != run_end);
+	}
+
+	run = run_save;
+	{
+		std::string v1;
+		fail_unless(mpp::decode(run, mpp::as_map(
+			std::forward_as_tuple("key1", v1))));
+		fail_if(v1 != "val1");
+		fail_if(run != run_end);
+	}
+
+	// Mixed keys.
+	run_save = run;
+	{
+		std::string k2 = "key2";
+		std::string v1, v2;
+		fail_unless(mpp::decode(run, mpp::as_map(
+			std::forward_as_tuple(1, v1,
+					      k2, v2))));
+		fail_if(v1 != "val1");
+		fail_if(v2 != "val2");
+	}
+	run_end = run;
+
+	run = run_save;
+	{
+		std::string k2 = "key2";
+		std::string v1, v2;
+		fail_unless(mpp::decode(run, mpp::as_map(
+			std::forward_as_tuple(666, v1,
+					      k2, v2))));
+		fail_if(v1 != "");
+		fail_if(v2 != "val2");
+		fail_if(run != run_end);
+	}
+
+	run = run_save;
+	{
+		std::string k2 = "key666";
+		std::string v1, v2;
+		fail_unless(mpp::decode(run, mpp::as_map(
+			std::forward_as_tuple(1, v1,
+					      k2, v2))));
+		fail_if(v1 != "val1");
+		fail_if(v2 != "");
+		fail_if(run != run_end);
+	}
 
 	// std::array etc
 	run_save = run;
@@ -824,6 +968,9 @@ test_basic()
 		fail_unless(map.arr[1] == 2);
 		fail_unless(map.arr[2] == 3);
 	}
+	dec.Skip();
+	fail_unless(dec.Read() == mpp::READ_SUCCESS);
+	fail_unless(dec.Read() == mpp::READ_SUCCESS);
 	{
 		std::vector<int> vec;
 		dec.SetReader(false, IntVectorReader{vec, dec});

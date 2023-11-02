@@ -390,6 +390,8 @@ struct Jumps {
 	using data_t = std::array<jump_t, 256>;
 	data_t data;
 
+	constexpr Jumps() : data{} {}
+
 	/** Create by jump function and tag range. */
 	static constexpr bool
 	belongs(uint8_t i, uint8_t n, uint8_t x)
@@ -506,9 +508,12 @@ struct JumpsBuilder {
 	}
 
 	template <compact::Family... FAMILY>
-	static constexpr auto build(family_sequence<FAMILY...>)
+	static constexpr auto build(family_sequence<FAMILY...> s)
 	{
-		return (build<FAMILY>(get_subrules<FAMILY>()) + ...);
+		if constexpr (s.size() == 0)
+			return Jumps<BUF, T...>{};
+		else
+			return (build<FAMILY>(get_subrules<FAMILY>()) + ...);
 	}
 
 	template <class V>
@@ -518,18 +523,54 @@ struct JumpsBuilder {
 		if constexpr (tnt::is_integral_constant_v<U>) {
 			return tnt::is_integer_v<typename U::value_type>;
 		} else {
-			return tnt::is_integer_v<U>;
+			return tnt::is_integer_v<U> ||
+			       tnt::is_string_constant_v<U> ||
+			       tnt::is_char_ptr_v<U> ||
+			       tnt::is_contiguous_char_v<U>;
 		}
+	}
+
+	template <class V>
+	static constexpr bool is_int_key()
+	{
+		using U = unwrap_t<V>;
+		return tnt::is_integral_constant_v<U> || tnt::is_integer_v<U>;
+	}
+
+	template <class V>
+	static constexpr bool is_str_key()
+	{
+		using U = unwrap_t<V>;
+		return tnt::is_string_constant_v<U> ||
+		       tnt::is_char_ptr_v<U> ||
+		       tnt::is_contiguous_char_v<U>;
+	}
+
+	template <class TYPES, size_t... I>
+	static constexpr auto keyMapKeyFamiliesCommon()
+	{
+		constexpr bool is_good =
+			(is_good_key<tnt::tuple_element_t<I, TYPES>>() && ...);
+		static_assert(is_good);
+		constexpr bool has_int =
+			(is_int_key<tnt::tuple_element_t<I, TYPES>>() || ...);
+		constexpr bool has_str =
+			(is_str_key<tnt::tuple_element_t<I, TYPES>>() || ...);
+		if constexpr (has_int && has_str)
+			return family_sequence<compact::MP_INT, compact::MP_STR>{};
+		else if constexpr (has_int)
+			return family_sequence<compact::MP_INT>{};
+		else if constexpr (has_str)
+			return family_sequence<compact::MP_STR>{};
+		else
+			return family_sequence<>{};
 	}
 
 	template <class DST, size_t... I>
 	static constexpr auto keyMapKeyFamiliesFlat(tnt::iseq<I...>)
 	{
 		using TYPES = std::tuple<tnt::tuple_element_t<I * 2, DST>...>;
-		constexpr bool is_good =
-			(is_good_key<tnt::tuple_element_t<I, TYPES>>() && ...);
-		static_assert(is_good);
-		return family_sequence<compact::MP_INT>{};
+		return keyMapKeyFamiliesCommon<TYPES, I...>();
 	}
 
 	template <class DST, size_t... I>
@@ -537,10 +578,7 @@ struct JumpsBuilder {
 	{
 		using TYPES = std::tuple<tnt::tuple_element_t<0,
 			std::remove_reference_t<tnt::tuple_element_t<I, DST>>>...>;
-		constexpr bool is_good =
-			(is_good_key<tnt::tuple_element_t<I, TYPES>>() && ...);
-		static_assert(is_good);
-		return family_sequence<compact::MP_INT>{};
+		return keyMapKeyFamiliesCommon<TYPES, I...>();
 	}
 
 	static constexpr auto prepareFamilySequence()
@@ -858,50 +896,83 @@ constexpr bool signed_compare(K k, V v)
 	}
 }
 
-template <class K, class W>
-constexpr bool compare_int_key(K k, W&& w)
+template <compact::Family FAMILY, class K, class W, class BUF>
+constexpr bool compare_key([[maybe_unused]] K k, W&& w, [[maybe_unused]] BUF& buf)
 {
 	auto&& u = mpp::unwrap(w);
 	using U = mpp::unwrap_t<W>;
 	static_assert(std::is_integral_v<K>);
 	static_assert(!std::is_same_v<K, bool>);
-	static_assert(tnt::is_uni_integer_v<U>);
-	if constexpr (tnt::is_integral_constant_v<U>) {
-		constexpr tnt::base_enum_t<typename U::value_type> v = U::value;
-		return signed_compare(k, v);
+	if constexpr (FAMILY == compact::MP_INT) {
+		if constexpr (tnt::is_integral_constant_v<U>) {
+			using V = typename U::value_type;
+			constexpr tnt::base_enum_t<V> v = U::value;
+			return signed_compare(k, v);
+		} else if constexpr (tnt::is_integer_v<U>) {
+			tnt::base_enum_t<U> v = u;
+			return signed_compare(k, v);
+		} else {
+			return false;
+		}
 	} else {
-		tnt::base_enum_t<U> v = u;
-		return signed_compare(k, v);
+		static_assert(FAMILY == compact::MP_STR);
+		if constexpr (tnt::is_string_constant_v<U>) {
+			return k == u.size && buf.startsWith({u.data, u.size});
+		} else if constexpr (tnt::is_char_ptr_v<U>) {
+			return k == strlen(u) && buf.startsWith({u, strlen(u)});
+		} else if constexpr (tnt::is_contiguous_char_v<U> &&
+				     tnt::is_bounded_array_v<U>) {
+			/* Note special rule for string literals. */
+			return k == strlen(u) && buf.startsWith({u, strlen(u)});
+		} else if constexpr (tnt::is_contiguous_char_v<U>) {
+			return k == std::size(u) &&
+			       buf.startsWith({std::data(u), std::size(u)});
+		} else {
+			return false;
+		}
 	}
 }
 
-template <bool PAIRS, class PATH, class K, class BUF, class... T>
-bool jump_find_key(K, tnt::iseq<>, BUF& buf, T... t)
+template <bool PAIRS, compact::Family FAMILY, class PATH, class K,
+          class BUF, class... T>
+bool jump_find_key([[maybe_unused]] K k, tnt::iseq<>, BUF& buf, T... t)
 {
 	static_assert(path_item_type(PATH::last()) == PIT_DYN_KEY);
 	using NEXT_PATH = path_push_t<PATH, PIT_DYN_SKIP>;
+	if constexpr (FAMILY == compact::MP_STR)
+		buf.read({k});
 	return decode_impl<NEXT_PATH>(buf, t..., size_t(1));
 }
 
-template <bool PAIRS, class PATH, class K, size_t I, size_t... J,
-	  class BUF, class... T>
+template <bool PAIRS, size_t I, class DST>
+auto&& key_path_resolve(DST&& dst)
+{
+	if constexpr (PAIRS)
+		return tnt::get<0>(tnt::get<I>(dst));
+	else
+		return tnt::get<I * 2>(dst);
+}
+
+template <bool PAIRS, compact::Family FAMILY, class PATH, class K,
+	  size_t I, size_t... J, class BUF, class... T>
 bool jump_find_key(K k, tnt::iseq<I, J...>, BUF& buf, T... t)
 {
 	static_assert(path_item_type(PATH::last()) == PIT_DYN_KEY);
-	auto&& dst = path_resolve(PATH{}, t...);
 
-	if constexpr (PAIRS) {
-		using NEXT_PATH0 = path_push_t<PATH, PIT_STATIC, I + 1, I>;
-		using NEXT_PATH = path_push_t<NEXT_PATH0, PIT_STATIC, 2, 1>;
-		if (compare_int_key(k, tnt::get<0>(tnt::get<I>(dst))))
-			return decode_impl<NEXT_PATH>(buf, t...);
-	} else {
-		using NEXT_PATH = path_push_t<PATH, PIT_STATIC,
-					      I * 2 + 2, I * 2 + 1>;
-		if (compare_int_key(k, tnt::get<I * 2>(dst)))
-			return decode_impl<NEXT_PATH>(buf, t...);
+	auto&& key = key_path_resolve<PAIRS, I>(path_resolve(PATH{}, t...));
+	using PAIRS_NEXT_PREPATH = path_push_t<PATH, PIT_STATIC, I + 1, I>;
+	using PAIRS_NEXT_PATH = path_push_t<PAIRS_NEXT_PREPATH, PIT_STATIC, 2, 1>;
+	using FLAT_NEXT_PATH = path_push_t<PATH, PIT_STATIC, I * 2 + 2, I * 2 + 1>;
+	using NEXT_PATH = std::conditional_t<PAIRS, PAIRS_NEXT_PATH, FLAT_NEXT_PATH>;
+
+	if (compare_key<FAMILY>(k, key, buf)) {
+		if constexpr (FAMILY == compact::MP_STR)
+			buf.read({k});
+		return decode_impl<NEXT_PATH>(buf, t...);
 	}
-	return jump_find_key<PAIRS, PATH>(k, tnt::iseq<J...>{}, buf, t...);
+
+	constexpr auto IS = tnt::iseq<J...>{};
+	return jump_find_key<PAIRS, FAMILY, PATH>(k, IS, buf, t...);
 }
 
 template <compact::Family FAMILY, size_t SUBRULE,
@@ -917,11 +988,12 @@ bool jump_read_key(BUF& buf, T... t)
 	constexpr size_t TS = tnt::tuple_size_v<dst_t>;
 	static_assert(PAIRS || TS % 2 == 0);
 	constexpr size_t S = PAIRS ? TS : TS / 2;
+	constexpr auto IS = tnt::make_iseq<S>{};
 
-	static_assert(FAMILY == compact::MP_INT);
+	static_assert(FAMILY == compact::MP_INT || FAMILY == compact::MP_STR);
 	auto val = read_value<FAMILY, SUBRULE>(buf);
 
-	return jump_find_key<PAIRS, PATH>(val, tnt::make_iseq<S>{}, buf, t...);
+	return jump_find_key<PAIRS, FAMILY, PATH>(val, IS, buf, t...);
 }
 
 template <compact::Family FAMILY, size_t SUBRULE,
