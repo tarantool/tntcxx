@@ -37,6 +37,7 @@
 #include <variant>
 
 #include "BSwap.hpp"
+#include "ClassRule.hpp"
 #include "Constants.hpp"
 #include "Rules.hpp"
 #include "Spec.hpp"

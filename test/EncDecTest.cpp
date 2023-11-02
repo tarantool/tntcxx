@@ -1011,10 +1011,97 @@ test_basic()
 	}
 }
 
+struct JustClass {
+	int mpp;
+	using mpp_dec = int;
+};
+
+struct WithMppMemberRule {
+	int i;
+	static constexpr auto mpp = &WithMppMemberRule::i;
+};
+
+struct WithEncMemberRule {
+	int j;
+	static constexpr auto mpp_enc = std::make_tuple(&WithEncMemberRule::j);
+};
+
+struct WithDecMemberRule {
+	int k;
+	static constexpr auto mpp_dec = std::make_tuple(&WithDecMemberRule::k);
+};
+
+struct WithMppSpecRule {
+	int a;
+};
+
+struct WithEncSpecRule {
+	int b;
+};
+
+struct WithDecSpecRule {
+	int c;
+};
+
+template <>
+struct mpp_rule<WithMppSpecRule> {
+	static constexpr auto value = &WithMppSpecRule::a;
+};
+
+template <>
+struct mpp_enc_rule<WithEncSpecRule> {
+	static constexpr auto value = std::make_tuple(&WithEncSpecRule::b);
+};
+
+template <>
+struct mpp_dec_rule<WithDecSpecRule> {
+	static constexpr auto value = std::make_tuple(&WithDecSpecRule::c);
+};
+
+void test_class_rules()
+{
+	TEST_INIT(0);
+	static_assert(!mpp::has_enc_rule_v<JustClass>);
+	static_assert(!mpp::has_dec_rule_v<JustClass>);
+
+	static_assert(mpp::has_enc_rule_v<WithMppMemberRule>);
+	static_assert(mpp::has_dec_rule_v<WithMppMemberRule>);
+	static_assert(mpp::has_enc_rule_v<WithEncMemberRule>);
+	static_assert(!mpp::has_dec_rule_v<WithEncMemberRule>);
+	static_assert(!mpp::has_enc_rule_v<WithDecMemberRule>);
+	static_assert(mpp::has_dec_rule_v<WithDecMemberRule>);
+
+	static_assert(mpp::has_enc_rule_v<WithMppSpecRule>);
+	static_assert(mpp::has_dec_rule_v<WithMppSpecRule>);
+	static_assert(mpp::has_enc_rule_v<WithEncSpecRule>);
+	static_assert(!mpp::has_dec_rule_v<WithEncSpecRule>);
+	static_assert(!mpp::has_enc_rule_v<WithDecSpecRule>);
+	static_assert(mpp::has_dec_rule_v<WithDecSpecRule>);
+
+	fail_unless(&mpp::get_enc_rule<WithMppMemberRule>() ==
+		    &WithMppMemberRule::mpp);
+	fail_unless(&mpp::get_dec_rule<WithMppMemberRule>() ==
+		    &WithMppMemberRule::mpp);
+	fail_unless(&mpp::get_enc_rule<WithEncMemberRule>() ==
+		    &WithEncMemberRule::mpp_enc);
+	fail_unless(&mpp::get_dec_rule<WithDecMemberRule>() ==
+		    &WithDecMemberRule::mpp_dec);
+
+	fail_unless(&mpp::get_enc_rule<WithMppSpecRule>() ==
+		    &mpp_rule<WithMppSpecRule>::value);
+	fail_unless(&mpp::get_dec_rule<WithMppSpecRule>() ==
+		    &mpp_rule<WithMppSpecRule>::value);
+	fail_unless(&mpp::get_enc_rule<WithEncSpecRule>() ==
+		    &mpp_enc_rule<WithEncSpecRule>::value);
+	fail_unless(&mpp::get_dec_rule<WithDecSpecRule>() ==
+		    &mpp_dec_rule<WithDecSpecRule>::value);
+}
+
 int main()
 {
 	test_under_ints();
 	test_bswap();
 	test_type_visual();
 	test_basic();
+	test_class_rules();
 }
