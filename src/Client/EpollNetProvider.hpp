@@ -64,7 +64,7 @@ public:
 	int wait(int timeout);
 
 private:
-	static constexpr size_t DEFAULT_TIMEOUT = 100;
+	static constexpr int TIMEOUT_INFINITY = -1;
 	static constexpr size_t EPOLL_EVENTS_MAX = 128;
 
 	//return 0 if all data from buffer was processed (sent or read);
@@ -261,7 +261,7 @@ EpollNetProvider<BUFFER, Stream>::wait(int timeout)
 {
 	assert(timeout >= 0);
 	if (timeout == 0)
-		timeout = DEFAULT_TIMEOUT;
+		timeout = TIMEOUT_INFINITY;
 	LOG_DEBUG("Network engine wait for ", timeout, " milliseconds");
 	/* Send pending requests. */
 	for (auto conn = m_Connector.m_ReadyToSend.begin();
