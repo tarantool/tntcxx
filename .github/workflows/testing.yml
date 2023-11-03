@@ -50,7 +50,7 @@ jobs:
 
       - name: test without SSL
         if: matrix.test-ssl == 'Disabled'
-        run: cd build && ctest --output-on-failure -E ClientSSL.test
+        run: cd build && ctest --verbose --output-on-failure -E ClientSSL.test
 
       - name: test
         if: matrix.test-ssl == 'Enabled'
