@@ -265,6 +265,7 @@ launchDummyServer(const char *addr, int port)
 		::exit(EXIT_FAILURE);
 	}
 
+	::shutdown(accepted_sock, SHUT_RDWR);
 	::close(accepted_sock);
 
 	::exit(EXIT_SUCCESS);
