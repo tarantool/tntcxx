@@ -300,25 +300,17 @@ constexpr bool has_get_by_size_v = details::has_get_by_size_h<I, U>::value;
  * 2. Call std::get otherwise.
  */
 template <class T, class U>
-constexpr std::enable_if_t<has_get_by_type_v<T, U>, T&> get(U& u)
+constexpr std::enable_if_t<has_get_by_type_v<T, U>,
+	decltype(std::declval<U>().template get<T>())> get(U&& u)
 {
-	return u.template get<T>();
-}
-template <class T, class U>
-constexpr std::enable_if_t<has_get_by_type_v<T, U>, const T&> get(const U& u)
-{
-	return u.template get<T>();
+	return std::forward<U>(u).template get<T>();
 }
 
 template <class T, class U>
-constexpr std::enable_if_t<!has_get_by_type_v<T, U>, T&> get(U& u)
+constexpr std::enable_if_t<!has_get_by_type_v<T, U>,
+	decltype(std::get<T>(std::declval<U>()))> get(U&& u)
 {
-	return std::get<T>(u);
-}
-template <class T, class U>
-constexpr std::enable_if_t<!has_get_by_type_v<T, U>, const T&> get(const U& u)
-{
-	return std::get<T>(u);
+	return std::get<T>(std::forward<U>(u));
 }
 
 /**
@@ -336,30 +328,16 @@ constexpr std::enable_if_t<is_bounded_array_v<U>,
 
 template <size_t I, class U>
 constexpr std::enable_if_t<has_get_by_size_v<I, U>,
-	decltype(std::declval<U&>().template get<I>())> get(U& u)
+	decltype(std::declval<U>().template get<I>())> get(U&& u)
 {
-	return u.template get<I>();
-}
-
-template <size_t I, class U>
-constexpr std::enable_if_t<has_get_by_size_v<I, U>,
-	decltype(std::declval<const U&>().template get<I>())> get(const U& u)
-{
-	return u.template get<I>();
+	return std::forward<U>(u).template get<I>();
 }
 
 template <size_t I, class U>
 constexpr std::enable_if_t<!is_bounded_array_v<U> && !has_get_by_size_v<I, U>,
-	decltype(std::get<I>(std::declval<U&>()))> get(U& u)
+	decltype(std::get<I>(std::declval<U>()))> get(U&& u)
 {
-	return std::get<I>(u);
-}
-
-template <size_t I, class U>
-constexpr std::enable_if_t<!is_bounded_array_v<U> && !has_get_by_size_v<I, U>,
-	decltype(std::get<I>(std::declval<const U&>()))> get(const U& u)
-{
-	return std::get<I>(u);
+	return std::get<I>(std::forward<U>(u));
 }
 
 /**
