@@ -386,7 +386,7 @@ struct tuple_element<I, TupleClass> { using type = std::tuple_element_t<I, std::
 }
 
 void
-test_unversal_access()
+test_universal_access()
 {
 	TEST_INIT(0);
 
@@ -494,6 +494,19 @@ test_unversal_access()
 	fail_unless(tnt::get<0>(tc) == 5);
 	tnt::get<float>(tc) = 3.5f;
 	fail_unless(tnt::get<float>(tc) == 3.5f);
+
+	using X = std::tuple<int>;
+	using CX = const X;
+	X x;
+	CX cx;
+	static_assert(std::is_same_v<int&, decltype(tnt::get<int>(x))>);
+	static_assert(std::is_same_v<const int&, decltype(tnt::get<int>(cx))>);
+	static_assert(std::is_same_v<int&&, decltype(tnt::get<int>(X{}))>);
+	static_assert(std::is_same_v<const int&&, decltype(tnt::get<int>(CX{}))>);
+	static_assert(std::is_same_v<int&, decltype(tnt::get<0>(x))>);
+	static_assert(std::is_same_v<const int&, decltype(tnt::get<0>(cx))>);
+	static_assert(std::is_same_v<int&&, decltype(tnt::get<0>(X{}))>);
+	static_assert(std::is_same_v<const int&&, decltype(tnt::get<0>(CX{}))>);
 }
 
 struct CustomPair {
@@ -1034,7 +1047,7 @@ int main()
 	test_integer_traits();
 	test_c_traits();
 	test_integral_constant_traits();
-	test_unversal_access();
+	test_universal_access();
 	test_tuple_pair_traits();
 	test_variant_traits();
 	test_optional_traits();
