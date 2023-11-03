@@ -240,7 +240,7 @@ EpollNetProvider<BUFFER, Stream>::send(Conn_t &conn)
 		ssize_t sent = conn.get_strm().send(iov, iov_cnt);
 		if (sent < 0) {
 			conn.setError(std::string("Failed to send request: ") +
-				      strerror(errno));
+				      strerror(errno), errno);
 			return -1;
 		} else if (sent == 0) {
 			assert(conn.get_strm().has_status(SS_NEED_EVENT_FOR_WRITE));
