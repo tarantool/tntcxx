@@ -361,8 +361,10 @@ int
 LibevNetProvider<BUFFER, Stream>::wait(int timeout)
 {
 	assert(timeout >= 0);
-	ev_timer_init(&m_TimeoutWatcher, &timeout_cb, timeout / MILLISECONDS, 0 /* repeat */);
-	ev_timer_start(m_Loop, &m_TimeoutWatcher);
+	if (timeout > 0) {
+		ev_timer_init(&m_TimeoutWatcher, &timeout_cb, timeout / MILLISECONDS, 0 /* repeat */);
+		ev_timer_start(m_Loop, &m_TimeoutWatcher);
+	}
 	/* Queue pending connections to be send. */
 	for (auto conn = m_Connector.m_ReadyToSend.begin();
 	     conn != m_Connector.m_ReadyToSend.end();) {
