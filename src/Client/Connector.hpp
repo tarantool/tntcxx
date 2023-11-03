@@ -188,7 +188,8 @@ Connector<BUFFER, NetProvider>::wait(Connection<BUFFER, NetProvider> &conn,
 	while (!conn.hasError() && !conn.futureIsReady(future) &&
 	       !timer.isExpired()) {
 		if (m_NetProvider.wait(timeout - timer.elapsed()) != 0) {
-			conn.setError("Failed to poll: " + std::to_string(errno));
+			conn.setError(std::string("Failed to poll: ") +
+				      strerror(errno), errno);
 			return -1;
 		}
 		if (hasDataToDecode(conn)) {
@@ -227,7 +228,8 @@ Connector<BUFFER, NetProvider>::waitAll(Connection<BUFFER, NetProvider> &conn,
 	size_t last_not_ready = 0;
 	while (!conn.hasError() && !timer.isExpired()) {
 		if (m_NetProvider.wait(timeout - timer.elapsed()) != 0) {
-			conn.setError("Failed to poll: " + std::to_string(errno));
+			conn.setError(std::string("Failed to poll: ") +
+				      strerror(errno), errno);
 			return -1;
 		}
 		if (hasDataToDecode(conn)) {
@@ -287,7 +289,8 @@ Connector<BUFFER, NetProvider>::waitCount(Connection<BUFFER, NetProvider> &conn,
 	size_t ready_futures = conn.getFutureCount();
 	while (!conn.hasError() && !timer.isExpired()) {
 		if (m_NetProvider.wait(timeout - timer.elapsed()) != 0) {
-			conn.setError("Failed to poll: " + std::to_string(errno));
+			conn.setError(std::string("Failed to poll: ") +
+				      strerror(errno), errno);
 			return -1;
 		}
 		if (hasDataToDecode(conn)) {
