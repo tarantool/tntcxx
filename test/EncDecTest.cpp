@@ -1097,6 +1097,128 @@ void test_class_rules()
 		    &mpp_dec_rule<WithDecSpecRule>::value);
 }
 
+struct IntegerWrapper {
+	int i = 0;
+	void gen()
+	{
+		i = 42;
+	}
+
+	bool operator==(const IntegerWrapper& that) const
+	{
+		return i == that.i;
+	}
+
+	static constexpr auto mpp = &IntegerWrapper::i;
+};
+
+struct Triplet {
+	int a = 0;
+	int b = 0;
+	int c = 0;
+
+	void gen(size_t i)
+	{
+		a = 3 * i + 1;
+		b = 3 * i + 100500;
+		c = 3 * i + 3;
+	}
+
+	bool operator==(const Triplet& that) const
+	{
+		return std::tie(a, b, c) == std::tie(that.a, that.b, that.c);
+	}
+};
+
+template <>
+struct mpp_rule<Triplet> {
+	static constexpr auto value = std::make_tuple(&Triplet::a,
+						      &Triplet::b,
+						      &Triplet::c);
+};
+
+struct Error {
+	int code = 0;
+	std::string descr;
+
+	void gen(size_t i)
+	{
+		code = i + 1;
+		descr = std::to_string(code);
+	}
+
+	bool operator==(const Error& that) const
+	{
+		return std::tie(code, descr) == std::tie(that.code, that.descr);
+	}
+
+	static constexpr auto mpp = std::make_tuple(
+		std::make_pair(0, &Error::code),
+		std::make_pair(1, &Error::descr));
+};
+
+struct Body {
+	std::string str;
+	IntegerWrapper num;
+	std::vector<Triplet> triplets;
+	std::vector<Error> errors;
+
+	void gen()
+	{
+		str = "gen";
+		num.gen();
+		triplets.resize(2);
+		for (size_t i = 0; i < triplets.size(); i++)
+			triplets[i].gen(i);
+		errors.resize(3);
+		for (size_t i = 0; i < errors.size(); i++)
+			errors[i].gen(i);
+	}
+
+	bool operator==(const Body& that) const
+	{
+		return std::tie(str, num, triplets, errors) ==
+		       std::tie(that.str, that.num, that.triplets, that.errors);
+	}
+
+	static constexpr auto mpp = std::make_tuple(
+		std::make_pair(0, &Body::str),
+		std::make_pair(1, &Body::num),
+		std::make_pair(2, &Body::triplets),
+		std::make_pair(3, &Body::errors));
+};
+
+void
+test_object_codec()
+{
+	TEST_INIT(0);
+
+	using Buf_t = tnt::Buffer<16 * 1024>;
+	Buf_t buf;
+
+	Body wr, rd;
+	wr.gen();
+
+	mpp::encode(buf, wr);
+
+	for (auto itr = buf.begin(); itr != buf.end(); ++itr) {
+		char c = itr.get<uint8_t>();
+		uint8_t u = c;
+		const char *h = "0123456789ABCDEF";
+		if (c >= 'a' && c <= 'z')
+			std::cout << c;
+		else
+			std::cout << h[u / 16] << h[u % 16];
+	}
+	std::cout << std::endl;
+
+	auto itr = buf.begin();
+	mpp::decode(itr, rd);
+
+	fail_unless(rd == wr);
+	fail_unless(itr == buf.end());
+}
+
 int main()
 {
 	test_under_ints();
@@ -1104,4 +1226,5 @@ int main()
 	test_type_visual();
 	test_basic();
 	test_class_rules();
+	test_object_codec();
 }

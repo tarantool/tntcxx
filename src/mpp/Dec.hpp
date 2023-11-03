@@ -78,7 +78,8 @@ template <class T>
 constexpr auto detectFamily()
 {
 	using U = unwrap_t<T>;
-	static_assert(!std::is_const_v<U>, "Can't decode to constant type");
+	static_assert(!std::is_const_v<U> || tnt::is_tuplish_v<U>,
+		      "Can't decode to constant type");
 	if constexpr (is_wrapped_family_v<T>) {
 		return family_sequence<T::family>{};
 	} else if constexpr (std::is_same_v<U, std::nullptr_t>) {
@@ -230,13 +231,29 @@ struct Resolver {
 	}
 
 	template <class... T>
+	static constexpr size_t find_obj_index()
+	{
+		using E = decltype(extract<T...>(std::declval<T>()...));
+		using R = unwrap_t<E>;
+		if constexpr (has_dec_rule_v<R>) {
+			return I;
+		} else if constexpr (std::is_member_pointer_v<R> ||
+				     tnt::is_tuplish_v<R>) {
+			using PrevResolver = Resolver<I - 1, P...>;
+			return PrevResolver::template find_obj_index<T...>();
+		} else {
+			static_assert(tnt::always_false_v<E>);
+		}
+	}
+
+	template <class... T>
 	static constexpr auto&& prev(T... t)
 	{
 		return unwrap(Resolver<I - 1, P...>::get(t...));
 	}
 
 	template <class... T>
-	static constexpr auto&& get(T... t)
+	static constexpr auto&& extract(T... t)
 	{
 		if constexpr (TYPE == PIT_STATIC_L0) {
 			return std::get<POS>(std::tie(t...)).get();
@@ -254,6 +271,49 @@ struct Resolver {
 			return prev(t...);
 		} else {
 			static_assert(tnt::always_false_v<T...>);
+		}
+	}
+
+	template <class... T>
+	static constexpr auto&& unrule(T... t)
+	{
+		using E = decltype(extract<T...>(std::declval<T>()...));
+		using R = unwrap_t<E>;
+		if constexpr (has_dec_rule_v<R>)
+			return get_dec_rule<R>();
+		else
+			return extract(t...);
+	}
+
+	template <class T>
+	static constexpr auto&& self_unwrap(T&& t)
+	{
+		using R = unwrap_t<T>;
+		if constexpr (has_dec_rule_v<R>) {
+			using RULE = unwrap_t<decltype(get_dec_rule<R>())>;
+			if constexpr (std::is_member_pointer_v<RULE>) {
+				return self_unwrap(unwrap(std::forward<T>(t)).*
+						   unwrap(get_dec_rule<R>()));
+			} else {
+				return std::forward<T>(t);
+			}
+		} else {
+			return std::forward<T>(t);
+		}
+	}
+
+	template <class... T>
+	static constexpr auto&& get(T... t)
+	{
+		using U = decltype(unrule<T...>(std::declval<T>()...));
+		using R = unwrap_t<U>;
+		if constexpr (std::is_member_pointer_v<R>) {
+			constexpr size_t OBJ_I = find_obj_index<T...>();
+			using Res = Resolver<OBJ_I, P...>;
+			return self_unwrap(unwrap(Res::extract(t...)).*
+					   unwrap(unrule(t...)));
+		} else {
+			return unrule(t...);
 		}
 	}
 

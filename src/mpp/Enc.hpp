@@ -507,6 +507,30 @@ encode(CONT &cont, tnt::CStr<C...> prefix, tnt::iseq<I...>)
 	return true;
 }
 
+template <class S, class T, size_t... I>
+auto subst_tuple(const S& s, const T& t, tnt::iseq<I...>);
+
+template <class S, class T>
+auto subst(const S& s, [[maybe_unused]] const T& t)
+{
+	if constexpr (tnt::is_pairish_v<S>) {
+		return std::make_pair(subst(s.first, t), subst(s.second, t));
+	} else if constexpr (tnt::is_tuplish_v<S>) {
+		return subst_tuple(s, t, tnt::make_iseq<tnt::tuple_size_v<S>>{});
+	} else {
+		if constexpr (std::is_member_pointer_v<S>)
+			return t.*s;
+		else
+			return s;
+	}
+}
+
+template <class S, class T, size_t... I>
+auto subst_tuple(const S& s, const T& t, tnt::iseq<I...>)
+{
+	return std::make_tuple(subst(tnt::get<I>(s), t)...);
+}
+
 template <class CONT, char... C, size_t... I, class T, class... MORE>
 bool
 encode(CONT &cont, tnt::CStr<C...> prefix,
@@ -517,6 +541,9 @@ encode(CONT &cont, tnt::CStr<C...> prefix,
 	using U = std::remove_cv_t<std::remove_reference_t<decltype(u)>>;
 	if constexpr(std::is_same_v<U, Nothing>) {
 		return encode(cont, prefix, ais, more...);
+	} if constexpr(mpp::has_enc_rule_v<T>) {
+		const auto& rule = mpp::get_enc_rule<T>();
+		return encode(cont, prefix, ais, subst(rule, t), more...);
 	} else if constexpr(is_wrapped_raw_v<T>) {
 		if constexpr(std::is_base_of_v<ChildrenTag, U>) {
 			using V = typename U::type;
