@@ -94,5 +94,7 @@ test_tuple_utils()
 int main()
 {
 	static_assert(tnt::always_false_v<double> == false);
+	static_assert(tnt::always_false_v<int, double> == false);
+	static_assert(tnt::always_false_v<> == false);
 	test_tuple_utils();
 }

@@ -202,88 +202,81 @@ using path_push_t =
 							 STATIC_SIZE,
 							 STATIC_POS)>;
 
-template <bool IS_DYN_POS>
-struct ResolverBase {
-	explicit constexpr ResolverBase(nullptr_t) {};
-};
+template <size_t I, size_t... P>
+struct Resolver {
+	template <size_t J>
+	static constexpr size_t ITEM = tnt::iseq<P...>::template get<J>();
+	static constexpr size_t P0 = ITEM<0>;
+	static constexpr size_t PI = ITEM<I>;
+	static constexpr enum path_item_type TYPE = path_item_type(PI);
+	static constexpr size_t POS = path_item_static_pos(PI);
+	static constexpr size_t SIZE = path_item_static_size(PI);
+	static constexpr size_t USR_ARG_COUNT = path_item_static_size(P0);
+	static_assert(path_item_type(P0) == PIT_STATIC_L0);
+	static_assert((is_path_item_static(PI) && POS < SIZE) ||
+		      (!is_path_item_static(PI) && POS + SIZE == 0));
 
-template <>
-struct ResolverBase<true> {
-	uint64_t pos_size;
-	explicit constexpr ResolverBase(uint64_t ps) : pos_size(ps) {};
-};
-
-template <size_t P>
-struct Resolver : ResolverBase<is_path_item_dyn_size_pos(P)> {
-	using Base = ResolverBase<is_path_item_dyn_size_pos(P)>;
-	template <class T>
-	explicit constexpr Resolver(T t) : Base(t) {
-		if constexpr (is_path_item_dyn_size_pos(P))
-			static_assert(std::is_same_v<T, uint64_t>);
-		else
-			static_assert(std::is_same_v<T, nullptr_t>);
-	}
-
-	template <class W>
-	friend constexpr auto&& operator>>(W&& w, [[maybe_unused]] Resolver<P> r)
+	template <size_t... J>
+	static constexpr size_t dyn_arg_pos(tnt::iseq<J...>)
 	{
-		auto&& t = unwrap(std::forward<W>(w));
-		using T = decltype(t);
-		constexpr enum path_item_type TYPE = path_item_type(P);
-		constexpr size_t POS = path_item_static_pos(P);
-		constexpr size_t SIZE = path_item_static_size(P);
-		static_assert((is_path_item_static(P) && POS < SIZE) ||
-			      (!is_path_item_static(P) && POS + SIZE == 0));
-		if constexpr (TYPE == PIT_STATIC_L0)
-			return tnt::get<POS>(std::forward<T>(t)).get();
-		else if constexpr (is_path_item_static(P))
-			return tnt::get<POS>(std::forward<T>(t));
-		else if constexpr (TYPE == PIT_DYN_POS)
-			return std::data(t)[r.pos_size >> 32];
-		else if constexpr (TYPE == PIT_DYN_BACK)
-			return t.back();
-		else if constexpr (TYPE == PIT_DYN_ADD)
-			return t;
-		else if constexpr (TYPE == PIT_DYN_KEY)
-			return t;
-		else
-			static_assert(tnt::always_false_v<W>);
+		constexpr size_t X =
+			((is_path_item_dynamic(ITEM<J>) ? 1 : 0) + ... + 0);
+		return USR_ARG_COUNT + X;
+	}
+
+	static constexpr size_t dyn_arg_pos()
+	{
+		return dyn_arg_pos(tnt::make_iseq<I>{});
+	}
+
+	template <class... T>
+	static constexpr auto&& prev(T... t)
+	{
+		return unwrap(Resolver<I - 1, P...>::get(t...));
+	}
+
+	template <class... T>
+	static constexpr auto&& get(T... t)
+	{
+		if constexpr (TYPE == PIT_STATIC_L0) {
+			return std::get<POS>(std::tie(t...)).get();
+		} else if constexpr (is_path_item_static(PI)) {
+			return tnt::get<POS>(prev(t...));
+		} else if constexpr (TYPE == PIT_DYN_POS) {
+			constexpr size_t ARG_POS = dyn_arg_pos();
+			uint64_t arg = std::get<ARG_POS>(std::tie(t...));
+			return std::data(prev(t...))[arg >> 32];
+		} else if constexpr (TYPE == PIT_DYN_BACK) {
+			return prev(t...).back();
+		} else if constexpr (TYPE == PIT_DYN_ADD) {
+			return prev(t...);
+		} else if constexpr (TYPE == PIT_DYN_KEY) {
+			return prev(t...);
+		} else {
+			static_assert(tnt::always_false_v<T...>);
+		}
+	}
+
+	static constexpr size_t expected_arg_count()
+	{
+		return dyn_arg_pos() + (is_path_item_dynamic(ITEM<I>) ? 1 : 0);
 	}
 };
 
-template <size_t Q, size_t I, size_t... P, size_t... J, class... T>
-constexpr auto dyn_arg(tnt::iseq<P...> p, tnt::iseq<J...>, T&&... t)
+template <size_t... P, class... T>
+constexpr auto&& path_resolve(tnt::iseq<P...>, T... t)
 {
-	constexpr size_t USR_ARG_COUNT = path_item_static_size(p.first());
-	constexpr size_t DYN_ARG_COUNT = ((is_path_item_dynamic(P) ? 1 : 0) + ...);
-	constexpr size_t X = (((is_path_item_dynamic(P) && (J < I)) ? 1 : 0) + ...);
-	static_assert(USR_ARG_COUNT + DYN_ARG_COUNT == sizeof...(t));
-	static_assert(X <= DYN_ARG_COUNT);
-	if constexpr (is_path_item_dyn_size_pos(Q))
-		return std::get<USR_ARG_COUNT + X>(std::forward_as_tuple(t...));
-	else
-		return nullptr;
-}
-
-template <size_t... P, size_t... I, class... T>
-constexpr auto&& path_resolve(tnt::iseq<P...> p, tnt::iseq<I...> s, T&&... t)
-{
-	return (std::tuple<T&&...>(std::forward<T>(t)...) >>
-		... >> Resolver<P>{dyn_arg<P, I>(p, s, std::forward<T>(t)...)});
+	using Res = Resolver<sizeof...(P) - 1, P...>;
+	static_assert(Res::expected_arg_count() == sizeof...(T));
+	return Res::get(t...);
 }
 
 template <size_t... P, class... T>
-constexpr auto&& path_resolve(tnt::iseq<P...> path, T&&... t)
+constexpr auto&& path_resolve_parent(tnt::iseq<P...>, T... t)
 {
-	return path_resolve(path, tnt::make_iseq<path.size()>{},
-			    std::forward<T>(t)...);
-}
-
-template <size_t... P, size_t... I, class... T>
-constexpr auto&& path_resolve_arg(tnt::iseq<P...> path, tnt::iseq<I...>, T&&... t)
-{
-	return path_resolve(path, tnt::make_iseq<path.size()>{},
-			    tnt::get<I>(std::forward_as_tuple(t...))...);
+	using Res = Resolver<sizeof...(P) - 1, P...>;
+	static_assert(Res::expected_arg_count() == sizeof...(T) - 1);
+	return Res::get(t...);
 }
 
 constexpr size_t SIMPLEX_SUBRULE = 16;
@@ -692,8 +685,7 @@ bool decode_next(BUF& buf, T... t)
 		if constexpr (LAST_TYPE == PIT_DYN_POS ||
 			      LAST_TYPE == PIT_DYN_ADD ||
 			      LAST_TYPE == PIT_DYN_BACK) {
-			auto is = tnt::make_iseq<sizeof...(t) - 1>{};
-			auto&& parent = path_resolve_arg(POP_PATH{}, is, t...);
+			auto&& parent = path_resolve_parent(POP_PATH{}, t...);
 			using par_t = std::remove_reference_t<decltype(parent)>;
 			auto& arg = std::get<sizeof...(T) - 1>(std::tie(t...));
 			[[maybe_unused]] size_t pos = arg >> 32;
