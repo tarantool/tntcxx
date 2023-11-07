@@ -52,7 +52,7 @@ namespace tnt {
 /**
  * Delayer of static_assert evaluation.
  */
-template <class>
+template <class...>
 constexpr bool always_false_v = false;
 
 /**
