@@ -425,8 +425,8 @@ test_basic()
 		std::forward_as_tuple(10, true, 11, "val",
 				      12, std::make_tuple(1, 2, 3))));
 	// String keys.
-	mpp::encode(buf, mpp::as_map(std::make_tuple("key1", "val1",
-						     "key2", "val2")));
+	mpp::encode(buf, std::make_tuple(std::make_pair("key1", "val1"),
+					 std::make_pair("key2", "val2")));
 	// Mixed keys.
 	mpp::encode(buf, mpp::as_map(std::make_tuple(1, "val1",
 						     "key2", "val2")));

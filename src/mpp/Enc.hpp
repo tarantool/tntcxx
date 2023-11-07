@@ -557,10 +557,18 @@ encode(CONT &cont, tnt::CStr<C...> prefix,
 			const V& v = u.v;
 			if constexpr(tnt::is_tuplish_v<V>) {
 				tnt::iseq<> is;
+				constexpr size_t N = sizeof...(I);
+				[[maybe_unused]] auto reorder =
+					std::tie(tnt::get<I>(v).first...,
+						 tnt::get<I>(v).second...);
+				[[maybe_unused]] auto reindex =
+					[](size_t i, size_t n) {
+						return i / 2 + n * (i % 2);
+					};
 				return encode(cont, prefix, is,
-					      tnt::get<I>(v).first...,
-					      tnt::get<I>(v).second...,
-					      more...);
+					tnt::get<reindex(I, N)>(reorder)...,
+					tnt::get<reindex(I + N, N)>(reorder)...,
+					more...);
 			} else if constexpr(tnt::is_const_iterable_v<V>) {
 				auto itr = std::begin(v);
 				auto e = std::end(v);
