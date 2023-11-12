@@ -9,14 +9,30 @@ ENDIF()
 MESSAGE(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 FIND_PACKAGE (benchmark QUIET)
 
-SET(COMMON_LIB ev)
+SET(CMAKE_CXX_STANDARD 17)
+SET(CMAKE_C_STANDARD 11)
+ADD_COMPILE_OPTIONS(-Wall -Wextra -Werror)
+
+ADD_LIBRARY(tntcxx INTERFACE)
+ADD_LIBRARY(tntcxx::tntcxx ALIAS tntcxx)
+TARGET_INCLUDE_DIRECTORIES(tntcxx INTERFACE .)
+TARGET_INCLUDE_DIRECTORIES(tntcxx INTERFACE ./src)
+
+ADD_LIBRARY(ev STATIC third_party/libev/ev.c)
+TARGET_COMPILE_DEFINITIONS(ev PRIVATE EV_STANDALONE=1)
+TARGET_COMPILE_OPTIONS(ev PRIVATE -w)
+TARGET_INCLUDE_DIRECTORIES(ev PUBLIC ./third_party/libev)
+
+TARGET_LINK_LIBRARIES(tntcxx INTERFACE ev)
+
+SET(COMMON_LIB tntcxx ev)
 
 # OpenSSL
 IF (TNTCXX_ENABLE_SSL)
 FIND_PACKAGE(OpenSSL)
 IF (OPENSSL_FOUND)
     MESSAGE(STATUS "OpenSSL ${OPENSSL_VERSION} found")
-    INCLUDE_DIRECTORIES(${OPENSSL_INCLUDE_DIR})
+    TARGET_INCLUDE_DIRECTORIES(tntcxx INTERFACE ${OPENSSL_INCLUDE_DIR})
 ELSE()
     MESSAGE(FATAL_ERROR "Could NOT find OpenSSL development files (libssl-dev/openssl-devel package)")
 ENDIF()
@@ -30,17 +46,6 @@ ENDIF()
 SET(COMMON_LIB ${COMMON_LIB} ${OPENSSL_LIBRARIES})
 
 ENDIF() # IF (TNTCXX_ENABLE_SSL)
-
-SET(CMAKE_CXX_STANDARD 17)
-SET(CMAKE_C_STANDARD 11)
-ADD_COMPILE_OPTIONS(-Wall -Wextra -Werror)
-
-INCLUDE_DIRECTORIES(.)
-INCLUDE_DIRECTORIES(./src)
-INCLUDE_DIRECTORIES(./third_party/libev)
-ADD_LIBRARY(ev STATIC third_party/libev/ev.c)
-TARGET_COMPILE_DEFINITIONS(ev PRIVATE EV_STANDALONE=1)
-TARGET_COMPILE_OPTIONS(ev PRIVATE -w)
 
 # Compensating the lack of PROJECT_IS_TOP_LEVEL for older cmake version.
 IF (CMAKE_VERSION VERSION_LESS 3.21)
@@ -103,50 +108,62 @@ ENDFUNCTION()
 
 TNTCXX_TEST(NAME MempoolUnit.test TYPE ctest
             SOURCES src/Utils/Mempool.hpp test/MempoolUnitTest.cpp
+            LIBRARIES ${COMMON_LIB}
 )
 
 TNTCXX_TEST(NAME CStrUnit.test TYPE ctest
             SOURCES src/Utils/CStr.hpp test/CStrUnitTest.cpp
+            LIBRARIES ${COMMON_LIB}
 )
 
 TNTCXX_TEST(NAME CommonUnit.test TYPE ctest
             SOURCES src/Utils/Common.hpp test/CommonUnitTest.cpp
+            LIBRARIES ${COMMON_LIB}
 )
 
 TNTCXX_TEST(NAME TraitsUnit.test TYPE ctest
             SOURCES src/Utils/Traits.hpp test/TraitsUnitTest.cpp
+            LIBRARIES ${COMMON_LIB}
 )
 
 TNTCXX_TEST(NAME RefVectorUnit.test TYPE ctest
             SOURCES src/Utils/RefVector.hpp test/RefVectorUnitTest.cpp
+            LIBRARIES ${COMMON_LIB}
 )
 
 TNTCXX_TEST(NAME ItrRangeUnit.test TYPE ctest
             SOURCES src/Utils/ItrRange.hpp test/ItrRangeUnitTest.cpp
+            LIBRARIES ${COMMON_LIB}
 )
 
 TNTCXX_TEST(NAME Base64Unit.test TYPE ctest
             SOURCES src/Utils/Base64.hpp test/Base64UnitTest.cpp
+            LIBRARIES ${COMMON_LIB}
 )
 
 TNTCXX_TEST(NAME BufferUnit.test TYPE ctest
             SOURCES src/Buffer/Buffer.hpp test/BufferUnitTest.cpp
+            LIBRARIES ${COMMON_LIB}
 )
 
 TNTCXX_TEST(NAME RingUnit.test TYPE ctest
             SOURCES src/Utils/Ring.hpp test/RingUnitTest.cpp
+            LIBRARIES ${COMMON_LIB}
 )
 
 TNTCXX_TEST(NAME ListUnit.test TYPE ctest
             SOURCES src/Utils/List.hpp test/ListUnitTest.cpp
+            LIBRARIES ${COMMON_LIB}
 )
 
 TNTCXX_TEST(NAME RulesUnit.test TYPE ctest
             SOURCES src/mpp/Rules.hpp test/RulesUnitTest.cpp
+            LIBRARIES ${COMMON_LIB}
 )
 
 TNTCXX_TEST(NAME EncDecUnit.test TYPE ctest
             SOURCES src/mpp/mpp.hpp test/EncDecTest.cpp
+            LIBRARIES ${COMMON_LIB}
 )
 
 TNTCXX_TEST(NAME Client.test TYPE ctest
