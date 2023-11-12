@@ -39,33 +39,27 @@ different ways:
     approach doesn't have the limitations of the other methods.
 
 The last of the above methods is implemented with a small piece of CMake code 
-that downloads and pulls the tntcxx code into the main build.
-
-Just add the following snippet to your CMakeLists.txt:
+that downloads and pulls the tntcxx code into the main build. Just add the 
+following snippet to your CMakeLists.txt:
 ```cmake
 include(FetchContent)
-FetchContent_Declare(tntcxx
+FetchContent_Declare(
+  tntcxx
   GIT_REPOSITORY https://github.com/tarantool/tntcxx.git
 )
-FetchContent_GetProperties(tntcxx)
-if(NOT tntcxx_POPULATED)
-    FetchContent_Populate(tntcxx)
-endif()
+FetchContent_MakeAvailable(tntcxx)
 ```
 
-2. You can then use the following CMake snippet to incorporate tntcxx into your 
-CMake project:
+After obtaining tntcxx sources using the rest of the methods, you can use the 
+following CMake command to incorporate tntcxx into your CMake project:
 ```cmake
-add_subdirectory(${TNTCXX_SOURCE_DIR} ${TNTCXX_BINARY_DIR})
+add_subdirectory(${TNTCXX_SOURCE_DIR})
+```
 
-target_link_libraries(${PROJECT_NAME}
-    PRIVATE ev
-)
-
-target_include_directories(${PROJECT_NAME}
-    PRIVATE ${tntcxx_SOURCE_DIR}
-    PRIVATE ${tntcxx_SOURCE_DIR}/third_party/libev
-)
+2. Now simply link against the tntcxx::tntcxx target as needed:
+```cmake
+add_executable(example example.cpp)
+target_link_libraries(example tntcxx::tntcxx)
 ```
 
 ##### Running tntcxx Tests with CMake
