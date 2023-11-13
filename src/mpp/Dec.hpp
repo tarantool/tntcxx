@@ -82,6 +82,10 @@ constexpr auto detectFamily()
 		      "Can't decode to constant type");
 	if constexpr (is_wrapped_family_v<T>) {
 		return family_sequence<T::family>{};
+	} else if constexpr (tnt::is_optional_v<U>) {
+		return family_sequence_populate<compact::MP_NIL>(detectFamily<tnt::value_type_t<U>>());
+	} else if constexpr (has_dec_rule_v<U>) {
+		return detectFamily<decltype(get_dec_rule<U>())>();
 	} else if constexpr (std::is_same_v<U, std::nullptr_t>) {
 		return family_sequence<compact::MP_NIL>{};
 	} else if constexpr (std::is_same_v<U, bool>) {
@@ -203,7 +207,21 @@ using path_push_t =
 							 STATIC_SIZE,
 							 STATIC_POS)>;
 
-template <size_t I, size_t... P>
+/**
+ * The class allows to get an object by its path.
+ * All object can be divided into 3 parts: visible, transparent and
+ * semi-transparent. For example:
+ * std::vector<int> is visible - when the path points to the vector, it
+ * is always returned by resolver,
+ * class MyClass { static constexpr mpp = ...; } is transparent - resolver
+ * never returns an instance of MyClass itself.
+ * std::optional<int> is semi-transparent - the path, that points to the
+ * optional, also points to the underlying int. So, when the template argument
+ * ShowSemiTransparent is true, resolver will return the optional itself, and
+ * when it is false, it will skip semi-transparent objects - in our case,
+ * underlying int will be returned.
+ */
+template <bool ShowSemiTransparent, size_t I, size_t... P>
 struct Resolver {
 	template <size_t J>
 	static constexpr size_t ITEM = tnt::iseq<P...>::template get<J>();
@@ -239,7 +257,12 @@ struct Resolver {
 			return I;
 		} else if constexpr (std::is_member_pointer_v<R> ||
 				     tnt::is_tuplish_v<R>) {
-			using PrevResolver = Resolver<I - 1, P...>;
+			/*
+			 * If the object with dec_rule is wrapped into optional,
+			 * the optional must be skipped. That's why PrevResolver
+			 * must have false ShowSemiTransparent flag.
+			 */
+			using PrevResolver = Resolver<false, I - 1, P...>;
 			return PrevResolver::template find_obj_index<T...>();
 		} else {
 			static_assert(tnt::always_false_v<E>);
@@ -253,16 +276,21 @@ struct Resolver {
 	template <class... T>
 	static constexpr auto&& parent_container(T... t)
 	{
-		return unwrap(Resolver<I - 1, P...>::get(t...));
+		/*
+		 * If the container is wrapped into optional, the optional must
+		 * be skipped. That's why the Resolver must have false
+		 * ShowSemiTransparent flag.
+		 */
+		return unwrap(Resolver<false, I - 1, P...>::get(t...));
 	}
 
 	template <class... T>
-	static constexpr auto&& extract(T... t)
+	static constexpr auto&& extract_impl(T... t)
 	{
 		if constexpr (TYPE == PIT_STATIC_L0) {
 			return std::get<POS>(std::tie(t...)).get();
 		} else if constexpr (is_path_item_static(PI)) {
-			return tnt::get<POS>(prev(t...));
+			return tnt::get<POS>(parent_container(t...));
 		} else if constexpr (TYPE == PIT_DYN_POS) {
 			constexpr size_t ARG_POS = dyn_arg_pos();
 			uint64_t arg = std::get<ARG_POS>(std::tie(t...));
@@ -275,6 +303,20 @@ struct Resolver {
 			return parent_container(t...);
 		} else {
 			static_assert(tnt::always_false_v<T...>);
+		}
+	}
+
+	template <class... T>
+	static constexpr auto&& extract(T... t)
+	{
+		auto &&extracted = extract_impl(t...);
+		auto &&unwrapped = unwrap(extracted);
+		using unwrapped_t = std::remove_reference_t<decltype(unwrapped)>;
+		if constexpr (!ShowSemiTransparent && tnt::is_optional_v<unwrapped_t>) {
+			assert(unwrapped.has_value());
+			return *unwrapped;
+		} else {
+			return extracted;
 		}
 	}
 
@@ -313,7 +355,12 @@ struct Resolver {
 		using R = unwrap_t<U>;
 		if constexpr (std::is_member_pointer_v<R>) {
 			constexpr size_t OBJ_I = find_obj_index<T...>();
-			using Res = Resolver<OBJ_I, P...>;
+			/*
+			 * If the object with the required field is wrapped into
+			 * optional, the optional must be skipped. That's why
+			 * Resolver must have false ShowSemiTransparent flag.
+			 */
+			using Res = Resolver<false, OBJ_I, P...>;
 			return self_unwrap(unwrap(Res::extract(t...)).*
 					   unwrap(unrule(t...)));
 		} else {
@@ -327,18 +374,29 @@ struct Resolver {
 	}
 };
 
+/** Resolve path, semi-transparent object are visible. */
 template <size_t... P, class... T>
-constexpr auto&& path_resolve(tnt::iseq<P...>, T... t)
+constexpr auto&& path_resolve_transparent(tnt::iseq<P...>, T... t)
 {
-	using Res = Resolver<sizeof...(P) - 1, P...>;
+	using Res = Resolver<false, sizeof...(P) - 1, P...>;
 	static_assert(Res::expected_arg_count() == sizeof...(T));
 	return Res::get(t...);
 }
 
+/** Resolve path, semi-transparent object are invisible. */
+template <size_t... P, class... T>
+constexpr auto&& path_resolve(tnt::iseq<P...>, T... t)
+{
+	using Res = Resolver<true, sizeof...(P) - 1, P...>;
+	static_assert(Res::expected_arg_count() == sizeof...(T));
+	return Res::get(t...);
+}
+
+/** Resolve parent path, semi-transparent object are invisible. */
 template <size_t... P, class... T>
 constexpr auto&& path_resolve_parent(tnt::iseq<P...>, T... t)
 {
-	using Res = Resolver<sizeof...(P) - 1, P...>;
+	using Res = Resolver<false, sizeof...(P) - 1, P...>;
 	static_assert(Res::expected_arg_count() == sizeof...(T) - 1);
 	return Res::get(t...);
 }
@@ -433,6 +491,8 @@ auto read_item(BUF& buf, ITEM& item)
 			item.resize(val);
 	} else if constexpr (std::is_enum_v<ITEM>) {
 		item = static_cast<ITEM>(val);
+	} else if constexpr (FAMILY == compact::MP_NIL && tnt::is_optional_v<ITEM>) {
+		item.reset();
 	} else {
 		item = val;
 	}
@@ -645,8 +705,7 @@ struct JumpsBuilder {
 		if constexpr (path_item_type(LAST) == PIT_DYN_SKIP) {
 			return getFamiliesByRules<all_rules_t>();
 		} else if constexpr (path_item_type(LAST) == PIT_DYN_KEY) {
-			using R = decltype(path_resolve(PATH{},
-							std::declval<T>()...));
+			using R = decltype(path_resolve(PATH{}, std::declval<T>()...));
 			using DST = std::remove_reference_t<R>;
 			static_assert(tnt::is_tuplish_v<DST>);
 			constexpr size_t S = tnt::tuple_size_v<DST>;
@@ -659,8 +718,7 @@ struct JumpsBuilder {
 				return keyMapKeyFamiliesFlat<DST>(is{});
 			}
 		} else {
-			using R = decltype(path_resolve(PATH{},
-							std::declval<T>()...));
+			using R = decltype(path_resolve(PATH{}, std::declval<T>()...));
 			using DST = std::remove_reference_t<R>;
 			if constexpr (path_item_type(LAST) == PIT_DYN_ADD) {
 				return detectFamily<tnt::value_type_t<DST>>();
@@ -821,7 +879,7 @@ template <compact::Family FAMILY, size_t SUBRULE,
 bool jump_add(BUF& buf, T... t)
 {
 	static_assert(path_item_type(PATH::last()) == PIT_DYN_ADD);
-	auto&& dst = path_resolve(PATH{}, t...);
+	auto&& dst = path_resolve_transparent(PATH{}, t...);
 	using dst_t = std::remove_reference_t<decltype(dst)>;
 	tnt::value_type_t<dst_t> trg;
 	read_item<FAMILY, SUBRULE>(buf, trg);
@@ -857,17 +915,16 @@ constexpr enum path_item_type get_next_arr_item_type()
 template <class ARR, enum path_item_type TYPE>
 constexpr size_t get_next_arr_static_size()
 {
-	if constexpr (TYPE <= PIT_STADYN)
+	if constexpr (TYPE > PIT_BAD && TYPE <= PIT_STADYN)
 		return tnt::tuple_size_v<ARR>;
 	else
 		return 0;
 }
 
 template <compact::Family FAMILY, size_t SUBRULE,
-	  class PATH, class BUF, class... T>
-bool jump_read(BUF& buf, T... t)
+	  class PATH, class BUF, class DST, class... T>
+bool jump_read_impl(BUF& buf, DST &&dst, T... t)
 {
-	auto&& dst = unwrap(path_resolve(PATH{}, t...));
 	using dst_t = std::remove_reference_t<decltype(dst)>;
 	using RULE = rule_by_family_t<FAMILY>;
 	auto val = read_item<FAMILY, SUBRULE>(buf, dst);
@@ -936,6 +993,32 @@ bool jump_read(BUF& buf, T... t)
 
 decode_next_label:
 	return decode_next<PATH>(buf, t...);
+
+}
+
+template <compact::Family FAMILY, size_t SUBRULE,
+	  class PATH, class BUF, class... T>
+bool jump_read(BUF& buf, T... t)
+{
+	auto&& dst = unwrap(path_resolve_transparent(PATH{}, t...));
+	return jump_read_impl<FAMILY, SUBRULE, PATH>(buf, dst, t...);
+}
+
+template <compact::Family FAMILY, size_t SUBRULE,
+	  class PATH, class BUF, class... T>
+bool jump_read_optional(BUF& buf, T... t)
+{
+	auto&& optional_dst = unwrap(path_resolve(PATH{}, t...));
+	if constexpr (FAMILY == compact::MP_NIL) {
+		[[maybe_unused]] auto val = read_value<FAMILY, SUBRULE>(buf);
+		optional_dst.reset();
+		return decode_next<PATH>(buf, t...);
+	} else {
+		if (!optional_dst.has_value())
+			optional_dst.emplace();
+		auto&& dst = unwrap(path_resolve_transparent(PATH{}, t...));
+		return jump_read_impl<FAMILY, SUBRULE, PATH>(buf, dst, t...);
+	}
 }
 
 template <class K, class V>
@@ -1016,7 +1099,7 @@ bool jump_find_key(K k, tnt::iseq<I, J...>, BUF& buf, T... t)
 {
 	static_assert(path_item_type(PATH::last()) == PIT_DYN_KEY);
 
-	auto&& key = key_path_resolve<PAIRS, I>(path_resolve(PATH{}, t...));
+	auto&& key = key_path_resolve<PAIRS, I>(path_resolve_transparent(PATH{}, t...));
 	using PAIRS_NEXT_PREPATH = path_push_t<PATH, PIT_STATIC, I + 1, I>;
 	using PAIRS_NEXT_PATH = path_push_t<PAIRS_NEXT_PREPATH, PIT_STATIC, 2, 1>;
 	using FLAT_NEXT_PATH = path_push_t<PATH, PIT_STATIC, I * 2 + 2, I * 2 + 1>;
@@ -1037,7 +1120,7 @@ template <compact::Family FAMILY, size_t SUBRULE,
 bool jump_read_key(BUF& buf, T... t)
 {
 	static_assert(path_item_type(PATH::last()) == PIT_DYN_KEY);
-	auto&& dst = path_resolve(PATH{}, t...);
+	auto&& dst = path_resolve_transparent(PATH{}, t...);
 	using dst_t = std::remove_reference_t<decltype(dst)>;
 	static_assert(tnt::is_tuplish_v<dst_t>);
 
@@ -1057,14 +1140,20 @@ template <compact::Family FAMILY, size_t SUBRULE,
 	  class PATH, class BUF, class... T>
 bool jump_common(BUF& buf, T... t)
 {
-	if constexpr (path_item_type(PATH::last()) == PIT_DYN_ADD)
-		return jump_add<FAMILY, SUBRULE, PATH>(buf, t...);
-	else if constexpr (path_item_type(PATH::last()) == PIT_DYN_SKIP)
+	if constexpr (path_item_type(PATH::last()) == PIT_DYN_SKIP) {
 		return jump_skip<FAMILY, SUBRULE, PATH>(buf, t...);
-	else if constexpr (path_item_type(PATH::last()) == PIT_DYN_KEY)
-		return jump_read_key<FAMILY, SUBRULE, PATH>(buf, t...);
-	else
-		return jump_read<FAMILY, SUBRULE, PATH>(buf, t...);
+	} else {
+		auto&& dst = unwrap(path_resolve(PATH{}, t...));
+		using dst_t = std::remove_reference_t<decltype(dst)>;
+		if constexpr (tnt::is_optional_v<dst_t> && path_item_type(PATH::last()) != PIT_DYN_KEY)
+			return jump_read_optional<FAMILY, SUBRULE, PATH>(buf, t...);
+		else if constexpr (path_item_type(PATH::last()) == PIT_DYN_ADD)
+			return jump_add<FAMILY, SUBRULE, PATH>(buf, t...);
+		else if constexpr (path_item_type(PATH::last()) == PIT_DYN_KEY)
+			return jump_read_key<FAMILY, SUBRULE, PATH>(buf, t...);
+		else
+			return jump_read<FAMILY, SUBRULE, PATH>(buf, t...);
+	}
 }
 
 template <class BUF, class... T>
