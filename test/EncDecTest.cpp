@@ -1256,7 +1256,8 @@ test_optional()
 	bool ok;
 
 	TEST_CASE("number");
-	mpp::encode(buf, 100, nullptr);
+	mpp::encode(buf, std::optional<int>(100), std::optional<int>(),
+		    std::optional<int>(42));
 
 	auto run = buf.begin<true>();
 	std::optional<int> opt_num;
@@ -1269,11 +1270,18 @@ test_optional()
 	fail_unless(ok);
 	fail_unless(!opt_num.has_value());
 
+	ok = mpp::decode(run, opt_num);
+	fail_unless(ok);
+	fail_unless(opt_num.has_value());
+	fail_unless(opt_num.value() == 42);
+
 	buf.flush();
 
 	TEST_CASE("containers with numbers");
 	int null_idx = 4;
-	mpp::encode(buf, mpp::as_arr(std::forward_as_tuple(0, 1, 2, 3, nullptr, 5)));
+	mpp::encode(buf, std::make_optional(mpp::as_arr(
+		std::forward_as_tuple(0, std::make_optional(1), 2, 3, std::optional<int>(), 5)
+	)));
 	mpp::encode(buf, nullptr);
 	std::vector<std::optional<int>> opt_num_arr;
 	std::set<std::optional<int>> opt_num_set;
@@ -1345,7 +1353,7 @@ test_optional()
 	TEST_CASE("objects");
 	Body wr;
 	wr.gen();
-	mpp::encode(buf, wr, nullptr);
+	mpp::encode(buf, std::optional<Body>(wr), std::optional<Body>());
 
 	run = buf.begin<true>();
 	std::optional<Body> rd;
