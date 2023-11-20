@@ -246,8 +246,12 @@ struct Resolver {
 		}
 	}
 
+	/**
+	 * The method is used to get the container which contains the value the
+	 * path points to.
+	 */
 	template <class... T>
-	static constexpr auto&& prev(T... t)
+	static constexpr auto&& parent_container(T... t)
 	{
 		return unwrap(Resolver<I - 1, P...>::get(t...));
 	}
@@ -262,13 +266,13 @@ struct Resolver {
 		} else if constexpr (TYPE == PIT_DYN_POS) {
 			constexpr size_t ARG_POS = dyn_arg_pos();
 			uint64_t arg = std::get<ARG_POS>(std::tie(t...));
-			return std::data(prev(t...))[arg >> 32];
+			return std::data(parent_container(t...))[arg >> 32];
 		} else if constexpr (TYPE == PIT_DYN_BACK) {
-			return prev(t...).back();
+			return parent_container(t...).back();
 		} else if constexpr (TYPE == PIT_DYN_ADD) {
-			return prev(t...);
+			return parent_container(t...);
 		} else if constexpr (TYPE == PIT_DYN_KEY) {
-			return prev(t...);
+			return parent_container(t...);
 		} else {
 			static_assert(tnt::always_false_v<T...>);
 		}
