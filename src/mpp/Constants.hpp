@@ -203,6 +203,12 @@ struct family_sequence {
 	}
 };
 
+template <compact::Family NEW_FAMILY, compact::Family ...FAMILY>
+static constexpr auto family_sequence_populate(struct family_sequence<FAMILY...>)
+{
+	return family_sequence<NEW_FAMILY, FAMILY...>{};
+}
+
 template <compact::Family ...FAMILY>
 std::ostream&
 operator<<(std::ostream& strm, family_sequence<FAMILY...>)

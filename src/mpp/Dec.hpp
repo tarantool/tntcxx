@@ -84,6 +84,8 @@ constexpr auto detectFamily()
 		return family_sequence<T::family>{};
 	} else if constexpr (has_dec_rule_v<U>) {
 		return detectFamily<decltype(get_dec_rule<U>())>();
+	} else if constexpr (tnt::is_optional_v<U>) {
+		return family_sequence_populate<compact::MP_NIL>(detectFamily<tnt::value_type_t<U>>());
 	} else if constexpr (std::is_same_v<U, std::nullptr_t>) {
 		return family_sequence<compact::MP_NIL>{};
 	} else if constexpr (std::is_same_v<U, bool>) {
@@ -154,6 +156,7 @@ enum path_item_type {
 	PIT_DYN_ADD,
 	PIT_DYN_KEY,
 	PIT_DYN_SKIP,
+	PIT_OPTIONAL,
 };
 
 constexpr size_t PATH_ITEM_MULT = 1000000;
@@ -190,7 +193,7 @@ constexpr bool is_path_item_static(size_t item)
 
 constexpr bool is_path_item_dynamic(size_t item)
 {
-	return path_item_type(item) >= PIT_STADYN;
+	return path_item_type(item) >= PIT_STADYN && path_item_type(item) < PIT_OPTIONAL;
 }
 
 constexpr bool is_path_item_dyn_size_pos(size_t item)
@@ -271,6 +274,10 @@ struct Resolver {
 			return prev(t...);
 		} else if constexpr (TYPE == PIT_DYN_KEY) {
 			return prev(t...);
+		} else if constexpr (TYPE == PIT_OPTIONAL) {
+			auto &&opt = prev(t...);
+			assert(opt.has_value());
+			return *opt;
 		} else {
 			static_assert(tnt::always_false_v<T...>);
 		}
@@ -431,6 +438,8 @@ auto read_item(BUF& buf, ITEM& item)
 			item.resize(val);
 	} else if constexpr (std::is_enum_v<ITEM>) {
 		item = static_cast<ITEM>(val);
+	} else if constexpr (tnt::is_optional_v<ITEM> && FAMILY == compact::MP_NIL) {
+		item.reset();
 	} else {
 		item = val;
 	}
@@ -776,6 +785,8 @@ bool decode_next(BUF& buf, T... t)
 			return decode_impl<SKIP_PATH>(buf, t...);
 		} else if constexpr (static_done) {
 			return decode_next<POP_PATH>(buf, t...);
+		} else if constexpr (LAST_TYPE == PIT_OPTIONAL) {
+			return decode_next<POP_PATH>(buf, t...);
 		} else if constexpr (!is_path_item_dynamic(LAST)) {
 			return decode_impl<NEXT_PATH>(buf, t...);
 		} else if (is_dyn_done) {
@@ -1053,16 +1064,41 @@ bool jump_read_key(BUF& buf, T... t)
 
 template <compact::Family FAMILY, size_t SUBRULE,
 	  class PATH, class BUF, class... T>
+bool jump_read_optional(BUF& buf, T... t)
+{
+	auto&& dst = unwrap(path_resolve(PATH{}, t...));
+	using dst_t = std::remove_reference_t<decltype(dst)>;
+	static_assert(tnt::is_optional_v<dst_t>);
+	if constexpr (FAMILY == compact::MP_NIL) {
+		[[maybe_unused]] auto val = read_value<FAMILY, SUBRULE>(buf);
+		dst.reset();
+		return decode_next<PATH>(buf, t...);
+	} else {
+		if (!dst.has_value())
+			dst.emplace();
+		using NEXT_PATH = path_push_t<PATH, PIT_OPTIONAL>;
+		return jump_read<FAMILY, SUBRULE, NEXT_PATH>(buf, t...);
+	}
+}
+
+template <compact::Family FAMILY, size_t SUBRULE,
+	  class PATH, class BUF, class... T>
 bool jump_common(BUF& buf, T... t)
 {
-	if constexpr (path_item_type(PATH::last()) == PIT_DYN_ADD)
-		return jump_add<FAMILY, SUBRULE, PATH>(buf, t...);
-	else if constexpr (path_item_type(PATH::last()) == PIT_DYN_SKIP)
+	if constexpr (path_item_type(PATH::last()) == PIT_DYN_SKIP) {
 		return jump_skip<FAMILY, SUBRULE, PATH>(buf, t...);
-	else if constexpr (path_item_type(PATH::last()) == PIT_DYN_KEY)
-		return jump_read_key<FAMILY, SUBRULE, PATH>(buf, t...);
-	else
-		return jump_read<FAMILY, SUBRULE, PATH>(buf, t...);
+	} else {
+		auto&& dst = unwrap(path_resolve(PATH{}, t...));
+		using dst_t = std::remove_reference_t<decltype(dst)>;
+		if constexpr (tnt::is_optional_v<dst_t>)
+			return jump_read_optional<FAMILY, SUBRULE, PATH>(buf, t...);
+		else if constexpr (path_item_type(PATH::last()) == PIT_DYN_ADD)
+			return jump_add<FAMILY, SUBRULE, PATH>(buf, t...);
+		else if constexpr (path_item_type(PATH::last()) == PIT_DYN_KEY)
+			return jump_read_key<FAMILY, SUBRULE, PATH>(buf, t...);
+		else
+			return jump_read<FAMILY, SUBRULE, PATH>(buf, t...);
+	}
 }
 
 template <class BUF, class... T>

@@ -34,6 +34,7 @@
 #include <set>
 #include <map>
 #include <vector>
+#include <optional>
 
 #include "Utils/Helpers.hpp"
 #include "Utils/RefVector.hpp"
@@ -1245,6 +1246,198 @@ test_object_codec()
 	fail_unless(itr == buf.end());
 }
 
+static void
+test_optional()
+{
+	TEST_INIT(0);
+
+	using Buf_t = tnt::Buffer<16 * 1024>;
+	Buf_t buf;
+	bool ok;
+
+	TEST_CASE("number");
+	mpp::encode(buf, 100, nullptr);
+
+	auto run = buf.begin<true>();
+	std::optional<int> opt_num;
+	ok = mpp::decode(run, opt_num);
+	fail_unless(ok);
+	fail_unless(opt_num.has_value());
+	fail_unless(opt_num.value() == 100);
+
+	ok = mpp::decode(run, opt_num);
+	fail_unless(ok);
+	fail_unless(!opt_num.has_value());
+
+	buf.flush();
+
+	TEST_CASE("containers with numbers");
+	int null_idx = 4;
+	mpp::encode(buf, mpp::as_arr(std::forward_as_tuple(0, 1, 2, 3, nullptr, 5)));
+	mpp::encode(buf, nullptr);
+	std::vector<std::optional<int>> opt_num_arr;
+	std::set<std::optional<int>> opt_num_set;
+	std::optional<std::vector<std::optional<int>>> opt_num_opt_arr;
+	std::optional<std::set<std::optional<int>>> opt_num_opt_set;
+
+	run = buf.begin<true>();
+	ok = mpp::decode(run, opt_num_arr);
+	fail_unless(ok);
+	fail_unless(opt_num_arr.size() == 6);
+	for (int i = 0; i < 6; i++) {
+		if (i == null_idx) {
+			fail_unless(!opt_num_arr[i].has_value());
+			continue;
+		}
+		fail_unless(opt_num_arr[i].has_value());
+		fail_unless(opt_num_arr[i].value() == i);
+	}
+
+	run = buf.begin<true>();
+	ok = mpp::decode(run, opt_num_set);
+	fail_unless(ok);
+	fail_unless(opt_num_set.size() == 6);
+	for (int i = 0; i < 6; i++) {
+		if (i == null_idx) {
+			fail_unless(opt_num_set.count(i) == 0);
+			fail_unless(opt_num_set.count(std::nullopt) == 1);
+			continue;
+		}
+		fail_unless(opt_num_set.count(i) > 0);
+	}
+
+	run = buf.begin<true>();
+	ok = mpp::decode(run, opt_num_opt_arr);
+	fail_unless(ok);
+	fail_unless(opt_num_opt_arr.has_value());
+	fail_unless(opt_num_opt_arr->size() == 6);
+	for (int i = 0; i < 6; i++) {
+		if (i == null_idx) {
+			fail_unless(!opt_num_opt_arr.value()[i].has_value());
+			continue;
+		}
+		fail_unless(opt_num_opt_arr.value()[i].has_value());
+		fail_unless(opt_num_opt_arr.value()[i].value() == i);
+	}
+	ok = mpp::decode(run, opt_num_opt_arr);
+	fail_unless(ok);
+	fail_unless(!opt_num_opt_arr.has_value());
+
+	run = buf.begin<true>();
+	ok = mpp::decode(run, opt_num_opt_set);
+	fail_unless(ok);
+	fail_unless(opt_num_opt_set.has_value());
+	fail_unless(opt_num_opt_set->size() == 6);
+	for (int i = 0; i < 6; i++) {
+		if (i == null_idx) {
+			fail_unless(opt_num_opt_set->count(i) == 0);
+			fail_unless(opt_num_opt_set->count(std::nullopt) == 1);
+			continue;
+		}
+		fail_unless(opt_num_opt_set->count(i) > 0);
+	}
+	ok = mpp::decode(run, opt_num_opt_set);
+	fail_unless(ok);
+	fail_unless(!opt_num_opt_set.has_value());
+
+	buf.flush();
+
+	TEST_CASE("objects");
+	Body wr;
+	wr.gen();
+	mpp::encode(buf, wr, nullptr);
+
+	run = buf.begin<true>();
+	std::optional<Body> rd;
+	ok = mpp::decode(run, rd);
+	fail_unless(ok);
+	fail_unless(rd.has_value());
+	fail_unless(rd.value() == wr);
+
+	ok = mpp::decode(run, rd);
+	fail_unless(ok);
+	fail_unless(!rd.has_value());
+
+	buf.flush();
+
+	TEST_CASE("containers with objects");
+	std::vector<Body> wrs;
+	for (size_t i = 0; i < 3; i++) {
+		wrs.emplace_back();
+		wrs[i].gen();
+		wrs[i].str += std::to_string(i);
+	}
+	null_idx = 1;
+	mpp::encode(buf, mpp::as_arr(std::forward_as_tuple(wrs[0], nullptr, wrs[2])));
+	mpp::encode(buf, nullptr);
+	std::vector<std::optional<Body>> opt_body_arr;
+	std::set<std::optional<Body>> opt_body_set;
+	std::optional<std::vector<std::optional<Body>>> opt_body_opt_arr;
+	std::optional<std::set<std::optional<Body>>> opt_body_opt_set;
+
+	run = buf.begin<true>();
+	ok = mpp::decode(run, opt_body_arr);
+	fail_unless(ok);
+	fail_unless(opt_body_arr.size() == 3);
+	for (int i = 0; i < 3; i++) {
+		if (i == null_idx) {
+			fail_unless(!opt_body_arr[i].has_value());
+			continue;
+		}
+		fail_unless(opt_body_arr[i].has_value());
+		fail_unless(opt_body_arr[i].value() == wrs[i]);
+	}
+
+	run = buf.begin<true>();
+	ok = mpp::decode(run, opt_body_set);
+	fail_unless(ok);
+	fail_unless(opt_body_set.size() == 3);
+	fail_unless(opt_body_set.count(std::nullopt) == 1);
+	for (int i = 0; i < 3; i++) {
+		if (i == null_idx) {
+			fail_unless(opt_body_set.count(wrs[i]) == 0);
+			continue;
+		}
+		fail_unless(opt_body_set.count(wrs[i]) > 0);
+	}
+
+	run = buf.begin<true>();
+	ok = mpp::decode(run, opt_body_opt_arr);
+	fail_unless(ok);
+	fail_unless(opt_body_opt_arr.has_value());
+	fail_unless(opt_body_opt_arr->size() == 3);
+	for (int i = 0; i < 3; i++) {
+		if (i == null_idx) {
+			fail_unless(!opt_body_opt_arr.value()[i].has_value());
+			continue;
+		}
+		fail_unless(opt_body_opt_arr.value()[i].has_value());
+		fail_unless(opt_body_opt_arr.value()[i].value() == wrs[i]);
+	}
+	ok = mpp::decode(run, opt_body_opt_arr);
+	fail_unless(ok);
+	fail_unless(!opt_body_opt_arr.has_value());
+
+	run = buf.begin<true>();
+	ok = mpp::decode(run, opt_body_opt_set);
+	fail_unless(ok);
+	fail_unless(opt_body_opt_set.has_value());
+	fail_unless(opt_body_opt_set->size() == 3);
+	fail_unless(opt_body_opt_set->count(std::nullopt) == 1);
+	for (int i = 0; i < 3; i++) {
+		if (i == null_idx) {
+			fail_unless(opt_body_opt_set->count(wrs[i]) == 0);
+			continue;
+		}
+		fail_unless(opt_body_opt_set->count(wrs[i]) > 0);
+	}
+	ok = mpp::decode(run, opt_body_opt_set);
+	fail_unless(ok);
+	fail_unless(!opt_body_opt_set.has_value());
+
+	buf.flush();
+}
+
 int main()
 {
 	test_under_ints();
@@ -1253,4 +1446,5 @@ int main()
 	test_basic();
 	test_class_rules();
 	test_object_codec();
+	test_optional();
 }
