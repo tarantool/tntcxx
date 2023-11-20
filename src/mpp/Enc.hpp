@@ -544,6 +544,12 @@ encode(CONT &cont, tnt::CStr<C...> prefix,
 	} if constexpr(mpp::has_enc_rule_v<T>) {
 		const auto& rule = mpp::get_enc_rule<T>();
 		return encode(cont, prefix, ais, subst(rule, t), more...);
+	} else if constexpr(tnt::is_optional_v<U>) {
+		static_assert(!is_wrapped_family_v<T> && !is_wrapped_raw_v<T>);
+		if (u.has_value())
+			return encode(cont, prefix, ais, u.value(), more...);
+		else
+			return encode(cont, prefix, ais, nullptr, more...);
 	} else if constexpr(is_wrapped_raw_v<T>) {
 		if constexpr(std::is_base_of_v<ChildrenTag, U>) {
 			using V = typename U::type;
