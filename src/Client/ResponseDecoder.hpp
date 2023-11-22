@@ -146,9 +146,14 @@ parseGreeting(std::string_view raw, Greeting &greeting) {
 	if (line1.substr(0, name.size()) != name)
 		return -1;
 	std::string_view version_etc = line1.substr(name.size());
+	version_etc = version_etc.substr(0, version_etc.find_first_of(' '));
+	char version[32];
+	if (version_etc.size() + 1 > sizeof(version))
+		return -1;
+	version[version_etc.copy(version, sizeof(version))] = '\0';
 	/* Parse a version string */
 	unsigned major, minor, patch;
-	if (sscanf(version_etc.data(), "%u.%u.%u", &major, &minor, &patch) != 3)
+	if (sscanf(version, "%u.%u.%u", &major, &minor, &patch) != 3)
 		return -1;
 	greeting.version_id = versionId(major, minor, patch);
 
