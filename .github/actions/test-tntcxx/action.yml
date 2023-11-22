@@ -1,0 +1,17 @@
+name: Test tntcxx
+description: Encapsulates tntcxx testing with different configurations
+inputs:
+  test-ssl:
+    description: 'Run SSL tests'
+    default: 'false'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Test tntcxx
+      run: >
+        cd build
+        
+        ctest -V --output-on-failure
+        ${{ inputs.test-ssl == 'false' && '-E ClientSSL.test' || '' }}
+      shell: bash

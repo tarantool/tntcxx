@@ -1,4 +1,4 @@
-name: testing
+name: Unit testing
 
 on:
   workflow_dispatch:
@@ -8,7 +8,8 @@ on:
     tags: [ "*" ]
 
 jobs:
-  ubuntu:
+  default:
+    uses: ./.github/workflows/reusable-testing.yml
     strategy:
       fail-fast: false
       matrix:
@@ -17,41 +18,9 @@ jobs:
           - ubuntu-22.04
           - macos-11
           - macos-12
-        mode:
+        build-type:
           - Debug
-          - Release
-        test-ssl:
-          - Disabled
-
-    runs-on: ${{ matrix.runs-on }}
-
-    name: ${{ matrix.runs-on }} (${{ matrix.mode }}, ${{ matrix.test-ssl }} ssl test)
-
-    steps:
-      - name: Clone the connector
-        uses: actions/checkout@v3
-
-      - name: Setup tarantool 2.11
-        if: startsWith(matrix.runs-on, 'ubuntu')
-        uses: tarantool/setup-tarantool@v1
-        with:
-          tarantool-version: '2.11'
-
-      - name: Setup stable tarantool from brew
-        if: startsWith(matrix.runs-on, 'macos')
-        run: brew install tarantool
-
-      - name: build
-        run: |
-          mkdir build
-          cd build
-          cmake -DCMAKE_BUILD_TYPE=${{ matrix.mode }} -DTNTCXX_BUILD_TESTING=ON -DTNTCXX_ENABLE_SSL=ON ..
-          make -j
-
-      - name: test without SSL
-        if: matrix.test-ssl == 'Disabled'
-        run: cd build && ctest --output-on-failure -E ClientSSL.test
-
-      - name: test
-        if: matrix.test-ssl == 'Enabled'
-        run: cd build && ctest --output-on-failure
+          - ReleaseWithDebInfo
+    with:
+      runs-on: ${{ matrix.runs-on }}
+      build-type: ${{ matrix.runs-on }}
