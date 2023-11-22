@@ -40,6 +40,10 @@ struct Object : tnt::SingleLink<Object>
 {
 	int m_Data;
 
+	Object() : m_Data(0)
+	{
+	}
+
 	Object(int id) : m_Data(id)
 	{
 	}
@@ -1028,6 +1032,7 @@ void test_massive()
 	std::vector<int> sReference;
 	const size_t ITER_COUNT = 100000;
 	const size_t SIZE_LIM = 10;
+	std::vector<Object> objects(ITER_COUNT);
 	for (size_t i = 0; i < ITER_COUNT; i++) {
 		bool sAdd = true;
 		if (sReference.size() == SIZE_LIM)
@@ -1037,20 +1042,20 @@ void test_massive()
 		bool sBegin = (rand() & 1) == 0;
 		if (sAdd) {
 			int sValue = rand();
-			Object *sObj = new Object(sValue);
+			objects[i].m_Data = sValue;
 			if (sBegin) {
-				list.insert(*sObj);
+				list.insert(objects[i]);
 				sReference.insert(sReference.begin(), sValue);
 			} else {
-				list.insert(*sObj, true);
+				list.insert(objects[i], true);
 				sReference.insert(sReference.end(), sValue);
 			}
 		} else {
 			if (sBegin) {
-				delete &list.front();
+				list.front().remove();
 				sReference.erase(sReference.begin());
 			} else {
-				delete &list.back();
+				list.back().remove();
 				sReference.pop_back();
 			}
 		}
