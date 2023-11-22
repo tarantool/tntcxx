@@ -4,6 +4,9 @@ inputs:
   build-type:
     description: 'Corresponds to CMAKE_BUILD_TYPE variable of CMake'
     required: true
+  enable-sanitizers:
+    description: 'Corresponds to TNTCXX_ENABLE_SANITIZERS option of CMake'
+    default: 'false'
 
 runs:
   using: "composite"
@@ -16,6 +19,7 @@ runs:
         -G "Unix Makefiles" \
         -DTNTCXX_BUILD_TESTING=ON \
         -DTNTCXX_ENABLE_SSL=ON \
-        -DCMAKE_BUILD_TYPE=${{ inputs.build-type }}
+        -DCMAKE_BUILD_TYPE=${{ inputs.build-type }} \
+        -DTNTCXX_ENABLE_SANITIZERS=${{ inputs.enable-sanitizers }}
         make -j
       shell: bash
