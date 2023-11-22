@@ -66,6 +66,8 @@ OPTION(TNTCXX_BUILD_TESTING
     ${TNTCXX_BUILD_TESTING_DEFAULT})
 
 IF (TNTCXX_BUILD_TESTING)
+    # Set the options passed to valgrind.
+    SET(MEMORYCHECK_COMMAND_OPTIONS "--error-exitcode=1")
     INCLUDE(CTest)
     CONFIGURE_FILE(./test/cfg.lua test_cfg.lua COPYONLY)
     CONFIGURE_FILE(./test/cfg_ssl.lua test_cfg_ssl.lua COPYONLY)

@@ -24,3 +24,16 @@ jobs:
     with:
       runs-on: ${{ matrix.runs-on }}
       build-type: ${{ matrix.runs-on }}
+
+  valgrind:
+    uses: ./.github/workflows/reusable-testing.yml
+    strategy:
+      fail-fast: false
+      matrix:
+        build-type:
+          - Debug
+          - ReleaseWithDebInfo
+    with:
+      runs-on: ubuntu-22.04
+      build-type: ${{ matrix.build-type }}
+      use-valgrind: true

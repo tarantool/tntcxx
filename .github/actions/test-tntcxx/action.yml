@@ -4,6 +4,9 @@ inputs:
   test-ssl:
     description: 'Run SSL tests'
     default: 'false'
+  use-valgrind:
+    description: 'Test with valgrind'
+    default: 'false'
 
 runs:
   using: "composite"
@@ -14,4 +17,5 @@ runs:
         
         ctest -V --output-on-failure
         ${{ inputs.test-ssl == 'false' && '-E ClientSSL.test' || '' }}
+        ${{ inputs.valgrind == 'true' && '-T memcheck' || '' }}
       shell: bash
