@@ -1,0 +1,21 @@
+name: Build tntcxx
+description: Encapsulates tntcxx building with different configurations
+inputs:
+  build-type:
+    description: 'Corresponds to CMAKE_BUILD_TYPE variable of CMake'
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Build tntcxx
+      run: |
+        mkdir build
+        cd build
+        cmake .. \
+        -G "Unix Makefiles" \
+        -DTNTCXX_BUILD_TESTING=ON \
+        -DTNTCXX_ENABLE_SSL=ON \
+        -DCMAKE_BUILD_TYPE=${{ inputs.build-type }}
+        make -j
+      shell: bash

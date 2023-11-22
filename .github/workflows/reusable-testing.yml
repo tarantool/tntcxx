@@ -1,0 +1,31 @@
+name: reusable testing
+
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        required: true
+        type: string
+      build-type:
+        required: true
+        type: string
+
+jobs:
+  testing:
+    runs-on: ${{ inputs.runs-on }}
+    steps:
+      - name: Clone the connector
+        uses: actions/checkout@v3
+
+      - name: Setup Tarantool
+        uses: ./.github/actions/setup-tarantool
+        with:
+          runs-on: ${{ inputs.runs-on }}
+
+      - name: Build tntcxx
+        uses: ./.github/actions/build-tntcxx
+        with:
+          build-type: ${{ inputs.build-type }}
+
+      - name: Test tntcxx
+        uses: ./.github/actions/test-tntcxx

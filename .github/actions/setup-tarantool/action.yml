@@ -1,0 +1,20 @@
+name: Setup Tarantool
+description: Encapsulates Tarantool setup on different platforms
+inputs:
+  runs-on:
+    description: 'Platform to setup Tarantool on'
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Tarantool 2.11
+      if: startsWith(inputs.runs-on, 'ubuntu')
+      uses: tarantool/setup-tarantool@v1
+      with:
+        tarantool-version: '2.11'
+
+    - name: Setup stable Tarantool version from brew
+      if: startsWith(inputs.runs-on, 'macos')
+      run: brew install tarantool
+      shell: bash
