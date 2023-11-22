@@ -82,6 +82,8 @@ constexpr auto detectFamily()
 		      "Can't decode to constant type");
 	if constexpr (is_wrapped_family_v<T>) {
 		return family_sequence<T::family>{};
+	} else if constexpr (has_dec_rule_v<U>) {
+		return detectFamily<decltype(get_dec_rule<U>())>();
 	} else if constexpr (std::is_same_v<U, std::nullptr_t>) {
 		return family_sequence<compact::MP_NIL>{};
 	} else if constexpr (std::is_same_v<U, bool>) {
@@ -853,7 +855,7 @@ constexpr enum path_item_type get_next_arr_item_type()
 template <class ARR, enum path_item_type TYPE>
 constexpr size_t get_next_arr_static_size()
 {
-	if constexpr (TYPE <= PIT_STADYN)
+	if constexpr (TYPE <= PIT_STADYN && TYPE != PIT_BAD)
 		return tnt::tuple_size_v<ARR>;
 	else
 		return 0;

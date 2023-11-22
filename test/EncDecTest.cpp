@@ -1109,6 +1109,11 @@ struct IntegerWrapper {
 		return i == that.i;
 	}
 
+	bool operator<(const IntegerWrapper& that) const
+	{
+		return i < that.i;
+	}
+
 	static constexpr auto mpp = &IntegerWrapper::i;
 };
 
@@ -1127,6 +1132,11 @@ struct Triplet {
 	bool operator==(const Triplet& that) const
 	{
 		return std::tie(a, b, c) == std::tie(that.a, that.b, that.c);
+	}
+
+	bool operator<(const Triplet& that) const
+	{
+		return std::tie(a, b, c) < std::tie(that.a, that.b, that.c);
 	}
 };
 
@@ -1150,6 +1160,11 @@ struct Error {
 	bool operator==(const Error& that) const
 	{
 		return std::tie(code, descr) == std::tie(that.code, that.descr);
+	}
+
+	bool operator<(const Error& that) const
+	{
+		return std::tie(code, descr) < std::tie(that.code, that.descr);
 	}
 
 	static constexpr auto mpp = std::make_tuple(
@@ -1181,6 +1196,12 @@ struct Body {
 		       std::tie(that.str, that.num, that.triplets, that.errors);
 	}
 
+	bool operator<(const Body& that) const
+	{
+		return std::tie(str, num, triplets, errors) <
+		       std::tie(that.str, that.num, that.triplets, that.errors);
+	}
+
 	static constexpr auto mpp = std::make_tuple(
 		std::make_pair(0, &Body::str),
 		std::make_pair(1, &Body::num),
@@ -1197,9 +1218,11 @@ test_object_codec()
 	Buf_t buf;
 
 	Body wr, rd;
+	std::set<Body> rds;
 	wr.gen();
 
 	mpp::encode(buf, wr);
+	mpp::encode(buf, std::forward_as_tuple(wr));
 
 	for (auto itr = buf.begin(); itr != buf.end(); ++itr) {
 		char c = itr.get<uint8_t>();
@@ -1214,8 +1237,11 @@ test_object_codec()
 
 	auto itr = buf.begin();
 	mpp::decode(itr, rd);
-
 	fail_unless(rd == wr);
+
+	mpp::decode(itr, rds);
+	fail_unless(rds.count(wr) > 0);
+
 	fail_unless(itr == buf.end());
 }
 
