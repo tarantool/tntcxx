@@ -74,6 +74,32 @@ IF (TNTCXX_BUILD_TESTING)
     CONFIGURE_FILE(./test/gen_ssl.sh test_gen_ssl.sh COPYONLY)
 ENDIF()
 
+OPTION(TNTCXX_ENABLE_SANITIZERS
+    "If ON, tntcxx will be instrumented with sanitizers."
+    OFF)
+
+IF (TNTCXX_ENABLE_SANITIZERS)
+    SET(SANITIZER_FLAGS "-fsanitize=address")
+    # FIXME(gh-62)
+    IF (NOT CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
+        # The leak sanitizer is not available in AppleClang, see
+        # google/sanitizers#1026 for details.
+        SET(SANITIZER_FLAGS ${SANITIZER_FLAGS} "-fsanitize=leak")
+    ENDIF()
+    IF (NOT CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        # The undefined behaviour sanitizer in GCC does not work with constexpr
+        # code (see https://gcc.gnu.org/bugzilla/show_bug.cgi?id=67762 for
+        # details).
+        SET(SANITIZER_FLAGS ${SANITIZER_FLAGS} "-fsanitize=undefined")
+    ENDIF()
+    # We do not use the memory sanitizer, since it requires instrumenting all
+    # dependencies, including libc and libc++, while providing only a subset of
+    # valgrind's functionality (see https://github.com/google/sanitizers/wiki/MemorySanitizer#using-instrumented-libraries
+    # for details).
+    ADD_COMPILE_OPTIONS(${SANITIZER_FLAGS})
+    ADD_LINK_OPTIONS(${SANITIZER_FLAGS})
+ENDIF()
+
 # Common function for building tests.
 # Arguments are NAME, TYPE, SOURCES, LIBRARIES, DEFINES.
 # TYPE should be one of:

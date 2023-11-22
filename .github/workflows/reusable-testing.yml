@@ -12,6 +12,9 @@ on:
       use-valgrind:
         default: false
         type: boolean
+      enable-sanitizers:
+        default: false
+        type: boolean
 
 jobs:
   testing:
@@ -33,6 +36,7 @@ jobs:
         uses: ./.github/actions/build-tntcxx
         with:
           build-type: ${{ inputs.build-type }}
+          enable-sanitizers: ${{ inputs.enable-sanitizers }}
 
       - name: Test tntcxx
         uses: ./.github/actions/test-tntcxx
