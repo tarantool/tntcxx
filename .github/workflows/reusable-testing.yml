@@ -9,6 +9,9 @@ on:
       build-type:
         required: true
         type: string
+      use-valgrind:
+        default: false
+        type: boolean
 
 jobs:
   testing:
@@ -22,6 +25,10 @@ jobs:
         with:
           runs-on: ${{ inputs.runs-on }}
 
+      - name: Setup valgrind
+        if: inputs.use-valgrind
+        run: sudo apt install -y valgrind
+
       - name: Build tntcxx
         uses: ./.github/actions/build-tntcxx
         with:
@@ -29,3 +36,5 @@ jobs:
 
       - name: Test tntcxx
         uses: ./.github/actions/test-tntcxx
+        with:
+          use-valgrind: ${{ inputs.use-valgrind }}
