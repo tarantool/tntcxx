@@ -1162,12 +1162,12 @@ void test_multilinik_round()
 		bool red_before = 0 != (r & 1);
 		bool green_before = 0 != (r & 2);
 		bool blue_before = 0 != (r & 4);
-		objects.emplace_back(id, near,
-				     red_before, green_before, blue_before);
 
 		expected_insert_near(expected_red, red_before, near.m_Data, id);
 		expected_insert_near(expected_green, green_before, near.m_Data, id);
 		expected_insert_near(expected_blue, blue_before, near.m_Data, id);
+
+		objects.emplace_back(id, near, red_before, green_before, blue_before);
 	};
 
 	auto insert_to_list = [&]() {
