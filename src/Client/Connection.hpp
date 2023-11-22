@@ -102,7 +102,8 @@ public:
 template<class BUFFER, class NetProvider>
 ConnectionImpl<BUFFER, NetProvider>::ConnectionImpl(Connector<BUFFER, NetProvider> &conn) :
 	connector(conn), inBuf(), outBuf(), enc(outBuf), dec(inBuf),
-	endDecoded(inBuf.begin()), refs(0)
+	endDecoded(inBuf.begin()), refs(0), is_greeting_received(false),
+	is_auth_required(false)
 {
 }
 
