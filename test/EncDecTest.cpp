@@ -1446,6 +1446,166 @@ test_optional()
 	buf.flush();
 }
 
+static void
+test_raw()
+{
+	TEST_INIT(0);
+	using Buf_t = tnt::Buffer<16 * 1024>;
+	Buf_t buf;
+	std::string msg("Hello, test!");
+
+	mpp::encode(buf, 10);
+
+	mpp::encode(buf, msg);
+
+	std::array<int, 3> add_arr = {1, 2, 3};
+	mpp::encode(buf, add_arr);
+
+	std::map<int, int> add_map = {{1, 2}, {3, 4}};
+	mpp::encode(buf, add_map);
+
+	using it_t = Buf_t::iterator_common<true>;
+	it_t run = buf.begin<true>();
+	
+	std::pair<it_t, it_t> to_wrap;
+	auto raw_decoders = std::make_tuple(
+		std::pair<it_t, it_t>(),
+		std::optional<std::pair<it_t, it_t>>(),
+		mpp::as_raw(to_wrap)
+	);
+
+	auto check_each_raw_decoder = [&](auto& begin, auto& end) {
+		auto &dec0 = std::get<0>(raw_decoders);
+		fail_if(dec0.first != begin);
+		fail_if(dec0.second != end);
+		auto &dec1 = std::get<1>(raw_decoders);
+		fail_if(!dec1.has_value());
+		fail_if(dec1->first != begin);
+		fail_if(dec1->second != end);
+		auto &dec2 = mpp::unwrap(std::get<2>(raw_decoders));
+		fail_if(dec2.first != begin);
+		fail_if(dec2.second != end);
+	};
+	
+	auto check_raw_decoders = [&](auto& begin, auto& end) {
+		std::apply([&](auto&... decs){(
+			...,
+			[&](auto& dec) {
+				auto it = begin;
+				bool ok = mpp::decode(it, dec);
+				fail_if(!ok);
+				fail_if(it != end);
+			}(decs));
+		}, raw_decoders);
+		check_each_raw_decoder(begin, end);
+	};
+
+	TEST_CASE("decode num");
+	auto begin = run;
+	int num;
+	mpp::decode(run, num);
+	check_raw_decoders(begin, run);
+
+	TEST_CASE("decode string");
+	begin = run;
+	std::string str;
+	mpp::decode(run, str);
+	fail_if(str != msg);
+	check_raw_decoders(begin, run);
+
+	auto svp = run;
+	TEST_CASE("decode the whole array");
+	begin = run;
+	std::array<int, 3> arr;
+	mpp::decode(run, arr);
+	fail_if(arr != add_arr);
+	check_raw_decoders(begin, run);
+	const auto arr_end = run;
+	TEST_CASE("decode the first element of array");
+	run = svp;
+	begin = run;	
+	mpp::decode(run, mpp::as_arr(std::forward_as_tuple(num)));
+	fail_if(num != arr[0]);
+	fail_if(run != arr_end);
+	std::apply([&](auto&... decs){(
+		...,
+		[&](auto& dec) {
+			auto it = begin;
+			bool ok = mpp::decode(it,
+				mpp::as_arr(std::forward_as_tuple(dec)));
+			fail_if(!ok);
+			fail_if(it != run);
+		}(decs));
+	}, raw_decoders);
+	// Array is small - its header occupies one byte.
+	auto elem_begin = begin + 1;
+	auto elem_end = elem_begin;
+	mpp::decode(elem_end, num);
+	check_each_raw_decoder(elem_begin, elem_end);		
+	TEST_CASE("decode the array key by key");
+	run = svp;
+	// Array is small - its header occupies one byte.
+	run.read({1});
+	for (size_t i = 0; i < std::size(arr); i++) {
+		int val = 0;
+		begin = run;
+		mpp::decode(run, val);
+		fail_if(val != static_cast<int>(i) + 1);
+		check_raw_decoders(begin, run);
+	}
+
+	TEST_CASE("decode the whole map");
+	svp = run;
+	begin = run;
+	int v1 = 0, v3 = 0;
+	mpp::decode(run, mpp::as_map(std::forward_as_tuple(1, v1, 3, v3)));
+	fail_if(v1 != 2);
+	fail_if(v3 != 4);
+	check_raw_decoders(begin, run);
+	const auto map_end = run;
+	TEST_CASE("decode one value from map");
+	run = svp;
+	begin = run;	
+	mpp::decode(run, mpp::as_map(std::forward_as_tuple(1, num)));
+	fail_if(run != map_end);
+	fail_if(num != 2);
+	std::apply([&](auto&... decs){(
+		...,
+		[&](auto& dec) {
+			auto it = begin;
+			bool ok = mpp::decode(it,
+				mpp::as_map(std::forward_as_tuple(1, dec)));
+			fail_if(!ok);
+			fail_if(it != run);
+		}(decs));
+	}, raw_decoders);
+	// Map is small - its header occupies one byte.
+	elem_begin = begin + 1;
+	// Skip key.
+	mpp::decode(elem_begin, num);
+	elem_end = elem_begin;
+	// Skip value.
+	mpp::decode(elem_end, num);
+	check_each_raw_decoder(elem_begin, elem_end);		
+	TEST_CASE("decode the map key by key");
+	run = svp;
+	// Map is small - its header occupies one byte.
+	run.read({1});
+	for (size_t i = 0; i < std::size(add_map); i++) {
+		begin = run;
+		int key = 0;
+		mpp::decode(run, key);
+		fail_if(key != 1 && key != 3);
+		check_raw_decoders(begin, run);
+
+		begin = run;
+		int value = 0;
+		mpp::decode(run, value);
+		fail_if(value - key != 1);
+		check_raw_decoders(begin, run);
+	}
+}
+
 int main()
 {
 	test_under_ints();
@@ -1455,4 +1615,5 @@ int main()
 	test_class_rules();
 	test_object_codec();
 	test_optional();
+	test_raw();
 }
