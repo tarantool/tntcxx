@@ -582,6 +582,24 @@ test_tuple_pair_traits()
 	static_assert(!tnt::is_pairish_v<Test>);
 	static_assert(!tnt::is_pairish_v<const_int>);
 
+	static_assert(tnt::is_pairish_of_v<std::pair<int, bool>, int, bool>);
+	static_assert(!tnt::is_pairish_of_v<std::pair<int, bool>, bool, int>);
+	static_assert(!tnt::is_pairish_of_v<std::pair<int, bool>, int, char>);
+	static_assert(!tnt::is_pairish_of_v<std::pair<int, bool>, char, bool>);
+	static_assert(tnt::is_pairish_of_v<const volatile std::pair<int, int>, int, int>);
+	static_assert(tnt::is_pairish_of_v<std::pair<int&, float&&>, int&, float&&>);
+	static_assert(!tnt::is_pairish_of_v<const std::pair<int, int>&, int, int>);
+	static_assert(tnt::is_pairish_of_v<CustomPair, int, double>);
+	static_assert(tnt::is_pairish_of_v<const CustomPair, int, double>);
+	static_assert(!tnt::is_pairish_of_v<const CustomPair&, int, double>);
+
+	static_assert(!tnt::is_pairish_of_v<TupleClass, int, float>);
+	static_assert(!tnt::is_pairish_of_v<std::tuple<int, int>, int, int>);
+	static_assert(!tnt::is_pairish_of_v<Test, int, int>);
+	static_assert(!tnt::is_pairish_of_v<int, int, int>);
+	static_assert(!tnt::is_pairish_of_v<E, int, int>);
+	static_assert(!tnt::is_pairish_of_v<const_int, int, int>);
+
 	static_assert(tnt::is_tuplish_of_pairish_v<std::tuple<>>);
 	static_assert(!tnt::is_tuplish_of_pairish_v<std::tuple<int>>);
 	static_assert(tnt::is_tuplish_of_pairish_v<std::tuple<std::pair<int, int>>>);

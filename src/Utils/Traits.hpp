@@ -58,6 +58,7 @@
  * tuple_iseq
  * is_tuplish_v (standard (tuple, array, pair) + bounded array)
  * is_pairish_v
+ * is_pairish_of_v
  * is_tuplish_of_pairish_v
  * is_variant_v
  * is_optional_v
@@ -488,6 +489,24 @@ struct is_pairish_h<T, std::void_t<
 
 template <class T>
 constexpr bool is_pairish_v = details::is_pairish_h<std::remove_cv_t<T>>::value;
+
+namespace details {
+template <class T, class V1, class V2, class _ = void>
+struct is_pairish_of_h : std::false_type {};
+
+template <class T, class V1, class V2>
+struct is_pairish_of_h<T, V1, V2, std::void_t<
+	std::enable_if_t<is_pairish_v<T>, void>,
+	std::enable_if_t<std::is_same_v<std::remove_cv_t<decltype(std::declval<T&>().first)>, V1>, void>,
+	std::enable_if_t<std::is_same_v<std::remove_cv_t<decltype(std::declval<T&>().second)>, V2>, void>>>
+: std::true_type {};
+} //namespace details {
+
+template <class T, class V1, class V2>
+constexpr bool is_pairish_of_v = details::is_pairish_of_h<
+	std::remove_cv_t<T>,
+	std::remove_cv_t<V1>,
+	std::remove_cv_t<V2>>::value;
 
 /**
  * Check whether the type is compatible with std::tuple (see is_tuplish_v) and
