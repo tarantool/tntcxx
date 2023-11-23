@@ -57,6 +57,18 @@ constexpr bool is_any_putable_v =
 	tnt::is_emplacable_v<T> || tnt::is_back_emplacable_v<T> ||
 	tnt::is_back_pushable_v<T> || tnt::is_insertable_v<T>;
 
+/**
+ * If it is true, the object of type T will not be decoded - raw data will
+ * be saved to it.
+ * 
+ * Now it supports only a pair of iterators (probably, wrapped with
+ * mpp::as_raw). The check implicilty implies that BUF is an iterator, not
+ * buffer - it would be strange to pass a pair of buffer to decoder.
+ */
+template <class T, class BUF>
+constexpr bool is_raw_decoded_v =
+	is_wrapped_raw_v<T> || tnt::is_pairish_of_v<unwrap_t<T>, BUF, BUF>;
+
 template <class T, class U>
 void
 put_to_putable(T& t, U&& u)
@@ -74,18 +86,34 @@ put_to_putable(T& t, U&& u)
 	}
 }
 
+template <class T, size_t... I>
+constexpr auto getFamiliesByRules(tnt::iseq<I...>)
+{
+	return family_sequence<tnt::tuple_element_t<I, T>::family...>{};
+}
+
 template <class T>
+constexpr auto getFamiliesByRules()
+{
+	return getFamiliesByRules<T>(tnt::tuple_iseq<T>{});
+}
+
+template <class BUF, class T>
 constexpr auto detectFamily()
 {
 	using U = unwrap_t<T>;
 	static_assert(!std::is_const_v<U> || tnt::is_tuplish_v<U>,
 		      "Can't decode to constant type");
-	if constexpr (is_wrapped_family_v<T>) {
+	if constexpr (is_raw_decoded_v<T, BUF>) {
+		static_assert(!is_wrapped_family_v<T>);
+		return getFamiliesByRules<all_rules_t>();
+	} else if constexpr (is_wrapped_family_v<T>) {
 		return family_sequence<T::family>{};
 	} else if constexpr (has_dec_rule_v<U>) {
-		return detectFamily<decltype(get_dec_rule<U>())>();
+		return detectFamily<BUF, decltype(get_dec_rule<U>())>();
 	} else if constexpr (tnt::is_optional_v<U>) {
-		return family_sequence_populate<compact::MP_NIL>(detectFamily<tnt::value_type_t<U>>());
+		return family_sequence_populate<compact::MP_NIL>(
+			detectFamily<BUF, tnt::value_type_t<U>>());
 	} else if constexpr (std::is_same_v<U, std::nullptr_t>) {
 		return family_sequence<compact::MP_NIL>{};
 	} else if constexpr (std::is_same_v<U, bool>) {
@@ -117,31 +145,19 @@ constexpr auto detectFamily()
 	}
 }
 
-template <class T, size_t... I>
-constexpr auto getFamiliesByRules(tnt::iseq<I...>)
-{
-	return family_sequence<tnt::tuple_element_t<I, T>::family...>{};
-}
-
-template <class T>
-constexpr auto getFamiliesByRules()
-{
-	return getFamiliesByRules<T>(tnt::tuple_iseq<T>{});
-}
-
 template <compact::Family... FAMILY>
 constexpr bool hasChildren(family_sequence<FAMILY...>)
 {
 	return (rule_by_family_t<FAMILY>::has_children || ...);
 }
 
-template <class T>
+template <class BUF, class T>
 constexpr auto hasChildren()
 {
 	if constexpr (std::is_same_v<void, T>)
 		return false;
 	else
-		return hasChildren(detectFamily<T>());
+		return hasChildren(detectFamily<BUF, T>());
 }
 
 enum path_item_type {
@@ -157,6 +173,7 @@ enum path_item_type {
 	PIT_DYN_KEY,
 	PIT_DYN_SKIP,
 	PIT_OPTIONAL,
+	PIT_RAW,
 };
 
 constexpr size_t PATH_ITEM_MULT = 1000000;
@@ -670,9 +687,9 @@ struct JumpsBuilder {
 							std::declval<T>()...));
 			using DST = std::remove_reference_t<R>;
 			if constexpr (path_item_type(LAST) == PIT_DYN_ADD) {
-				return detectFamily<tnt::value_type_t<DST>>();
+				return detectFamily<BUF, tnt::value_type_t<DST>>();
 			} else {
-				return detectFamily<DST>();
+				return detectFamily<BUF, DST>();
 			}
 		}
 	}
@@ -689,13 +706,66 @@ struct JumpsBuilder {
 };
 
 template <class PATH, class BUF, class... T>
+bool decode_impl(BUF& buf, T... t);
+
+/**
+ * Bulids a jump table and jumps by a current byte in the buffer.
+ */
+template <class PATH, class BUF, class... T>
 bool
-decode_impl(BUF& buf, T... t)
+decode_jump(BUF& buf, T... t)
 {
 	static_assert(path_item_type(PATH::last()) != PIT_BAD);
 	static constexpr auto jumps = JumpsBuilder<PATH, BUF, T...>::build();
 	uint8_t tag = buf.template get<uint8_t>();
 	return jumps.data[tag](buf, t...);
+}
+
+/**
+ * Saves an iterator to the beginning of object and modifies path to rewind
+ * buf to the end of current object and save an iterator to it.
+ */
+template <class PATH, class BUF, class... T>
+bool
+decode_raw(BUF& buf, T... t)
+{
+	auto&& dst = unwrap(path_resolve(PATH{}, t...));
+	using dst_t = std::remove_reference_t<decltype(dst)>;
+	if constexpr (tnt::is_pairish_of_v<dst_t, BUF, BUF>)
+		dst.first = buf;
+	else
+		static_assert(tnt::always_false_v<dst_t>);
+	/*
+	 * Let's populate path with PIT_RAW to save the second
+	 * iterator when it will be popped and with PIT_DYN_SKIP
+	 * to actually skip the current object.
+	 */
+	using RAW_PATH = path_push_t<PATH, PIT_RAW>;
+	using RAW_SKIP_PATH = path_push_t<RAW_PATH, PIT_DYN_SKIP>;
+	return decode_impl<RAW_SKIP_PATH>(buf, t..., size_t(1));
+}
+
+/**
+ * A central function of the decoder.
+ * The decoding of each object starts from here.
+ */
+template <class PATH, class BUF, class... T>
+bool
+decode_impl(BUF& buf, T... t)
+{
+	static_assert(path_item_type(PATH::last()) != PIT_BAD);
+	if constexpr (path_item_type(PATH::last()) != PIT_DYN_SKIP &&
+		      path_item_type(PATH::last()) != PIT_RAW) {
+		auto&& wrapped_dst = path_resolve(PATH{}, t...);
+		using wrapped_dst_t = std::remove_reference_t<decltype(wrapped_dst)>;
+		if constexpr (is_raw_decoded_v<wrapped_dst_t, BUF>) {
+			return decode_raw<PATH>(buf, t...);
+		} else {
+			return decode_jump<PATH>(buf, t...);
+		}
+	} else {
+		return decode_jump<PATH>(buf, t...);
+	}
 }
 
 template <class BUF, class... T>
@@ -727,7 +797,20 @@ bool decode_next(BUF& buf, T... t)
 {
 	if constexpr (PATH::size() == 0)
 		return true;
-	else {
+	else if constexpr (path_item_type(PATH::last()) == PIT_RAW) {
+		using POP_PATH = typename PATH::pop_back_t;
+		auto&& wrapped_dst = path_resolve(POP_PATH{}, t...);
+		using wrapped_dst_t = std::remove_reference_t<decltype(wrapped_dst)>;
+		static_assert(is_raw_decoded_v<wrapped_dst_t, BUF>);
+		auto&& dst = unwrap(wrapped_dst);
+		using dst_t = std::remove_reference_t<decltype(dst)>;
+		if constexpr (tnt::is_pairish_of_v<dst_t, BUF, BUF>) {
+			dst.second = buf;
+		} else {
+			static_assert(tnt::always_false_v<dst_t>);
+		}
+		return decode_next<POP_PATH>(buf, t...);
+	} else {
 		constexpr size_t LAST = PATH::last();
 		constexpr enum path_item_type LAST_TYPE = path_item_type(LAST);
 		constexpr bool has_static = is_path_item_static(LAST);
@@ -842,13 +925,13 @@ bool jump_add(BUF& buf, T... t)
 	return decode_next<PATH>(buf, t...);
 }
 
-template <class ARR>
+template <class BUF, class ARR>
 constexpr enum path_item_type get_next_arr_item_type()
 {
 	if constexpr (tnt::is_contiguous_v<ARR>) {
 		return PIT_DYN_POS;
 	} else if constexpr (is_any_putable_v<ARR> &&
-			     !hasChildren<tnt::value_type_t<ARR>>()) {
+			     !hasChildren<BUF, tnt::value_type_t<ARR>>()) {
 		return PIT_DYN_ADD;
 	} else if constexpr (is_any_putable_v<ARR> &&
 			     tnt::is_back_accessible_v<ARR>) {
@@ -884,7 +967,7 @@ bool jump_read(BUF& buf, T... t)
 		goto decode_next_label;
 
 	if constexpr (FAMILY == compact::MP_ARR) {
-		constexpr auto NT = get_next_arr_item_type<dst_t>();
+		constexpr auto NT = get_next_arr_item_type<BUF, dst_t>();
 		constexpr size_t NS = get_next_arr_static_size<dst_t, NT>();
 		using NEXT_PATH = path_push_t<PATH, NT, NS>;
 		if constexpr (NT == PIT_BAD) {
@@ -1077,7 +1160,7 @@ bool jump_read_optional(BUF& buf, T... t)
 		if (!dst.has_value())
 			dst.emplace();
 		using NEXT_PATH = path_push_t<PATH, PIT_OPTIONAL>;
-		return jump_read<FAMILY, SUBRULE, NEXT_PATH>(buf, t...);
+		return decode_impl<NEXT_PATH>(buf, t...);
 	}
 }
 
