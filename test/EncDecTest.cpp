@@ -1350,6 +1350,18 @@ test_optional()
 
 	buf.flush();
 
+	TEST_CASE("trivial object");
+	mpp::encode(buf, std::optional<IntegerWrapper>({64}));
+
+	run = buf.begin<true>();
+	std::optional<IntegerWrapper> opt_int_wrapper;
+	ok = mpp::decode(run, opt_int_wrapper);
+	fail_unless(ok);
+	fail_unless(opt_int_wrapper.has_value());
+	fail_unless(opt_int_wrapper.value().i == 64);
+
+	buf.flush();
+
 	TEST_CASE("objects");
 	Body wr;
 	wr.gen();

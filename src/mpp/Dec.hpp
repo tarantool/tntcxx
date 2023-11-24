@@ -102,9 +102,12 @@ template <class BUF, class T>
 constexpr auto detectFamily()
 {
 	using U = unwrap_t<T>;
-	static_assert(!std::is_const_v<U> || tnt::is_tuplish_v<U>,
+	static_assert(!std::is_const_v<U> || tnt::is_tuplish_v<U> ||
+		      std::is_member_pointer_v<U>,
 		      "Can't decode to constant type");
-	if constexpr (is_raw_decoded_v<T, BUF>) {
+	if constexpr (std::is_member_pointer_v<U>) {
+		return detectFamily<BUF, tnt::demember_t<U>>();
+	} else if constexpr (is_raw_decoded_v<T, BUF>) {
 		static_assert(!is_wrapped_family_v<T>);
 		return getFamiliesByRules<all_rules_t>();
 	} else if constexpr (is_wrapped_family_v<T>) {
