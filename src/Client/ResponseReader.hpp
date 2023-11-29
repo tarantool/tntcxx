@@ -113,15 +113,60 @@ struct Data {
 	static constexpr auto mpp = &Data<BUFFER>::iters;
 };
 
+struct SqlInfo
+{
+	uint32_t row_count = 0;
+	std::vector<uint32_t> autoincrement_ids;
+
+	static constexpr auto mpp = std::make_tuple(
+		std::make_pair(Iproto::SQL_INFO_ROW_COUNT, &SqlInfo::row_count),
+		std::make_pair(Iproto::SQL_INFO_AUTOINCREMENT_IDS, &SqlInfo::autoincrement_ids)
+	);
+};
+
+struct ColumnMap
+{
+	std::string field_name;
+	std::string field_type;
+	std::string collation;
+	std::optional<std::string> span;
+	bool is_nullable = false;
+	bool is_autoincrement = false;
+
+	static constexpr auto mpp = std::make_tuple(
+		std::make_pair(Iproto::FIELD_NAME, &ColumnMap::field_name),
+		std::make_pair(Iproto::FIELD_TYPE, &ColumnMap::field_type),
+		std::make_pair(Iproto::FIELD_COLL, &ColumnMap::collation),
+		std::make_pair(Iproto::FIELD_SPAN, &ColumnMap::span),
+		std::make_pair(Iproto::FIELD_IS_NULLABLE, &ColumnMap::is_nullable),
+		std::make_pair(Iproto::FIELD_IS_AUTOINCREMENT, &ColumnMap::is_autoincrement)
+	);
+};
+
+struct Metadata
+{
+	std::vector<ColumnMap> column_maps;
+
+	static constexpr auto mpp = &Metadata::column_maps;
+};
+
 template<class BUFFER>
 struct Body {
 	std::optional<std::vector<Error>> error_stack;
 	std::optional<Data<BUFFER>> data;
+	std::optional<SqlInfo> sql_info;
+	std::optional<Metadata> metadata;
+	std::optional<uint32_t> stmt_id;
+	std::optional<uint32_t> bind_count;
 
 	static constexpr auto mpp = std::make_tuple(
 		std::make_pair(Iproto::DATA, &Body<BUFFER>::data),
 		std::make_pair(Iproto::ERROR, std::make_tuple(std::make_pair(
-			Iproto::ERROR_STACK, &Body<BUFFER>::error_stack)))
+			Iproto::ERROR_STACK, &Body<BUFFER>::error_stack))),
+		std::make_pair(Iproto::SQL_INFO, &Body<BUFFER>::sql_info),
+		std::make_pair(Iproto::METADATA, &Body<BUFFER>::metadata),
+		std::make_pair(Iproto::STMT_ID, &Body<BUFFER>::stmt_id),
+		std::make_pair(Iproto::BIND_COUNT, &Body<BUFFER>::bind_count)
 	);
 };
 

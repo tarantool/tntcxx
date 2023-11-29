@@ -123,12 +123,15 @@ printResponse(Response<BUFFER> &response, Data data = std::vector<UserTuple>())
 			  " code=" << err.errcode << std::endl;
 		return;
 	}
-	assert(response.body.data != std::nullopt);
-	if (!response.body.data->decode(data)) {
-		std::cerr << "FAILED TO DECODE DATA" << std::endl;
-		abort();
+	if (response.body.data != std::nullopt) {
+		if (!response.body.data->decode(data)) {
+			std::cerr << "FAILED TO DECODE DATA" << std::endl;
+			abort();
+		}
+		printDatum(data);
+	} else {
+		std::cout << "Request has no data" << std::endl;
 	}
-	printDatum(data);
 }
 
 template<class BUFFER, class NetProvider>
@@ -656,6 +659,300 @@ single_conn_call(Connector<BUFFER, NetProvider> &client)
 	client.close(conn);
 }
 
+/** Statement processor that returns the string statement as-is. */
+class StmtProcessorNoop {
+public:
+	template<class BUFFER, class NetProvider>
+	static std::string&
+	process(Connector<BUFFER, NetProvider> &client,
+		Connection<Buf_t, NetProvider> &conn,
+		std::string &stmt)
+	{
+		(void)client;
+		(void)conn;
+		return stmt;
+	}
+};
+
+/** Statement processor that prepares statement and returns its id. */
+class StmtProcessorPrepare {
+public:
+	template<class BUFFER, class NetProvider>
+	static unsigned int
+	process(Connector<BUFFER, NetProvider> &client,
+		Connection<Buf_t, NetProvider> &conn,
+		std::string &stmt)
+	{
+		rid_t future = conn.prepare(stmt);
+	
+		client.wait(conn, future, WAIT_TIMEOUT);
+		fail_unless(conn.futureIsReady(future));
+		std::optional<Response<Buf_t>> response = conn.getResponse(future);
+		fail_unless(response != std::nullopt);
+		fail_if(response->body.error_stack != std::nullopt);
+		fail_unless(response->body.stmt_id != std::nullopt);
+		fail_unless(response->body.bind_count != std::nullopt);
+		return response->body.stmt_id.value();
+	}
+};
+
+/**
+ * Compares sql data of two given Body objects.
+ */
+template<class BUFFER>
+void
+check_sql_data(const Body<BUFFER> &got, const Body<BUFFER> &expected)
+{
+	/* Metadata. */
+	fail_unless(got.metadata.has_value() == expected.metadata.has_value());
+	if (got.metadata.has_value()) {
+		fail_unless(got.metadata->column_maps.size() == expected.metadata->column_maps.size());
+		for (size_t i = 0; i < got.metadata->column_maps.size(); i++) {
+			const ColumnMap &got_cm = got.metadata->column_maps[i];
+			const ColumnMap &expected_cm = expected.metadata->column_maps[i];
+			fail_unless(got_cm.field_name == expected_cm.field_name);
+			fail_unless(got_cm.field_type == expected_cm.field_type);
+			fail_unless(got_cm.collation == expected_cm.collation);
+			fail_unless(got_cm.span == expected_cm.span);
+			fail_unless(got_cm.is_nullable == expected_cm.is_nullable);
+			fail_unless(got_cm.is_autoincrement == expected_cm.is_autoincrement);
+		}
+	}
+
+	/* Statement id. */
+	fail_unless(got.stmt_id == expected.stmt_id);
+
+	/* Bind count. */
+	fail_unless(got.bind_count == expected.bind_count);
+
+	/* Sql info. */
+	fail_unless(got.sql_info.has_value() == expected.sql_info.has_value());
+	if (got.sql_info.has_value()) {
+		fail_unless(got.sql_info->row_count == expected.sql_info->row_count);
+		fail_unless(got.sql_info->autoincrement_ids ==
+			    expected.sql_info->autoincrement_ids);
+	}
+}
+
+/** Single connection, several executes. */
+template <class BUFFER, class NetProvider, class StmtProcessor>
+void
+single_conn_sql(Connector<BUFFER, NetProvider> &client)
+{
+	TEST_INIT(0);
+
+	using Data_t = std::vector<std::tuple<int, std::string, double>>;
+	Data_t data;
+	using Body_t = Body<BUFFER>;
+
+	Connection<Buf_t, NetProvider> conn(client);
+	int rc = test_connect(client, conn, localhost, port);
+	fail_unless(rc == 0);
+
+	TEST_CASE("CREATE TABLE");
+	std::string stmt_str = "CREATE TABLE IF NOT EXISTS tsql (column1 UNSIGNED PRIMARY KEY, "
+			       "column2 VARCHAR(50), column3 DOUBLE);";
+	auto stmt = StmtProcessor::process(client, conn, stmt_str);
+	rid_t create_table = conn.execute(stmt, std::make_tuple());
+	
+	client.wait(conn, create_table, WAIT_TIMEOUT);
+	fail_unless(conn.futureIsReady(create_table));
+	std::optional<Response<Buf_t>> response = conn.getResponse(create_table);
+	fail_unless(response != std::nullopt);
+	fail_unless(response->body.error_stack == std::nullopt);
+
+	Body_t sql_data_create_table;
+	sql_data_create_table.sql_info = SqlInfo{1, {}};
+	check_sql_data(response->body, sql_data_create_table);
+
+	TEST_CASE("Simple INSERT");
+	stmt_str = "INSERT INTO tsql VALUES (20, 'first', 3.2), (21, 'second', 5.4)";
+	stmt = StmtProcessor::process(client, conn, stmt_str);
+	rid_t insert = conn.execute(stmt, std::make_tuple());
+	
+	client.wait(conn, insert, WAIT_TIMEOUT);
+	fail_unless(conn.futureIsReady(insert));
+	response = conn.getResponse(insert);
+	fail_unless(response != std::nullopt);
+	fail_unless(response->body.error_stack == std::nullopt);
+
+	/* Check metadata. */
+	Body_t sql_data_insert;
+	sql_data_insert.sql_info = SqlInfo{2, {}};
+	check_sql_data(response->body, sql_data_insert);
+
+	TEST_CASE("INSERT with binding arguments");
+	std::tuple args = std::make_tuple(1, "Timur",   12.8,
+	                                  2, "Nikita",  -8.0,
+					  3, "Anastas", 345.298);
+	stmt_str = "INSERT INTO tsql VALUES (?, ?, ?), (?, ?, ?), (?, ?, ?);";
+	stmt = StmtProcessor::process(client, conn, stmt_str);
+	rid_t insert_args = conn.execute(stmt, args);
+	
+	client.wait(conn, insert_args, WAIT_TIMEOUT);
+	fail_unless(conn.futureIsReady(insert_args));
+	response = conn.getResponse(insert_args);
+	fail_unless(response != std::nullopt);
+
+	printResponse<BUFFER>(*response, Data_t());
+	Body_t sql_data_insert_bind;
+	sql_data_insert_bind.sql_info = SqlInfo{3, {}};
+	check_sql_data(response->body, sql_data_insert_bind);
+
+	TEST_CASE("SELECT");
+	stmt_str = "SELECT * FROM SEQSCAN tsql;";
+	stmt = StmtProcessor::process(client, conn, stmt_str);
+	rid_t select = conn.execute(stmt, std::make_tuple());
+	
+	client.wait(conn, select, WAIT_TIMEOUT);
+	fail_unless(conn.futureIsReady(select));
+	response = conn.getResponse(select);
+	fail_unless(response != std::nullopt);
+	fail_if(response->body.error_stack != std::nullopt);
+	fail_unless(response->body.data != std::nullopt);
+	fail_unless(response->body.data->decode(data));
+	fail_unless(data.size() == 5);
+	printResponse<BUFFER>(*response, Data_t());
+	Body_t sql_data_select;
+	std::vector<ColumnMap> sql_data_select_columns = {
+		{"COLUMN1", "unsigned", "", std::nullopt, false, false},
+		{"COLUMN2", "string", "", std::nullopt, false, false},
+		{"COLUMN3", "double", "", std::nullopt, false, false},
+	};
+	sql_data_select.metadata = Metadata{sql_data_select_columns};
+	check_sql_data(response->body, sql_data_select);
+
+	TEST_CASE("DROP TABLE");
+	stmt_str = "DROP TABLE IF EXISTS tsql;";
+	stmt = StmtProcessor::process(client, conn, stmt_str);
+	rid_t drop_table = conn.execute(stmt, std::make_tuple());
+	
+	client.wait(conn, drop_table, WAIT_TIMEOUT);
+	fail_unless(conn.futureIsReady(drop_table));
+	response = conn.getResponse(drop_table);
+	fail_unless(response != std::nullopt);
+	fail_unless(response->body.sql_info != std::nullopt);
+	fail_if(response->body.error_stack != std::nullopt);
+
+	TEST_CASE("ENABLE METADATA");
+	stmt_str = "UPDATE \"_session_settings\" SET \"value\" = true WHERE \"name\" = 'sql_full_metadata';";
+	stmt = StmtProcessor::process(client, conn, stmt_str);
+	rid_t enable_metadata = conn.execute(stmt, std::make_tuple());
+
+	client.wait(conn, enable_metadata, WAIT_TIMEOUT);
+	fail_unless(conn.futureIsReady(enable_metadata));
+	response = conn.getResponse(enable_metadata);
+	fail_unless(response != std::nullopt);
+	fail_unless(response->body.sql_info != std::nullopt);
+	fail_if(response->body.error_stack != std::nullopt);
+
+	TEST_CASE("CREATE TABLE with autoincrement and collation");
+	stmt_str = "CREATE TABLE IF NOT EXISTS tsql "
+		   "(column1 UNSIGNED PRIMARY KEY AUTOINCREMENT, "
+		   "column2 STRING COLLATE \"unicode\", column3 DOUBLE);";
+	stmt = StmtProcessor::process(client, conn, stmt_str);
+	create_table = conn.execute(stmt, std::make_tuple());
+	client.wait(conn, create_table, WAIT_TIMEOUT);
+	fail_unless(conn.futureIsReady(create_table));
+	response = conn.getResponse(create_table);
+	fail_unless(response != std::nullopt);
+	printResponse<BUFFER>(*response, Data_t());
+	fail_unless(response->body.error_stack == std::nullopt);
+
+	Body_t sql_data_create_table_autoinc;
+	sql_data_create_table_autoinc.sql_info = SqlInfo{1, {}};
+	check_sql_data(response->body, sql_data_create_table_autoinc);
+
+	TEST_CASE("INSERT with autoincrement");
+	std::tuple args2 = std::make_tuple(
+		nullptr, "Timur", 12.8,
+	        nullptr, "Nikita", -8.0,
+		/* Null for the 1st field is in statement. */
+		"Anastas", 345.298);
+	stmt_str = "INSERT INTO tsql VALUES (?, ?, ?), (?, ?, ?), (NULL, ?, ?);";
+	stmt = StmtProcessor::process(client, conn, stmt_str);
+	insert = conn.execute(stmt, args2);
+	client.wait(conn, insert, WAIT_TIMEOUT);
+	fail_unless(conn.futureIsReady(insert));
+	response = conn.getResponse(insert);
+	fail_unless(response != std::nullopt);
+	printResponse<BUFFER>(*response, Data_t());
+	fail_unless(response->body.error_stack == std::nullopt);
+
+	Body_t sql_data_insert_autoinc;
+	sql_data_insert_autoinc.sql_info = SqlInfo{3, {1, 2, 3}};
+	check_sql_data(response->body, sql_data_insert_autoinc);
+
+	TEST_CASE("SELECT from space with autoinc and collation");
+	stmt_str = "SELECT * FROM SEQSCAN tsql;";
+	stmt = StmtProcessor::process(client, conn, stmt_str);
+	select = conn.execute(stmt, std::make_tuple());
+	
+	client.wait(conn, select, WAIT_TIMEOUT);
+	fail_unless(conn.futureIsReady(select));
+	response = conn.getResponse(select);
+	fail_unless(response != std::nullopt);
+	fail_if(response->body.error_stack != std::nullopt);
+	fail_unless(response->body.data != std::nullopt);
+	fail_unless(response->body.data->decode(data));
+	fail_unless(data.size() == 3);
+	printResponse<BUFFER>(*response, Data_t());
+	Body_t sql_data_select_autoinc;
+	sql_data_select_columns = {
+		{"COLUMN1", "unsigned", "", std::nullopt, false, true},
+		{"COLUMN2", "string", "unicode", std::nullopt, true, false},
+		{"COLUMN3", "double", "", std::nullopt, true, false},
+	};
+	sql_data_select_autoinc.metadata = Metadata{sql_data_select_columns};
+	check_sql_data(response->body, sql_data_select_autoinc);
+
+	TEST_CASE("SELECT with span");
+	stmt_str = "SELECT 1 AS x;";
+	stmt = StmtProcessor::process(client, conn, stmt_str);
+	select = conn.execute(stmt, std::make_tuple());
+
+	client.wait(conn, select, WAIT_TIMEOUT);
+	fail_unless(conn.futureIsReady(select));
+	response = conn.getResponse(select);
+	fail_unless(response != std::nullopt);
+	fail_if(response->body.error_stack != std::nullopt);
+	fail_unless(response->body.data != std::nullopt);
+	fail_unless(response->body.data->decode(data));
+	fail_unless(data.size() == 1);
+	printResponse<BUFFER>(*response, Data_t());
+	Body_t sql_data_select_span;
+	sql_data_select_columns = {{"X", "integer", "", "1"}};
+	sql_data_select_span.metadata = Metadata{sql_data_select_columns};
+	check_sql_data(response->body, sql_data_select_span);
+
+	/* Finally, drop the table. */
+	stmt_str = "DROP TABLE IF EXISTS tsql;";
+	stmt = StmtProcessor::process(client, conn, stmt_str);
+	drop_table = conn.execute(stmt, std::make_tuple());
+	client.wait(conn, drop_table, WAIT_TIMEOUT);
+	fail_unless(conn.futureIsReady(drop_table));
+	response = conn.getResponse(drop_table);
+	fail_unless(response != std::nullopt);
+	fail_unless(response->body.sql_info != std::nullopt);
+	fail_unless(response->body.error_stack == std::nullopt);
+
+	TEST_CASE("DISABLE METADATA");
+	stmt_str = "UPDATE \"_session_settings\" SET \"value\" = false WHERE \"name\" = 'sql_full_metadata';";
+	stmt = StmtProcessor::process(client, conn, stmt_str);
+	rid_t disable_metadata = conn.execute(stmt, std::make_tuple());
+	
+	client.wait(conn, disable_metadata, WAIT_TIMEOUT);
+	fail_unless(conn.futureIsReady(disable_metadata));
+	response = conn.getResponse(disable_metadata);
+	fail_unless(response != std::nullopt);
+	fail_unless(response->body.sql_info != std::nullopt);
+	fail_if(response->body.error_stack != std::nullopt);
+
+	client.close(conn);
+}
+
+
+
 /** Single connection, call procedure with arguments */
 template <class BUFFER, class NetProvider>
 void
@@ -807,6 +1104,8 @@ int main()
 	single_conn_upsert<Buf_t, NetProvider>(client);
 	single_conn_select<Buf_t, NetProvider>(client);
 	single_conn_call<Buf_t, NetProvider>(client);
+	single_conn_sql<Buf_t, NetProvider, StmtProcessorNoop>(client);
+	single_conn_sql<Buf_t, NetProvider, StmtProcessorPrepare>(client);
 	replace_unix_socket(client);
 	test_auth(client);
 	/*
