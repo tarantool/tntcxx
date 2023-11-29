@@ -40,6 +40,18 @@ end
 
 box.schema.user.grant('guest', 'read,write', 'space', 'T', nil, {if_not_exists=true})
 box.schema.user.grant('guest', 'execute', 'universe', nil, {if_not_exists=true})
+-- Allow to create spaces
+box.schema.user.grant('guest', 'read,write', 'space', '_space', nil, {if_not_exists=true})
+box.schema.user.grant('guest', 'read,write', 'space', '_index', nil, {if_not_exists=true})
+box.schema.user.grant('guest', 'create', 'space', nil, {if_not_exists=true})
+-- Allow to create spaces with autoincrement
+box.schema.user.grant('guest', 'read,write', 'space', '_sequence', {if_not_exists=true})
+box.schema.user.grant('guest', 'read,write', 'space', '_sequence_data', {if_not_exists=true})
+box.schema.user.grant('guest', 'read,write', 'space', '_space_sequence', {if_not_exists=true})
+box.schema.user.grant('guest', 'drop,create', 'sequence', nil, {if_not_exists=true})
+
+sset = box.space._session_settings
+sset:update('sql_full_metadata', {{'=', 'value', true}})
 
 if box.space.S then box.space.S:drop() end
 secret = box.schema.space.create('S')

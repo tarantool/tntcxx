@@ -135,6 +135,12 @@ namespace Iproto {
 		TYPE_ERROR = 1 << 15
 	};
 
+	/** Keys of IPROTO_SQL_INFO map. */
+	enum SqlInfoKey {
+		SQL_INFO_ROW_COUNT = 0x00,
+		SQL_INFO_AUTOINCREMENT_IDS = 0x01
+	};
+
 	enum ErrorStack {
 		ERROR_STACK = 0x00
 	};
