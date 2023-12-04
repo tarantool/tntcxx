@@ -20,7 +20,7 @@ jobs:
           - macos-12
         build-type:
           - Debug
-          - ReleaseWithDebInfo
+          - RelWithDebInfo
     with:
       runs-on: ${{ matrix.runs-on }}
       build-type: ${{ matrix.runs-on }}
@@ -32,7 +32,7 @@ jobs:
       matrix:
         build-type:
           - Debug
-          - ReleaseWithDebInfo
+          - RelWithDebInfo
     with:
       runs-on: ubuntu-22.04
       build-type: ${{ matrix.build-type }}
@@ -48,7 +48,7 @@ jobs:
           - macos-12
         build-type:
           - Debug
-          - ReleaseWithDebInfo
+          - RelWithDebInfo
     with:
       runs-on: ${{ matrix.runs-on }}
       build-type: ${{ matrix.build-type }}
