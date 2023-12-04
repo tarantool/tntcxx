@@ -104,7 +104,10 @@ struct Data {
 	template<class T>
 	bool decode(T& tuples)
 	{
-		return mpp::decode(iters.first, tuples);
+		it_t itr = iters.first;
+		bool ok = mpp::decode(itr, tuples);
+		assert(itr == iters.second);
+		return ok;
 	}
 
 	static constexpr auto mpp = &Data<BUFFER>::iters;
