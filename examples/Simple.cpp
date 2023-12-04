@@ -65,6 +65,7 @@ decodeUserTuple(Data<BUFFER> &data)
 {
 	std::vector<UserTuple> results;
 	bool ok = data.decode(results);
+	(void)ok;
 	assert(ok);
 	return results;
 }
