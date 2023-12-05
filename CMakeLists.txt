@@ -228,3 +228,8 @@ TNTCXX_TEST(NAME SimpleExample TYPE other
             SOURCES examples/Simple.cpp
             LIBRARIES ${COMMON_LIB}
 )
+
+TNTCXX_TEST(NAME SqlExample TYPE other
+            SOURCES examples/Sql.cpp
+            LIBRARIES ${COMMON_LIB}
+)

@@ -9,3 +9,4 @@ SET(CMAKE_C_STANDARD 17)
 ADD_COMPILE_OPTIONS(-Wall -Wextra -Werror)
 
 ADD_EXECUTABLE(Simple Simple.cpp)
+ADD_EXECUTABLE(Sql Sql.cpp)
