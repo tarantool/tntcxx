@@ -243,3 +243,8 @@ TNTCXX_TEST(NAME SqlExample TYPE other
             SOURCES examples/Sql.cpp
             LIBRARIES ${COMMON_LIB}
 )
+
+TNTCXX_TEST(NAME SchemalessExample TYPE other
+            SOURCES examples/Schemaless.cpp
+            LIBRARIES ${COMMON_LIB}
+)
