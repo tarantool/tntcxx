@@ -1618,6 +1618,59 @@ test_raw()
 	}
 }
 
+void
+test_variant()
+{
+	TEST_INIT(0);
+
+	using Buf_t = tnt::Buffer<16 * 1024>;
+	Buf_t buf;
+	auto run = buf.begin<true>();
+
+	using variant_t = std::variant<bool, int, std::string, nullptr_t,
+		std::optional<double>, std::vector<int>, Body>;
+
+	variant_t wr;
+	variant_t rd;
+
+	wr.emplace<0>(true);
+	mpp::encode(buf, wr);
+	mpp::decode(run, rd);
+	fail_unless(wr == rd);
+
+	wr.emplace<1>(42);
+	mpp::encode(buf, wr);
+	mpp::decode(run, rd);
+	fail_unless(wr == rd);
+	
+	wr.emplace<2>("string variant");
+	mpp::encode(buf, wr);
+	mpp::decode(run, rd);
+	fail_unless(wr == rd);
+
+	wr.emplace<3>(nullptr);
+	mpp::encode(buf, wr);
+	mpp::decode(run, rd);
+	fail_unless(wr == rd);
+
+	wr.emplace<4>(64.0);
+	mpp::encode(buf, wr);
+	mpp::decode(run, rd);
+	fail_unless(wr == rd);
+
+	wr.emplace<5>({1, 2, 3, 4, 5, 6, 7, 8});
+	mpp::encode(buf, wr);
+	mpp::decode(run, rd);
+	fail_unless(wr == rd);
+
+	Body body;
+	body.gen();
+	wr.emplace<6>(body);
+	mpp::encode(buf, wr);
+	mpp::decode(run, rd);
+	fail_unless(wr == rd);
+}
+
 int main()
 {
 	test_under_ints();
@@ -1628,4 +1681,5 @@ int main()
 	test_object_codec();
 	test_optional();
 	test_raw();
+	test_variant();
 }

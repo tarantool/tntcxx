@@ -209,6 +209,54 @@ static constexpr auto family_sequence_populate(struct family_sequence<FAMILY...>
 	return family_sequence<NEW_FAMILY, FAMILY...>{};
 }
 
+template <compact::Family ...FAMILY_A, compact::Family ...FAMILY_B>
+inline constexpr auto
+operator+(family_sequence<FAMILY_A...>, family_sequence<FAMILY_B...>)
+{
+	return family_sequence<FAMILY_A..., FAMILY_B...>{};
+}
+
+namespace details {
+
+template <compact::Family NEEDLE, compact::Family HEAD, compact::Family ...TAIL>
+struct family_sequence_contains_impl_h {
+	static constexpr bool value =
+		family_sequence_contains_impl_h<NEEDLE, TAIL...>::value;
+};
+
+template <compact::Family NEEDLE, compact::Family LAST>
+struct family_sequence_contains_impl_h<NEEDLE, LAST> {
+	static constexpr bool value = false;
+};
+
+template <compact::Family NEEDLE, compact::Family ...TAIL>
+struct family_sequence_contains_impl_h<NEEDLE, NEEDLE, TAIL...> {
+	static constexpr bool value = true;
+};
+
+template <compact::Family NEEDLE>
+struct family_sequence_contains_impl_h<NEEDLE, NEEDLE> {
+	static constexpr bool value = true;
+};
+
+template <compact::Family NEEDLE, compact::Family ...HAYSTACK>
+struct family_sequence_contains_h {
+	static constexpr bool value =
+		family_sequence_contains_impl_h<NEEDLE, HAYSTACK...>::value;
+};
+
+template <compact::Family NEEDLE>
+struct family_sequence_contains_h<NEEDLE> {
+	static constexpr bool value = false;
+};
+
+} //namespace details
+
+template <compact::Family NEEDLE, compact::Family ...HAYSTACK>
+static constexpr bool family_sequence_contains(family_sequence<HAYSTACK...>) {
+	return details::family_sequence_contains_h<NEEDLE, HAYSTACK...>::value;
+}
+
 template <compact::Family ...FAMILY>
 std::ostream&
 operator<<(std::ostream& strm, family_sequence<FAMILY...>)

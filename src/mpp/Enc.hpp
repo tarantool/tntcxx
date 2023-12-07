@@ -550,6 +550,10 @@ encode(CONT &cont, tnt::CStr<C...> prefix,
 			return encode(cont, prefix, ais, u.value(), more...);
 		else
 			return encode(cont, prefix, ais, nullptr, more...);
+	} else if constexpr(tnt::is_variant_v<U>) {
+		bool rc = false;
+		tnt::visit([&](const auto &v){rc = encode(cont, prefix, ais, v, more...);}, u);
+		return rc;
 	} else if constexpr(is_wrapped_raw_v<T>) {
 		if constexpr(std::is_base_of_v<ChildrenTag, U>) {
 			using V = typename U::type;
