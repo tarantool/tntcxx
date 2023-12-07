@@ -36,7 +36,6 @@
 #include <random>
 
 #include "../src/mpp/mpp.hpp"
-#define MP_LIBRARY 1
 #include "msgpuck.h"
 
 enum random_variant {

@@ -72,6 +72,15 @@ IF (TNTCXX_BUILD_TESTING)
     CONFIGURE_FILE(./test/cfg.lua test_cfg.lua COPYONLY)
     CONFIGURE_FILE(./test/cfg_ssl.lua test_cfg_ssl.lua COPYONLY)
     CONFIGURE_FILE(./test/gen_ssl.sh test_gen_ssl.sh COPYONLY)
+
+    INCLUDE(FetchContent)
+    FETCHCONTENT_DECLARE(
+      msgpuck
+      GIT_REPOSITORY https://github.com/tarantool/msgpuck.git
+    )
+    # Retrieve the source directory to later get the header path.
+    FETCHCONTENT_GETPROPERTIES(msgpuck)
+    FETCHCONTENT_MAKEAVAILABLE(msgpuck)
 ENDIF()
 
 OPTION(TNTCXX_ENABLE_SANITIZERS
@@ -126,7 +135,8 @@ FUNCTION (TNTCXX_TEST)
     TARGET_SOURCES(${TNTCXX_TEST_NAME} PRIVATE ${TNTCXX_TEST_SOURCES})
     TARGET_LINK_LIBRARIES(${TNTCXX_TEST_NAME} PRIVATE ${TNTCXX_TEST_LIBRARIES})
     IF (${TNTCXX_TEST_TYPE} STREQUAL "gperftest")
-        TARGET_LINK_LIBRARIES(${TNTCXX_TEST_NAME} PRIVATE benchmark::benchmark)
+        TARGET_LINK_LIBRARIES(${TNTCXX_TEST_NAME} PRIVATE benchmark::benchmark msgpuck)
+        TARGET_INCLUDE_DIRECTORIES(${TNTCXX_TEST_NAME} PRIVATE ${msgpuck_SOURCE_DIR})
     ENDIF()
     TARGET_COMPILE_DEFINITIONS(${TNTCXX_TEST_NAME} PRIVATE ${TNTCXX_TEST_DEFINES})
     IF (${TNTCXX_TEST_TYPE} STREQUAL "ctest")
@@ -221,7 +231,7 @@ TNTCXX_TEST(NAME ClientPerf.test TYPE perftest
 )
 
 TNTCXX_TEST(NAME EncDecGPerf.test TYPE gperftest
-            SOURCES src/mpp/mpp.hpp test/EncDecGPerfTest.cpp test/hints.c
+            SOURCES src/mpp/mpp.hpp test/EncDecGPerfTest.cpp
 )
 
 TNTCXX_TEST(NAME SimpleExample TYPE other
