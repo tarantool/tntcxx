@@ -99,6 +99,22 @@ constexpr auto getFamiliesByRules()
 }
 
 template <class BUF, class T>
+constexpr auto detectFamily();
+
+template <class BUF, class T, size_t I = 0>
+constexpr auto detectFamilyVariant()
+{
+	static_assert(tnt::is_variant_v<T>);
+	if constexpr (I < std::variant_size_v<T>) {
+		constexpr auto curFamily =
+			detectFamily<BUF, std::variant_alternative_t<I, T>>();
+		return curFamily + detectFamilyVariant<BUF, T, I + 1>();
+	} else {
+		return family_sequence<>{};
+	}
+}
+
+template <class BUF, class T>
 constexpr auto detectFamily()
 {
 	using U = unwrap_t<T>;
@@ -117,6 +133,8 @@ constexpr auto detectFamily()
 	} else if constexpr (tnt::is_optional_v<U>) {
 		return family_sequence_populate<compact::MP_NIL>(
 			detectFamily<BUF, tnt::value_type_t<U>>());
+	} else if constexpr (tnt::is_variant_v<U>) {
+		return detectFamilyVariant<BUF, U>();
 	} else if constexpr (std::is_same_v<U, std::nullptr_t>) {
 		return family_sequence<compact::MP_NIL>{};
 	} else if constexpr (std::is_same_v<U, bool>) {
@@ -176,6 +194,7 @@ enum path_item_type {
 	PIT_DYN_KEY,
 	PIT_DYN_SKIP,
 	PIT_OPTIONAL,
+	PIT_VARIANT,
 	PIT_RAW,
 };
 
@@ -239,8 +258,11 @@ struct Resolver {
 	static constexpr size_t SIZE = path_item_static_size(PI);
 	static constexpr size_t USR_ARG_COUNT = path_item_static_size(P0);
 	static_assert(path_item_type(P0) == PIT_STATIC_L0);
-	static_assert((is_path_item_static(PI) && POS < SIZE) ||
-		      (!is_path_item_static(PI) && POS + SIZE == 0));
+	/* Is set if the current path item requires static POS and SIZE. */
+	static constexpr bool requires_pos_and_size =
+		is_path_item_static(PI) || path_item_type(PI) == PIT_VARIANT;
+	static_assert((requires_pos_and_size && POS < SIZE) ||
+		      (!requires_pos_and_size && POS + SIZE == 0));
 
 	template <size_t... J>
 	static constexpr size_t dyn_arg_pos(tnt::iseq<J...>)
@@ -298,6 +320,8 @@ struct Resolver {
 			auto &&opt = prev(t...);
 			assert(opt.has_value());
 			return *opt;
+		} else if constexpr (TYPE == PIT_VARIANT) {
+			return tnt::get<POS>(prev(t...));
 		} else {
 			static_assert(tnt::always_false_v<T...>);
 		}
@@ -871,7 +895,7 @@ bool decode_next(BUF& buf, T... t)
 			return decode_impl<SKIP_PATH>(buf, t...);
 		} else if constexpr (static_done) {
 			return decode_next<POP_PATH>(buf, t...);
-		} else if constexpr (LAST_TYPE == PIT_OPTIONAL) {
+		} else if constexpr (LAST_TYPE == PIT_OPTIONAL || LAST_TYPE == PIT_VARIANT) {
 			return decode_next<POP_PATH>(buf, t...);
 		} else if constexpr (!is_path_item_dynamic(LAST)) {
 			return decode_impl<NEXT_PATH>(buf, t...);
@@ -1167,6 +1191,37 @@ bool jump_read_optional(BUF& buf, T... t)
 	}
 }
 
+template <size_t I, compact::Family FAMILY, size_t SUBRULE,
+	  class PATH, class BUF, class... T>
+bool jump_read_variant_impl(BUF& buf, T... t)
+{
+	auto&& variant = unwrap(path_resolve(PATH{}, t...));
+	using variant_t = std::remove_reference_t<decltype(variant)>;
+	constexpr size_t size = std::variant_size_v<variant_t>;
+	static_assert(tnt::is_variant_v<variant_t>);
+	static_assert(I < size);
+	using curType = std::variant_alternative_t<I, variant_t>;
+	constexpr auto curFamilies = detectFamily<BUF, curType>();
+
+	if constexpr (family_sequence_contains<FAMILY>(curFamilies)) {
+		variant.template emplace<I>();
+		using NEXT_PATH = path_push_t<PATH, PIT_VARIANT, size, I>;
+		return decode_impl<NEXT_PATH>(buf, t...);
+	} else {
+		return jump_read_variant_impl<I + 1, FAMILY, SUBRULE, PATH>(buf, t...);
+	}
+}
+
+template <compact::Family FAMILY, size_t SUBRULE,
+	  class PATH, class BUF, class... T>
+bool jump_read_variant(BUF& buf, T... t)
+{
+	auto&& dst = unwrap(path_resolve(PATH{}, t...));
+	using dst_t = std::remove_reference_t<decltype(dst)>;
+	static_assert(tnt::is_variant_v<dst_t>);
+	return jump_read_variant_impl<0, FAMILY, SUBRULE, PATH>(buf, t...);
+}
+
 template <compact::Family FAMILY, size_t SUBRULE,
 	  class PATH, class BUF, class... T>
 bool jump_common(BUF& buf, T... t)
@@ -1178,6 +1233,8 @@ bool jump_common(BUF& buf, T... t)
 		using dst_t = std::remove_reference_t<decltype(dst)>;
 		if constexpr (tnt::is_optional_v<dst_t>)
 			return jump_read_optional<FAMILY, SUBRULE, PATH>(buf, t...);
+		else if constexpr (tnt::is_variant_v<dst_t>)
+			return jump_read_variant<FAMILY, SUBRULE, PATH>(buf, t...);
 		else if constexpr (path_item_type(PATH::last()) == PIT_DYN_ADD)
 			return jump_add<FAMILY, SUBRULE, PATH>(buf, t...);
 		else if constexpr (path_item_type(PATH::last()) == PIT_DYN_KEY)
