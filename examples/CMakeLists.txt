@@ -10,3 +10,4 @@ ADD_COMPILE_OPTIONS(-Wall -Wextra -Werror)
 
 ADD_EXECUTABLE(Simple Simple.cpp)
 ADD_EXECUTABLE(Sql Sql.cpp)
+ADD_EXECUTABLE(Schemaless Schemaless.cpp)
