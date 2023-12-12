@@ -87,6 +87,7 @@
 
 #include <cstddef>
 #include <iterator>
+#include <functional>
 #include <tuple>
 #include <type_traits>
 #include <variant>
@@ -553,6 +554,55 @@ template <class T>
 constexpr bool is_variant_v =
 	!std::is_reference_v<std::remove_cv_t<T>> &&
 	details::is_variant_h<std::remove_cv_t<T>>::value;
+
+namespace details {
+/**
+ * Class that have only one static method which invokes functor on I-th
+ * alternative of variant.
+ */
+template <size_t I>
+struct VisitJumpGenerator {
+	template<class F, class V>
+	static constexpr void jump(F&& f, V&& v)
+	{
+		std::invoke(f, tnt::get<I>(v));
+	}
+};
+
+/**
+ * Jump table for visitor - i-th element of data is a method that invokes
+ * functor on i-th alternative of variant.
+ */
+template <class F, class V>
+struct VisitJumps {
+	using jump_t = void (*)(F&&, V&&);
+	using variant_t = std::remove_reference_t<V>;
+	static constexpr size_t v_size = std::variant_size_v<variant_t>;
+	using data_t = std::array<jump_t, v_size>;
+	data_t data;
+
+	template <size_t... I>
+	static constexpr data_t
+	build_by_range(tnt::iseq<I...>)
+	{
+		return {(VisitJumpGenerator<I>::jump)...};
+	}
+
+	constexpr VisitJumps() :
+		data(build_by_range(tnt::make_iseq<v_size>{})) {}
+};
+};
+
+/**
+ * Invokes the functor on current alternative of variant.
+ */
+template <class F, class V>
+void visit(F &&f, V &&v)
+{
+	static constexpr details::VisitJumps<F, V> jumps;
+	auto visitor = jumps.data[v.index()];
+	visitor(std::forward<F>(f), std::forward<V>(v));
+}
 
 /**
  * Check whether the type looks like std::optional, at least it has

@@ -1075,6 +1075,75 @@ test_common()
 	static_assert(s5.get<3>() == 3);
 }
 
+void
+test_visit()
+{
+	using variant_t = std::variant<int, bool, std::string, double>;
+
+	variant_t variant = 10;
+	size_t test_count = 0;
+	tnt::visit([&](const auto &value) {
+		using value_t = std::remove_cv_t<std::remove_reference_t<decltype(value)>>;
+		if constexpr (std::is_same_v<value_t, int>) {
+			fail_unless(value == 10);
+			test_count++;
+		}
+	}, variant);
+
+	variant = true;
+	tnt::visit([&](const auto &value) {
+		using value_t = std::remove_cv_t<std::remove_reference_t<decltype(value)>>;
+		if constexpr (std::is_same_v<value_t, bool>) {
+			fail_unless(value);
+			test_count++;
+		}
+	}, variant);
+
+	variant = std::string("abc");
+	tnt::visit([&](const auto &value) {
+		using value_t = std::remove_cv_t<std::remove_reference_t<decltype(value)>>;
+		if constexpr (std::is_same_v<value_t, std::string>) {
+			fail_unless(value == "abc");
+			test_count++;
+		}
+	}, variant);
+
+	variant = 3.0;
+	tnt::visit([&](const auto &value) {
+		using value_t = std::remove_cv_t<std::remove_reference_t<decltype(value)>>;
+		if constexpr (std::is_same_v<value_t, double>) {
+			fail_unless(value == 3.0);
+			test_count++;
+		}
+	}, variant);
+
+	/* Check if all the tests were fired. */
+	fail_unless(test_count == 4);
+
+	test_count = 0;
+	CustomVariant custom_variant;
+	custom_variant.template emplace<0>(42);
+	tnt::visit([&](const auto &value) {
+		using value_t = std::remove_cv_t<std::remove_reference_t<decltype(value)>>;
+		if constexpr (std::is_same_v<value_t, int>) {
+			fail_unless(value == 42);
+			test_count++;
+		}
+	}, custom_variant);
+
+	custom_variant.template emplace<1>(66.6);
+	tnt::visit([&](const auto &value) {
+		using value_t = std::remove_cv_t<std::remove_reference_t<decltype(value)>>;
+		if constexpr (std::is_same_v<value_t, double>) {
+			fail_unless(value == 66.6);
+			test_count++;
+		}
+	}, custom_variant);
+
+	/* Check if all the tests were fired. */
+	fail_unless(test_count == 2);
+}
+
 int main()
 {
 	test_integer_traits();
@@ -1089,4 +1158,5 @@ int main()
 	test_rw_container_traits();
 	test_is_method_callable();
 	test_common();
+	test_visit();
 }
