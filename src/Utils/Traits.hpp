@@ -543,7 +543,9 @@ struct is_variant_h<T, std::void_t<
 	decltype(std::declval<T>().index()),
 	decltype(std::variant_size<T>::value),
 	typename std::variant_alternative<0, T>::type,
-	decltype(tnt::get<std::variant_alternative_t<0, T>>(std::declval<T>()))>>
+	decltype(tnt::get<0>(std::declval<T>())),
+	decltype(tnt::get<std::variant_alternative_t<0, T>>(std::declval<T>())),
+	decltype(std::declval<T>().template emplace<0>(tnt::get<0>(std::declval<T>())))>>
 : std::is_same<size_t, std::decay_t<decltype(std::declval<T>().index())>> {};
 } //namespace details {
 
