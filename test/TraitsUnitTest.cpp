@@ -643,6 +643,21 @@ struct CustomVariant {
 	size_t index() const { return m_index; }
 	template <class T> T& get() { return std::get<T&>(std::tie(i, d)); }
 	template <class T> const T& get() const { return std::get<const T&>(std::tie(i, d)); }
+	template <size_t I> auto& get() { return std::get<I>(std::tie(i, d)); }
+	template <size_t I> const auto& get() const { return std::get<I>(std::tie(i, d)); }
+	template <size_t I, class ...Args> void emplace(Args&&... args)
+	{
+		m_index = I;
+		auto &v = std::get<I>(std::tie(i, d));
+		using value_t = std::remove_cv_t<std::remove_reference_t<decltype(v)>>;
+		static_assert(std::is_constructible_v<value_t, Args...>);
+		emplace_impl(v, std::forward<Args>(args)...);
+	}
+private:
+	template <class T, class ...Args> void emplace_impl(T &v, Args&&... args)
+	{
+		v = T(std::forward<Args>(args)...);
+	}
 };
 
 namespace std
