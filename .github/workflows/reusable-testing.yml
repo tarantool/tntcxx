@@ -30,7 +30,7 @@ jobs:
 
       - name: Setup valgrind
         if: inputs.use-valgrind
-        run: sudo apt install -y valgrind
+        run: sudo apt update && sudo apt install -y valgrind
 
       - name: Build tntcxx
         uses: ./.github/actions/build-tntcxx
