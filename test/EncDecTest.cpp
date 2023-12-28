@@ -1351,7 +1351,7 @@ test_optional()
 	buf.flush();
 
 	TEST_CASE("trivial object");
-	mpp::encode(buf, std::optional<IntegerWrapper>({64}));
+	mpp::encode(buf, std::optional<IntegerWrapper>(IntegerWrapper {64}));
 
 	run = buf.begin<true>();
 	std::optional<IntegerWrapper> opt_int_wrapper;
