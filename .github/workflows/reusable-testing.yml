@@ -12,6 +12,12 @@ on:
       cxx-standard:
         required: false
         type: number
+      c-compiler:
+        default: gcc
+        type: string
+      cxx-compiler:
+        default: g++
+        type: string
       use-valgrind:
         default: false
         type: boolean
@@ -35,12 +41,22 @@ jobs:
         if: inputs.use-valgrind
         run: sudo apt update && sudo apt install -y valgrind
 
+      # https://github.com/actions/runner-images/issues/8659
+      - name: Remove incompatible libstdc++
+        if: ${{ inputs.runs-on == 'ubuntu-22.04' && inputs.cxx-compiler == 'clang++' && inputs.cxx-standard == 20 }}
+        run: |
+          sudo apt remove gcc-13 g++-13 libstdc++-13-dev gcc g++ libstdc++-dev
+          sudo apt autoremove
+          sudo apt install g++-12
+
       - name: Build tntcxx
         uses: ./.github/actions/build-tntcxx
         with:
           build-type: ${{ inputs.build-type }}
           enable-sanitizers: ${{ inputs.enable-sanitizers }}
           cxx-standard: ${{ inputs.cxx-standard }}
+          c-compiler: ${{ inputs.c-compiler }}
+          cxx-compiler: ${{ inputs.cxx-compiler }}
 
       - name: Test tntcxx
         uses: ./.github/actions/test-tntcxx

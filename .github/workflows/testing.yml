@@ -18,17 +18,28 @@ jobs:
           - ubuntu-22.04
           - macos-11
           - macos-12
+        compiler:
+          - {c: gcc, cxx: g++}
+          - {c: clang, cxx: clang++}
         build-type:
           - Debug
           - RelWithDebInfo
         cxx-standard:
           - 17
           - 20
-    name: default (${{ matrix.runs-on }}, ${{ matrix.build-type }}, C++${{ matrix.cxx-standard }})
+        exclude:
+          # gcc is just an alias for clang on macos.
+          - runs-on: macos-11
+            compiler: {c: gcc, cxx: g++}
+          - runs-on: macos-12
+            compiler: {c: gcc, cxx: g++}
+    name: default (${{ matrix.runs-on }}, ${{ matrix.build-type }}, ${{ matrix.compiler.c }}, C++${{ matrix.cxx-standard }})
     with:
       runs-on: ${{ matrix.runs-on }}
       build-type: ${{ matrix.build-type }}
       cxx-standard: ${{ matrix.cxx-standard }}
+      c-compiler: ${{ matrix.compiler.c }}
+      cxx-compiler: ${{ matrix.compiler.cxx }}
 
   valgrind:
     uses: ./.github/workflows/reusable-testing.yml
