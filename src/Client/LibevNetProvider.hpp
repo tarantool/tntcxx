@@ -101,6 +101,8 @@ private:
 
 	void registerWatchers(Conn_t &conn, int fd);
 	void stopWatchers(WaitWatcher<BUFFER, Stream> *watcher);
+	/** Callback for libev timeout. */
+	static void timeout_cb(EV_P_ ev_timer *w, int revents);
 
 	Connector_t &m_Connector;
 	std::map<int, WaitWatcher<BUFFER, Stream> *> m_Watchers;
@@ -347,8 +349,9 @@ LibevNetProvider<BUFFER, Stream>::close(Stream_t &strm)
 	}
 }
 
-static void
-timeout_cb(EV_P_ ev_timer *w, int /* revents */)
+template <class BUFFER, class Stream>
+void
+LibevNetProvider<BUFFER, Stream>::timeout_cb(EV_P_ ev_timer *w, int /* revents */)
 {
 	(void) w;
 	LOG_ERROR("Libev timed out!");
