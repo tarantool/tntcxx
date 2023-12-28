@@ -53,7 +53,7 @@ using Net_t = LibevNetProvider<Buf_t, DefaultStream>;
 /**
  * Field of schemaless tuple.
  */
-using SchemalessField = std::variant<nullptr_t, int, std::string>;
+using SchemalessField = std::variant<std::nullptr_t, int, std::string>;
 
 /**
  * Schemaless tuple itself - dynamic array of fields.
