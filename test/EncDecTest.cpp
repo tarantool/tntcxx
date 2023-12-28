@@ -575,7 +575,7 @@ test_basic()
 	double a0 = 0;
 	double a1 = 0;
 	std::string a2 = "";
-	nullptr_t a3;
+	std::nullptr_t a3;
 	bool a4 = true;
 	fail_unless(mpp::decode(run,
 		mpp::as_arr(std::forward_as_tuple(a0, mpp::as_flt(a1),
@@ -1627,7 +1627,7 @@ test_variant()
 	Buf_t buf;
 	auto run = buf.begin<true>();
 
-	using variant_t = std::variant<bool, int, std::string, nullptr_t,
+	using variant_t = std::variant<bool, int, std::string, std::nullptr_t,
 		std::optional<double>, std::vector<int>, Body>;
 
 	variant_t wr;
