@@ -9,6 +9,9 @@ on:
       build-type:
         required: true
         type: string
+      cxx-standard:
+        required: false
+        type: number
       use-valgrind:
         default: false
         type: boolean
@@ -37,6 +40,7 @@ jobs:
         with:
           build-type: ${{ inputs.build-type }}
           enable-sanitizers: ${{ inputs.enable-sanitizers }}
+          cxx-standard: ${{ inputs.cxx-standard }}
 
       - name: Test tntcxx
         uses: ./.github/actions/test-tntcxx
