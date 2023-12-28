@@ -7,6 +7,8 @@ inputs:
   enable-sanitizers:
     description: 'Corresponds to TNTCXX_ENABLE_SANITIZERS option of CMake'
     default: 'false'
+  cxx-standard:
+    description: 'Corresponds to CMAKE_CXX_STANDARD option of CMake'
 
 runs:
   using: "composite"
@@ -20,6 +22,7 @@ runs:
         -DTNTCXX_BUILD_TESTING=ON \
         -DTNTCXX_ENABLE_SSL=ON \
         -DCMAKE_BUILD_TYPE=${{ inputs.build-type }} \
-        -DTNTCXX_ENABLE_SANITIZERS=${{ inputs.enable-sanitizers }}
+        -DTNTCXX_ENABLE_SANITIZERS=${{ inputs.enable-sanitizers }} \
+        -DCMAKE_CXX_STANDARD=${{ inputs.cxx-standard }}
         make -j
       shell: bash
