@@ -9,6 +9,10 @@ inputs:
     default: 'false'
   cxx-standard:
     description: 'Corresponds to CMAKE_CXX_STANDARD option of CMake'
+  cxx-compiler:
+    description: 'Corresponds to CMAKE_CXX_COMPILER option of CMake'
+  c-compiler:
+    description: 'Corresponds to CMAKE_C_COMPILER option of CMake'
 
 runs:
   using: "composite"
@@ -23,6 +27,8 @@ runs:
         -DTNTCXX_ENABLE_SSL=ON \
         -DCMAKE_BUILD_TYPE=${{ inputs.build-type }} \
         -DTNTCXX_ENABLE_SANITIZERS=${{ inputs.enable-sanitizers }} \
-        -DCMAKE_CXX_STANDARD=${{ inputs.cxx-standard }}
+        -DCMAKE_CXX_STANDARD=${{ inputs.cxx-standard }} \
+        -DCMAKE_C_COMPILER=${{ inputs.c-compiler }} \
+        -DCMAKE_CXX_COMPILER=${{ inputs.cxx-compiler }}
         make -j
       shell: bash
