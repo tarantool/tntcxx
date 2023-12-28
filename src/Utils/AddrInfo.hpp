@@ -71,8 +71,8 @@ public:
 
 	value_type &operator*() const { return *info; }
 	value_type *operator->() const { return info; }
-	bool operator==(const iterator &a) { return info == a.info; }
-	bool operator!=(const iterator &a) { return info != a.info; }
+	bool operator==(const iterator &a) const { return info == a.info; }
+	bool operator!=(const iterator &a) const { return info != a.info; }
 	inline iterator &operator++();
 	inline iterator operator++(int);
 private:
