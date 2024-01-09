@@ -34,6 +34,7 @@
 #include "../src/Utils/Traits.hpp"
 
 #include <array>
+#include <cstdint>
 #include <utility>
 #include <vector>
 #include <deque>
