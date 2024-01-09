@@ -32,6 +32,8 @@
 #include "../src/Utils/RefVector.hpp"
 #include "Utils/Helpers.hpp"
 
+#include <cstdint>
+
 void
 test_simple()
 {

@@ -31,6 +31,7 @@
 
 #include "../src/Utils/Ring.hpp"
 
+#include <cstdint>
 #include <iostream>
 #include <vector>
 
