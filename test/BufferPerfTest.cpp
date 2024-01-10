@@ -56,10 +56,10 @@ struct StaticBuffer {
 
 template <size_t... I, class... T>
 void
-gen_helper(std::index_sequence<I...>, std::tuple<T...>& t)
+gen_helper(std::index_sequence<I...>, std::tuple<T...>& ts)
 {
 	auto set = [](auto& t) { t = rand(); };
-	(set(std::get<I>(t)), ...);
+	(set(std::get<I>(ts)), ...);
 }
 
 template <class... T>

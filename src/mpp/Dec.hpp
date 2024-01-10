@@ -547,13 +547,13 @@ struct Jumps {
 	/** Override given tag with special jump. */
 	template <size_t... I>
 	static constexpr data_t
-	build_inject(data_t orig, uint8_t tag, jump_t inject, tnt::iseq<I...>)
+	build_inject(data_t orig, uint8_t tag, jump_t jump, tnt::iseq<I...>)
 	{
-		return {(I != tag ? orig[I] : inject)...};
+		return {(I != tag ? orig[I] : jump)...};
 	}
 
-	constexpr Jumps(Jumps a, uint8_t tag, jump_t inject)
-		: data(build_inject(a.data, tag, inject, is256))
+	constexpr Jumps(Jumps a, uint8_t tag, jump_t jump)
+		: data(build_inject(a.data, tag, jump, is256))
 	{
 	}
 

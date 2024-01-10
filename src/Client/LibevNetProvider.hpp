@@ -42,7 +42,15 @@
 #include <string_view>
 
 #include "Connection.hpp"
+
+/**
+ * Disable -Wshadow for libev because ev_loop function shadows
+ * declaration of struct ev_loop constructor.
+ */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wshadow" 
 #include "ev.h"
+#pragma GCC diagnostic pop
 
 template<class BUFFER, class Stream>
 class Connector;

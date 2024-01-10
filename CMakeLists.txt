@@ -11,7 +11,7 @@ FIND_PACKAGE (benchmark QUIET)
 
 SET(CMAKE_CXX_STANDARD 17)
 SET(CMAKE_C_STANDARD 11)
-ADD_COMPILE_OPTIONS(-Wall -Wextra -Werror)
+ADD_COMPILE_OPTIONS(-Wall -Wextra -Werror -Wshadow)
 
 ADD_LIBRARY(tntcxx INTERFACE)
 ADD_LIBRARY(tntcxx::tntcxx ALIAS tntcxx)

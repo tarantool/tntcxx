@@ -33,7 +33,10 @@
 #include <array>
 #include <utility>
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wshadow"
 #include "../third_party/sha1.hpp"
+#pragma GCC diagnostic pop
 
 namespace tnt {
 

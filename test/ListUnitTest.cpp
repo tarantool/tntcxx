@@ -246,7 +246,7 @@ void check(const ObjectList& list, std::vector<int> arr,
 
 	if (failed) {
 		std::cerr << "Check failed: list {";
-		bool first = true;
+		first = true;
 		for (const Object& sObj : list) {
 			if (!first)
 				std::cerr << ", " << sObj.m_Data;

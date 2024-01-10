@@ -46,8 +46,8 @@ static constexpr ssize_t CONN_READAHEAD = 64 * 1024;
 static constexpr size_t IOVEC_MAX_SIZE = 32;
 
 struct ConnectionError {
-	ConnectionError(const std::string &msg, int errno_ = 0) :
-		msg(msg), saved_errno(errno_)
+	ConnectionError(const std::string &errmsg, int errno_ = 0) :
+		msg(errmsg), saved_errno(errno_)
 	{
 	}
 

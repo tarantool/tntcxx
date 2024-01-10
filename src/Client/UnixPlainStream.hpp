@@ -72,12 +72,12 @@ public:
 /////////////////////////////////////////////////////////////////////
 
 int
-UnixPlainStream::connect(const ConnectOptions &opts)
+UnixPlainStream::connect(const ConnectOptions &opts_arg)
 {
-	if (opts.transport != STREAM_PLAIN)
+	if (opts_arg.transport != STREAM_PLAIN)
 		US_DIE("Non-plain socket are unsupported in this build."
 		       "Consider enabling it with -DTNTCXX_ENABLE_TLS.");
-	return UnixStream::connect(opts);
+	return UnixStream::connect(opts_arg);
 }
 
 namespace internal {

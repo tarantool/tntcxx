@@ -541,8 +541,8 @@ buffer_release()
 	 * should remain unchanged.
 	 */
 	int i = 0;
-	for (auto tmp = buf.begin(); tmp < mid_itr; ++tmp) {
-		tmp.get(res);
+	for (auto tmp_it = buf.begin(); tmp_it < mid_itr; ++tmp_it) {
+		tmp_it.get(res);
 		fail_unless(res == char_samples[i++ % SAMPLES_CNT]);
 	}
 }
