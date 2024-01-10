@@ -301,7 +301,7 @@ void collectByType(FullInfo& infos)
 				set_info += std::to_string(range.last);
 			}
 		}
-		for (uint8_t j = range.first; (j - 1) != range.last; j++) {
+		for (uint8_t j = static_cast<uint8_t>(range.first); (j - 1) != range.last; j++) {
 			auto& info = infos[(uint8_t)(j + tag)];
 			fail_unless(info.empty());
 			info = set_info;

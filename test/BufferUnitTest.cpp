@@ -71,7 +71,7 @@ template<size_t N>
 static void
 eraseBuffer(tnt::Buffer<N> &buffer)
 {
-	int IOVEC_MAX = 1024;
+	size_t IOVEC_MAX = 1024;
 	struct iovec vec[IOVEC_MAX];
 	do {
 		size_t vec_size = buffer.getIOV(buffer.begin(), vec, IOVEC_MAX);
@@ -89,7 +89,7 @@ static void
 dumpBuffer(tnt::Buffer<N> &buffer, std::string &output)
 {
 	size_t vec_len = 0;
-	int IOVEC_MAX = 1024;
+	size_t IOVEC_MAX = 1024;
 	size_t block_cnt = 0;
 	struct iovec vec[IOVEC_MAX];
 	for (auto itr = buffer.begin(); itr != buffer.end(); itr += vec_len) {
@@ -253,10 +253,10 @@ buffer_add_read()
 		case 3:
 			buf.write(static_cast<uint64_t>(r)); break;
 		default: {
-			size_t sz = r % 13 + 1;
+			size_t sz = static_cast<size_t>(r % 13 + 1);
 			char data[16];
 			for (size_t j = 0; j < sz; j++)
-				data[j] = rand();
+				data[j] = static_cast<char>(rand());
 			buf.write({data, sz});
 		}
 		}
@@ -284,13 +284,13 @@ buffer_add_read()
 				    static_cast<uint64_t>(r));
 			break;
 		default: {
-			size_t sz = r % 13 + 1;
+			size_t sz = static_cast<size_t>(r % 13 + 1);
 			char data1[16];
 			for (size_t j = 0; j < sz; j++)
-				data1[j] = rand();
+				data1[j] = static_cast<char>(rand());
 			fail_unless(itr1.startsWith({data1, sz}));
-			unsigned char last_char = data1[sz - 1];
-			data1[sz - 1] = last_char + 1;
+			char last_char = data1[sz - 1];
+			data1[sz - 1] = static_cast<char>(last_char + 1);
 			fail_if(itr1.startsWith({data1, sz}));
 			data1[sz - 1] = last_char;
 			char data2[16];
@@ -323,10 +323,10 @@ buffer_add_read()
 				    static_cast<uint64_t>(r));
 			break;
 		default: {
-			size_t sz = r % 13 + 1;
+			size_t sz = static_cast<size_t>(r % 13 + 1);
 			char data1[16];
 			for (size_t j = 0; j < sz; j++)
-				data1[j] = rand();
+				data1[j] = static_cast<char>(rand());
 			char data2[16];
 			itr2.read({data2, sz});
 			fail_unless(memcmp(data1, data2, sz) == 0);
@@ -570,12 +570,12 @@ buffer_out()
 	buf.write(__builtin_bswap16(512)); // space_id = 512
 	buf.write(0x20); // IPROTO_KEY
 	buf.write(0x90); // empty array key
-	size_t total = buf.end() - save;
+	unsigned total = static_cast<unsigned>(buf.end() - save);
 	save.set(__builtin_bswap32(total)); // set calculated size
 	fail_if(buf.debugSelfCheck());
 	save.unlink();
 	do {
-		int IOVEC_MAX = 1024;
+		size_t IOVEC_MAX = 1024;
 		struct iovec vec[IOVEC_MAX];
 		size_t vec_size = buf.getIOV(buf.begin(), vec, IOVEC_MAX);
 		buf.dropFront(vec_size);

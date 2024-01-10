@@ -86,7 +86,7 @@ create_msghdr(struct iovec *iov, size_t iov_count)
 {
 	struct msghdr msg{};
 	msg.msg_iov = iov;
-	msg.msg_iovlen = iov_count;
+	msg.msg_iovlen = static_cast<int>(iov_count);
 	return msg;
 }
 } // namespace internal

@@ -36,8 +36,8 @@
 #include "../src/Client/Connector.hpp"
 
 const char *localhost = "127.0.0.1";
-int port = 3301;
-int dummy_server_port = 3302;
+unsigned port = 3301;
+unsigned dummy_server_port = 3302;
 const char *unixsocket = "./tnt.sock";
 int WAIT_TIMEOUT = 1000; //milliseconds
 
@@ -160,7 +160,7 @@ trivial(Connector<BUFFER, NetProvider> &client)
 	rc = test_connect(client, conn, "101.101.101", port);
 	fail_unless(rc != 0);
 	TEST_CASE("Wrong port");
-	rc = test_connect(client, conn, localhost, -666);
+	rc = test_connect(client, conn, localhost, static_cast<uint>(-666));
 	fail_unless(rc != 0);
 	TEST_CASE("Connect timeout");
 	rc = test_connect(client, conn, "8.8.8.8", port);
@@ -290,7 +290,7 @@ single_conn_error(Connector<BUFFER, NetProvider> &client)
 	int rc = test_connect(client, conn, localhost, port);
 	fail_unless(rc == 0);
 	/* Fake space id. */
-	uint32_t space_id = -111;
+	uint32_t space_id = static_cast<uint32_t>(-111);
 	std::tuple data = std::make_tuple(666);
 	rid_t f1 = conn.space[space_id].replace(data);
 	client.wait(conn, f1, WAIT_TIMEOUT);

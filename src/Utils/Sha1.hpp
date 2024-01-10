@@ -79,7 +79,8 @@ Sha1Calc::Sha1Calc()
 template <class T, class...More>
 void Sha1Calc::add(T &&t, More &&...more)
 {
-	SHA1Update(&ctx, std::begin(t), std::size(t));
+	uint32_t size = static_cast<uint32_t>(std::size(t));
+	SHA1Update(&ctx, std::begin(t), size);
 	add(std::forward<More>(more)...);
 }
 
@@ -109,7 +110,7 @@ Sha1_type sha1(T &&...t)
 void sha1_xor(Sha1_type &a, const Sha1_type &b)
 {
 	for (size_t i = 0; i < SHA1_SIZE; i++)
-		a[i] ^= b[i];
+		a[i] = static_cast<Sha1_type::value_type>(a[i] ^ b[i]);
 }
 
 } // namespace tnt

@@ -54,7 +54,7 @@ public:
 			return 0;
 		std::chrono::time_point<std::chrono::steady_clock> end =
 			std::chrono::steady_clock::now();
-		return std::chrono::duration_cast<std::chrono::milliseconds>(end - m_Start).count();
+		return static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(end - m_Start).count());
 	}
 private:
 	std::chrono::milliseconds m_Timeout;

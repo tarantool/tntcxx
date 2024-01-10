@@ -801,7 +801,7 @@ Buffer<N, allocator>::dropBack(size_t size)
 	assert(!m_blocks.isEmpty());
 
 	Block *block = &m_blocks.last();
-	size_t left_in_block = m_end - block->begin();
+	size_t left_in_block = static_cast<size_t>(m_end - block->begin());
 
 	/* Do not delete the block if it is empty after drop. */
 	while (TNT_UNLIKELY(size > left_in_block)) {
@@ -842,7 +842,7 @@ Buffer<N, allocator>::dropFront(size_t size)
 	assert(!m_blocks.isEmpty());
 
 	Block *block = &m_blocks.first();
-	size_t left_in_block = block->end() - m_begin;
+	size_t left_in_block = static_cast<size_t>(block->end() - m_begin);
 
 	while (TNT_UNLIKELY(size >= left_in_block)) {
 #ifndef NDEBUG
@@ -918,8 +918,8 @@ Buffer<N, allocator>::insert(const iterator &itr, size_t size)
 	 */
 #define src_block_begin ((src_block == itr.getBlock()) ? itr.m_position : src_block->begin())
 	/* Firstly move data in blocks. */
-	size_t left_in_dst_block = m_end - dst_block->begin();
-	size_t left_in_src_block = src_block_end - src_block_begin;
+	size_t left_in_dst_block = static_cast<size_t>(m_end - dst_block->begin());
+	size_t left_in_src_block = static_cast<size_t>(src_block_end - src_block_begin);
 	if (left_in_dst_block > left_in_src_block) {
 		src = src_block_begin;
 		dst = m_end - left_in_src_block;
@@ -943,7 +943,7 @@ Buffer<N, allocator>::insert(const iterator &itr, size_t size)
 				break;
 			src_block = &src_block->prev();
 			src = src_block->end() - left_in_dst_block;
-			left_in_src_block = src_block->end() - src_block_begin;
+			left_in_src_block = static_cast<size_t>(src_block->end() - src_block_begin);
 			dst = dst_block->begin();
 			copy_chunk_sz = left_in_dst_block;
 		} else {
@@ -978,14 +978,14 @@ Buffer<N, allocator>::release(const iterator &itr, size_t size)
 	size_t step = size;
 	assert(src_block->end() > src);
 	while (step >= (size_t)(src_block->end() - src)) {
-		step -= src_block->end() - src;
+		step -= static_cast<size_t>(src_block->end() - src);
 		src_block = &src_block->next();
 		src = src_block->begin();
 	}
 	src += step;
 	/* Firstly move data in blocks. */
-	size_t left_in_dst_block = dst_block->end() - dst;
-	size_t left_in_src_block = src_block->end() - src;
+	size_t left_in_dst_block = static_cast<size_t>(dst_block->end() - dst);
+	size_t left_in_src_block = static_cast<size_t>(src_block->end() - src);
 	size_t copy_chunk_sz = std::min(left_in_src_block, left_in_dst_block);
 	for (;;) {
 		std::memmove(dst, src, copy_chunk_sz);

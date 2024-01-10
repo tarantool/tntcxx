@@ -140,7 +140,8 @@ std::pair<INP, OUT> decode(INP first, INP last, OUT dest)
 		if (BASE64_UNLIKELY(first == last))
 			return {first, dest};
 
-		uint8_t c = decmap[static_cast<uint8_t>(*first)];
+		uint8_t c = static_cast<uint8_t>(
+			decmap[static_cast<uint8_t>(*first)]);
 		if (BASE64_UNLIKELY(c >= 64)) // Bad char or '=' here is error.
 			return {first, dest};
 		uint32_t part = c; // 6 bits.
@@ -150,7 +151,7 @@ std::pair<INP, OUT> decode(INP first, INP last, OUT dest)
 		if (BASE64_UNLIKELY(next == last)) // Unexpected end.
 			return {first, dest};
 
-		c = decmap[static_cast<uint8_t>(*next)];
+		c = static_cast<uint8_t>(decmap[static_cast<uint8_t>(*next)]);
 		if (BASE64_UNLIKELY(c >= 64)) // Bad char or '=' here is error.
 			return {first, dest};
 
@@ -169,7 +170,7 @@ std::pair<INP, OUT> decode(INP first, INP last, OUT dest)
 			return {next, dest};
 		}
 
-		c = decmap[static_cast<uint8_t>(*next)];
+		c = static_cast<uint8_t>(decmap[static_cast<uint8_t>(*next)]);
 		if (BASE64_UNLIKELY(c >= 64)) {
 			if (BASE64_UNLIKELY((part & 0xf) != 0))
 				// Incorrect (non-zero) remainder.
@@ -201,7 +202,7 @@ std::pair<INP, OUT> decode(INP first, INP last, OUT dest)
 			return {next, dest};
 		}
 
-		c = decmap[static_cast<uint8_t>(*next)];
+		c = static_cast<uint8_t>(decmap[static_cast<uint8_t>(*next)]);
 		if (BASE64_UNLIKELY(c >= 64)) {
 			if (BASE64_UNLIKELY((part & 0x3) != 0))
 				// Incorrect (non-zero) remainder.
