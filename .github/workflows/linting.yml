@@ -1,0 +1,27 @@
+name: Linting
+
+on:
+  workflow_dispatch:
+  pull_request:
+
+jobs:
+  code-formatting:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone tntcxx
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Set up clang-format
+        run: sudo apt install -y clang-format
+        shell: bash
+      - name: Run clang-format
+        # Run clang-format on commits off the base branch of the pull request.
+        run: |
+          output=$(git clang-format origin/${{ github.event.pull_request.base.ref }} --diff)
+          if [[ "$output" != "" && "$output" != "no modified files to format" ]]; then
+            echo "$output"
+            echo Code formatting changed some files, please review.
+            exit 1
+          fi
+        shell: bash

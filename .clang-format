@@ -1,0 +1,11 @@
+---
+Language: Cpp
+BasedOnStyle: WebKit
+Standard: c++17
+IndentWidth: 8
+UseTab: Always
+
+AccessModifierOffset: -8
+AlwaysBreakAfterReturnType: TopLevel
+PointerAlignment: Right
+ReferenceAlignment: Right
