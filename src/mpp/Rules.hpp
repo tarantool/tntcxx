@@ -134,6 +134,8 @@ struct BaseRule {
 	static constexpr uint32_t children_multiplier =
 		FAMILY == compact::MP_ARR ? 1 :
 		FAMILY == compact::MP_MAP ? 2 : 0;
+	// The encoded object can be read by value.
+	static constexpr bool is_readable_by_value = !has_data && !has_ext && !has_children;
 	// The rule has simplex form.
 	static constexpr bool has_simplex = FAMILY == compact::MP_NIL ||
 					    FAMILY == compact::MP_IGNR ||
