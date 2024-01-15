@@ -1172,6 +1172,10 @@ bool jump_read_key(BUF& buf, T... t)
 	return jump_find_key<PAIRS, FAMILY, PATH>(val, IS, buf, t...);
 }
 
+template <compact::Family FAMILY, size_t SUBRULE, class DST, class BUF>
+constexpr bool is_object_readable_by_value_v = rule_by_family_t<FAMILY>::is_readable_by_value
+	&& std::is_assignable_v<DST, decltype(read_value<FAMILY, SUBRULE>(std::declval<BUF &>()))>;
+
 template <compact::Family FAMILY, size_t SUBRULE,
 	  class PATH, class BUF, class... T>
 bool jump_read_optional(BUF& buf, T... t)
@@ -1184,10 +1188,15 @@ bool jump_read_optional(BUF& buf, T... t)
 		dst.reset();
 		return decode_next<PATH>(buf, t...);
 	} else {
-		if (!dst.has_value())
-			dst.emplace();
-		using NEXT_PATH = path_push_t<PATH, PIT_OPTIONAL>;
-		return decode_impl<NEXT_PATH>(buf, t...);
+		if constexpr (is_object_readable_by_value_v<FAMILY, SUBRULE, dst_t, BUF>) {
+			dst = read_value<FAMILY, SUBRULE>(buf);
+			return decode_next<PATH>(buf, t...);
+		} else {
+			if (!dst.has_value())
+				dst.emplace();
+			using NEXT_PATH = path_push_t<PATH, PIT_OPTIONAL>;
+			return decode_impl<NEXT_PATH>(buf, t...);
+		}
 	}
 }
 
@@ -1219,7 +1228,12 @@ bool jump_read_variant(BUF& buf, T... t)
 	auto&& dst = unwrap(path_resolve(PATH{}, t...));
 	using dst_t = std::remove_reference_t<decltype(dst)>;
 	static_assert(tnt::is_variant_v<dst_t>);
-	return jump_read_variant_impl<0, FAMILY, SUBRULE, PATH>(buf, t...);
+	if constexpr (is_object_readable_by_value_v<FAMILY, SUBRULE, dst_t, BUF>) {
+		dst = read_value<FAMILY, SUBRULE>(buf);
+		return decode_next<PATH>(buf, t...);
+	} else {
+		return jump_read_variant_impl<0, FAMILY, SUBRULE, PATH>(buf, t...);
+	}
 }
 
 template <compact::Family FAMILY, size_t SUBRULE,
