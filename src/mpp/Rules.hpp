@@ -32,6 +32,7 @@
 
 #include <cstdint>
 #include <limits>
+#include <optional>
 #include <tuple>
 #include <type_traits>
 
@@ -161,7 +162,7 @@ struct BaseRule {
 	using simplex_value_range_t = RuleRange<simplex_value_t>;
 };
 
-struct NilRule : BaseRule<compact::MP_NIL, std::nullptr_t> {
+struct NilRule : BaseRule<compact::MP_NIL, std::nullptr_t, std::monostate, std::nullopt_t> {
 	static constexpr simplex_value_range_t simplex_value_range = {0, 0};
 	static constexpr uint8_t simplex_tag = 0xc0;
 };

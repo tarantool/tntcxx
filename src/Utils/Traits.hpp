@@ -88,6 +88,7 @@
 #include <cstddef>
 #include <iterator>
 #include <functional>
+#include <optional>
 #include <tuple>
 #include <type_traits>
 #include <variant>
@@ -637,6 +638,17 @@ constexpr bool is_member_ptr_v = std::is_member_object_pointer_v<T>;
 template <class T>
 constexpr bool is_uni_member_ptr_v =
 	std::is_member_object_pointer_v<uni_integral_base_t<T>>;
+
+struct empty_type {
+	constexpr empty_type() noexcept = default;
+	constexpr empty_type(std::nullptr_t) noexcept {}
+	constexpr empty_type(std::monostate) noexcept {}
+	constexpr empty_type(std::nullopt_t) noexcept {}
+
+	constexpr operator std::nullptr_t() const noexcept { return {}; }
+	constexpr operator std::monostate() const noexcept { return {}; }
+	constexpr operator std::nullopt_t() const noexcept { return std::nullopt; }
+} constexpr empty_value;
 
 /**
  * Safe getter that for pointer to member returns class and original

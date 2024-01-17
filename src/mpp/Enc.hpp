@@ -76,7 +76,7 @@ constexpr compact::Family detectFamily()
 	using V = std::remove_cv_t<tnt::uni_integral_base_t<U>>;
 	if constexpr (is_wrapped_family_v<T>) {
 		return T::family;
-	} else if constexpr (std::is_same_v<V, std::nullptr_t>) {
+	} else if constexpr (std::is_convertible_v<V, tnt::empty_type>) {
 		return compact::MP_NIL;
 	} else if constexpr (std::is_same_v<V, bool>) {
 		return compact::MP_BOOL;

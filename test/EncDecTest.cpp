@@ -1257,7 +1257,7 @@ test_optional()
 
 	TEST_CASE("number");
 	mpp::encode(buf, std::optional<int>(100), std::optional<int>(),
-		    std::optional<int>(42));
+		    std::optional<int>(42), std::nullopt);
 
 	auto run = buf.begin<true>();
 	std::optional<int> opt_num;
@@ -1274,6 +1274,11 @@ test_optional()
 	fail_unless(ok);
 	fail_unless(opt_num.has_value());
 	fail_unless(opt_num.value() == 42);
+
+	ok = mpp::decode(run, opt_num);
+	fail_unless(ok);
+	fail_unless(!opt_num.has_value());
+	fail_unless(opt_num == std::nullopt);
 
 	buf.flush();
 
@@ -1669,6 +1674,14 @@ test_variant()
 	mpp::encode(buf, wr);
 	mpp::decode(run, rd);
 	fail_unless(wr == rd);
+
+	std::variant<int, std::monostate, std::string> monostate_wr;
+	std::variant<int, std::monostate, std::string> monostate_rd;
+
+	monostate_wr.emplace<1>();
+	mpp::encode(buf, monostate_wr);
+	mpp::decode(run, monostate_rd);
+	fail_unless(monostate_wr == monostate_rd);
 }
 
 int main()
