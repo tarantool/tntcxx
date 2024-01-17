@@ -989,9 +989,11 @@ bool jump_read(BUF& buf, T... t)
 	auto&& dst = unwrap(path_resolve(PATH{}, t...));
 	using dst_t = std::remove_reference_t<decltype(dst)>;
 	using RULE = rule_by_family_t<FAMILY>;
-	auto val = read_item<FAMILY, SUBRULE>(buf, dst);
-	if (RULE::has_children && val == 0)
-		goto decode_next_label;
+	[[maybe_unused]] auto val = read_item<FAMILY, SUBRULE>(buf, dst);
+	if constexpr (RULE::has_children) {
+		if (val == 0)
+			return decode_next<PATH>(buf, t...);
+	}
 
 	if constexpr (FAMILY == compact::MP_ARR) {
 		constexpr auto NT = get_next_arr_item_type<BUF, dst_t>();
@@ -1053,7 +1055,6 @@ bool jump_read(BUF& buf, T... t)
 		}
 	}
 
-decode_next_label:
 	return decode_next<PATH>(buf, t...);
 }
 
