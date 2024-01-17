@@ -135,7 +135,7 @@ constexpr auto detectFamily()
 			detectFamily<BUF, tnt::value_type_t<U>>());
 	} else if constexpr (tnt::is_variant_v<U>) {
 		return detectFamilyVariant<BUF, U>();
-	} else if constexpr (std::is_same_v<U, std::nullptr_t>) {
+	} else if constexpr (std::is_convertible_v<U, tnt::empty_type>) {
 		return family_sequence<compact::MP_NIL>{};
 	} else if constexpr (std::is_same_v<U, bool>) {
 		return family_sequence<compact::MP_BOOL>{};
@@ -419,7 +419,7 @@ auto read_value(BUF& buf)
 			tag - RULE::simplex_tag;
 
 		if constexpr (FAMILY == compact::MP_NIL)
-			return nullptr;
+			return tnt::empty_value;
 		else if constexpr (RULE::is_bool)
 			return bool(val);
 		else if constexpr (RULE::is_simplex_log_range)
