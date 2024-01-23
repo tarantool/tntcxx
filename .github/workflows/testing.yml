@@ -89,7 +89,17 @@ jobs:
         build-type:
           - Debug
           - RelWithDebInfo
+        compiler:
+          - {c: gcc, cxx: g++}
+          - {c: clang, cxx: clang++}
+        # gcc on macos is just an alias for clang
+        exclude:
+          - runs-on: macos-12
+            compiler: {c: gcc, cxx: g++}
+    name: sanitizers (${{ matrix.runs-on }}, ${{ matrix.build-type }}, ${{ matrix.compiler.c }})
     with:
       runs-on: ${{ matrix.runs-on }}
       build-type: ${{ matrix.build-type }}
+      c-compiler: ${{ matrix.compiler.c }}
+      cxx-compiler: ${{ matrix.compiler.cxx }}
       enable-sanitizers: true
