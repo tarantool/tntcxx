@@ -18,6 +18,26 @@ jobs:
           - ubuntu-22.04
           - macos-11
           - macos-12
+        build-type:
+          - Debug
+          - RelWithDebInfo
+    with:
+      runs-on: ${{ matrix.runs-on }}
+      build-type: ${{ matrix.build-type }}
+      cxx-standard: 17
+      c-compiler: gcc
+      cxx-compiler: g++
+
+  build:
+    uses: ./.github/workflows/reusable-testing.yml
+    strategy:
+      fail-fast: false
+      matrix:
+        runs-on:
+          - ubuntu-20.04
+          - ubuntu-22.04
+          - macos-11
+          - macos-12
         compiler:
           - {c: gcc, cxx: g++}
           - {c: clang, cxx: clang++}
@@ -28,13 +48,17 @@ jobs:
           - 17
           - 20
         exclude:
-          # gcc is just an alias for clang on macos.
+          # Exclude setups from default job
+          - cxx-standard: 17
+            compiler: {c: gcc, cxx: g++}
+          # gcc on macos is just an alias for clang
           - runs-on: macos-11
             compiler: {c: gcc, cxx: g++}
           - runs-on: macos-12
             compiler: {c: gcc, cxx: g++}
-    name: default (${{ matrix.runs-on }}, ${{ matrix.build-type }}, ${{ matrix.compiler.c }}, C++${{ matrix.cxx-standard }})
+    name: build (${{ matrix.runs-on }}, ${{ matrix.build-type }}, ${{ matrix.compiler.c }}, C++${{ matrix.cxx-standard }})
     with:
+      build-only: true
       runs-on: ${{ matrix.runs-on }}
       build-type: ${{ matrix.build-type }}
       cxx-standard: ${{ matrix.cxx-standard }}
