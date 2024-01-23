@@ -7,5 +7,7 @@ UseTab: Always
 
 AccessModifierOffset: -8
 AlwaysBreakAfterReturnType: TopLevel
+ContinuationIndentWidth: 8
+Cpp11BracedListStyle: true
 PointerAlignment: Right
 ReferenceAlignment: Right
