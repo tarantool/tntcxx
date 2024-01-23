@@ -19,7 +19,8 @@ jobs:
         # Run clang-format on commits off the base branch of the pull request.
         run: |
           output=$(git clang-format origin/${{ github.event.pull_request.base.ref }} --diff)
-          if [[ "$output" != "" && "$output" != "no modified files to format" ]]; then
+          if [[ "$output" != "" && "$output" != "no modified files to format" && \
+                "$output" != "clang-format did not modify any files" ]]; then
             echo "$output"
             echo Code formatting changed some files, please review.
             exit 1

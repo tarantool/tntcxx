@@ -6,7 +6,8 @@ set -eu -o pipefail
 exec 1>&2
 
 output=$(git clang-format --diff --staged)
-if [[ "$output" != "" && "$output" != "no modified files to format" ]]; then
+if [[ "$output" != "" && "$output" != "no modified files to format" && \
+      "$output" != "clang-format did not modify any files" ]]; then
   echo Code formatting changed some files, please review.
   exit 1
 fi
