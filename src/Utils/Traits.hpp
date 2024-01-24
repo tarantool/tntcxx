@@ -86,8 +86,8 @@
  */
 
 #include <cstddef>
-#include <iterator>
 #include <functional>
+#include <iterator>
 #include <optional>
 #include <tuple>
 #include <type_traits>
@@ -639,7 +639,7 @@ template <class T>
 constexpr bool is_uni_member_ptr_v =
 	std::is_member_object_pointer_v<uni_integral_base_t<T>>;
 
-struct empty_type {
+struct empty_type final {
 	constexpr empty_type() noexcept = default;
 	constexpr empty_type(std::nullptr_t) noexcept {}
 	constexpr empty_type(std::monostate) noexcept {}
