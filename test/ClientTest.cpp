@@ -123,6 +123,19 @@ printResponse(Response<BUFFER> &response, Data data = std::vector<UserTuple>())
 			  " code=" << err.errcode << std::endl;
 		return;
 	}
+	if (response.body.metadata != std::nullopt) {
+		std::cout << "RESPONSE SQL METADATA:" << std::endl;
+		for (const auto &column : response.body.metadata->column_maps) {
+			std::cout << "column=" << column.field_name <<
+				" type=" << column.field_type <<
+				" collation=" << column.collation <<
+				" is_nullable=" << column.is_nullable <<
+				" is_autoincrement" << column.is_autoincrement;
+			if (column.span.has_value())
+				std::cout << " span=" << column.span.value();
+			std::cout << std::endl;
+		}
+	}
 	if (response.body.data != std::nullopt) {
 		if (!response.body.data->decode(data)) {
 			std::cerr << "FAILED TO DECODE DATA" << std::endl;
@@ -750,8 +763,8 @@ single_conn_sql(Connector<BUFFER, NetProvider> &client)
 	fail_unless(rc == 0);
 
 	TEST_CASE("CREATE TABLE");
-	std::string stmt_str = "CREATE TABLE IF NOT EXISTS tsql (column1 UNSIGNED PRIMARY KEY, "
-			       "column2 VARCHAR(50), column3 DOUBLE);";
+	std::string stmt_str = "CREATE TABLE IF NOT EXISTS TSQL (COLUMN1 UNSIGNED PRIMARY KEY, "
+			       "COLUMN2 VARCHAR(50), COLUMN3 DOUBLE);";
 	auto stmt = StmtProcessor::process(client, conn, stmt_str);
 	rid_t create_table = conn.execute(stmt, std::make_tuple());
 	
@@ -766,7 +779,7 @@ single_conn_sql(Connector<BUFFER, NetProvider> &client)
 	check_sql_data(response->body, sql_data_create_table);
 
 	TEST_CASE("Simple INSERT");
-	stmt_str = "INSERT INTO tsql VALUES (20, 'first', 3.2), (21, 'second', 5.4)";
+	stmt_str = "INSERT INTO TSQL VALUES (20, 'first', 3.2), (21, 'second', 5.4)";
 	stmt = StmtProcessor::process(client, conn, stmt_str);
 	rid_t insert = conn.execute(stmt, std::make_tuple());
 	
@@ -785,7 +798,7 @@ single_conn_sql(Connector<BUFFER, NetProvider> &client)
 	std::tuple args = std::make_tuple(1, "Timur",   12.8,
 	                                  2, "Nikita",  -8.0,
 					  3, "Anastas", 345.298);
-	stmt_str = "INSERT INTO tsql VALUES (?, ?, ?), (?, ?, ?), (?, ?, ?);";
+	stmt_str = "INSERT INTO TSQL VALUES (?, ?, ?), (?, ?, ?), (?, ?, ?);";
 	stmt = StmtProcessor::process(client, conn, stmt_str);
 	rid_t insert_args = conn.execute(stmt, args);
 	
@@ -800,7 +813,7 @@ single_conn_sql(Connector<BUFFER, NetProvider> &client)
 	check_sql_data(response->body, sql_data_insert_bind);
 
 	TEST_CASE("SELECT");
-	stmt_str = "SELECT * FROM SEQSCAN tsql;";
+	stmt_str = "SELECT * FROM SEQSCAN TSQL;";
 	stmt = StmtProcessor::process(client, conn, stmt_str);
 	rid_t select = conn.execute(stmt, std::make_tuple());
 	
@@ -823,7 +836,7 @@ single_conn_sql(Connector<BUFFER, NetProvider> &client)
 	check_sql_data(response->body, sql_data_select);
 
 	TEST_CASE("DROP TABLE");
-	stmt_str = "DROP TABLE IF EXISTS tsql;";
+	stmt_str = "DROP TABLE IF EXISTS TSQL;";
 	stmt = StmtProcessor::process(client, conn, stmt_str);
 	rid_t drop_table = conn.execute(stmt, std::make_tuple());
 	
@@ -847,9 +860,9 @@ single_conn_sql(Connector<BUFFER, NetProvider> &client)
 	fail_if(response->body.error_stack != std::nullopt);
 
 	TEST_CASE("CREATE TABLE with autoincrement and collation");
-	stmt_str = "CREATE TABLE IF NOT EXISTS tsql "
-		   "(column1 UNSIGNED PRIMARY KEY AUTOINCREMENT, "
-		   "column2 STRING COLLATE \"unicode\", column3 DOUBLE);";
+	stmt_str = "CREATE TABLE IF NOT EXISTS TSQL "
+		   "(COLUMN1 UNSIGNED PRIMARY KEY AUTOINCREMENT, "
+		   "COLUMN2 STRING COLLATE \"unicode\", COLUMN3 DOUBLE);";
 	stmt = StmtProcessor::process(client, conn, stmt_str);
 	create_table = conn.execute(stmt, std::make_tuple());
 	client.wait(conn, create_table, WAIT_TIMEOUT);
@@ -869,7 +882,7 @@ single_conn_sql(Connector<BUFFER, NetProvider> &client)
 	        nullptr, "Nikita", -8.0,
 		/* Null for the 1st field is in statement. */
 		"Anastas", 345.298);
-	stmt_str = "INSERT INTO tsql VALUES (?, ?, ?), (?, ?, ?), (NULL, ?, ?);";
+	stmt_str = "INSERT INTO TSQL VALUES (?, ?, ?), (?, ?, ?), (NULL, ?, ?);";
 	stmt = StmtProcessor::process(client, conn, stmt_str);
 	insert = conn.execute(stmt, args2);
 	client.wait(conn, insert, WAIT_TIMEOUT);
@@ -884,7 +897,7 @@ single_conn_sql(Connector<BUFFER, NetProvider> &client)
 	check_sql_data(response->body, sql_data_insert_autoinc);
 
 	TEST_CASE("SELECT from space with autoinc and collation");
-	stmt_str = "SELECT * FROM SEQSCAN tsql;";
+	stmt_str = "SELECT * FROM SEQSCAN TSQL;";
 	stmt = StmtProcessor::process(client, conn, stmt_str);
 	select = conn.execute(stmt, std::make_tuple());
 	
@@ -907,7 +920,7 @@ single_conn_sql(Connector<BUFFER, NetProvider> &client)
 	check_sql_data(response->body, sql_data_select_autoinc);
 
 	TEST_CASE("SELECT with span");
-	stmt_str = "SELECT 1 AS x;";
+	stmt_str = "SELECT 1 AS X;";
 	stmt = StmtProcessor::process(client, conn, stmt_str);
 	select = conn.execute(stmt, std::make_tuple());
 
@@ -926,7 +939,7 @@ single_conn_sql(Connector<BUFFER, NetProvider> &client)
 	check_sql_data(response->body, sql_data_select_span);
 
 	/* Finally, drop the table. */
-	stmt_str = "DROP TABLE IF EXISTS tsql;";
+	stmt_str = "DROP TABLE IF EXISTS TSQL;";
 	stmt = StmtProcessor::process(client, conn, stmt_str);
 	drop_table = conn.execute(stmt, std::make_tuple());
 	client.wait(conn, drop_table, WAIT_TIMEOUT);
