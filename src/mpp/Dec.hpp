@@ -153,8 +153,7 @@ constexpr auto detectFamily()
 			return family_sequence<compact::MP_MAP>{};
 		else
 			return family_sequence<compact::MP_ARR>{};
-	} else if constexpr (is_any_putable_v<U> ||
-			     tnt::is_contiguous_v<U>) {
+	} else if constexpr (is_any_putable_v<U> || tnt::is_contiguous_v<U>) {
 		if constexpr (tnt::is_pairish_v<tnt::value_type_t<U>>)
 			return family_sequence<compact::MP_MAP>{};
 		else
