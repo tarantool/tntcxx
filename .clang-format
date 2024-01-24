@@ -6,8 +6,10 @@ IndentWidth: 8
 UseTab: Always
 
 AccessModifierOffset: -8
+AlignAfterOpenBracket: Align
 AlwaysBreakAfterReturnType: TopLevel
 ContinuationIndentWidth: 8
 Cpp11BracedListStyle: true
+SpaceInEmptyBlock: false
 PointerAlignment: Right
 ReferenceAlignment: Right
