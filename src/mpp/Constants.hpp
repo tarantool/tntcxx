@@ -304,10 +304,4 @@ struct ArrValue { uint32_t offset; uint32_t size; };
 struct MapValue { uint32_t offset; uint32_t size; };
 struct ExtValue { int8_t type; uint8_t offset; uint32_t size; };
 
-// The order of types must be exactly the same as in compact::Family!
-using Value_t = std::variant<
-	std::nullptr_t, bool, uint64_t, int64_t, float, double,
-	StrValue, BinValue, ArrValue, MapValue, ExtValue
->;
-
 } // namespace mpp {
