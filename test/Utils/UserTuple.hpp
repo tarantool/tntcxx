@@ -30,9 +30,8 @@
  * SUCH DAMAGE.
  */
 #include "../src/Buffer/Buffer.hpp"
-#include "../src/mpp/mpp.hpp"
-#include "../src/mpp/Dec.hpp"
 #include "../src/Client/ResponseDecoder.hpp"
+#include "../src/mpp/mpp.hpp"
 
 /** Corresponds to data stored in _space[512]. */
 struct UserTuple {
@@ -46,24 +45,11 @@ struct UserTuple {
 		&UserTuple::field4);
 };
 
-std::ostream&
-operator<<(std::ostream& strm, const UserTuple &t)
+std::ostream &
+operator<<(std::ostream &strm, const UserTuple &t)
 {
 	return strm << "Tuple: field1=" << t.field1 << " field2=" << t.field2 <<
 		    " field3=" << t.field3 <<
 		    " field4.first=" << t.field4.first <<
 		    " field4.second=" << t.field4.second;
-}
-
-using Buf_t = tnt::Buffer<16 * 1024>;
-
-template <class BUFFER>
-std::vector<UserTuple>
-decodeUserTuple(Data<BUFFER> &data)
-{
-	std::vector<UserTuple> result;
-	bool ok = data.decode(result);
-	if (!ok)
-		return std::vector<UserTuple>();
-	return result;
 }
