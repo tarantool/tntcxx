@@ -31,12 +31,13 @@
  */
 #include <arpa/inet.h>
 #include <netinet/in.h>
-#include <unistd.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/wait.h>
+#include <string.h>
 #include <sys/socket.h>
-#include <signal.h>
+#include <sys/wait.h>
+#include <unistd.h>
 #ifdef __linux__
 #include <sys/prctl.h>
 #endif
