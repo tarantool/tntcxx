@@ -198,7 +198,7 @@ genSSLCert() {
  * `localhost:dummy_server_port`, reads 1 byte and exits.
  */
 int
-launchDummyServer(const char *addr, int port)
+launchDummyServer(const char *addr, unsigned port)
 {
 	pid_t ppid_before_fork = ::getpid();
 	pid_t pid = ::fork();
@@ -232,7 +232,7 @@ launchDummyServer(const char *addr, int port)
 
 	struct sockaddr_in sock_address{};
 	sock_address.sin_family = AF_INET;
-	sock_address.sin_port = htons(port);
+	sock_address.sin_port = htons(static_cast<uint16_t>(port));
 	if (::inet_aton(addr, &sock_address.sin_addr) != 1) {
 		::perror("inet_aton failed");
 		::exit(EXIT_FAILURE);

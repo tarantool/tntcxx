@@ -42,7 +42,15 @@
 #include <string_view>
 
 #include "Connection.hpp"
+
+/**
+ * Disable -Wshadow for libev because ev_loop function shadows
+ * declaration of struct ev_loop constructor.
+ */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wshadow" 
 #include "ev.h"
+#pragma GCC diagnostic pop
 
 template<class BUFFER, class Stream>
 class Connector;
@@ -131,7 +139,8 @@ connectionReceive(Connection<BUFFER,  LibevNetProvider<BUFFER, Stream>> &conn)
 	size_t iov_cnt = buf.getIOV(itr, iov, IOVEC_MAX_SIZE);
 
 	ssize_t rcvd = conn.get_strm().recv(iov, iov_cnt);
-	hasNotRecvBytes(conn, CONN_READAHEAD - (rcvd < 0 ? 0 : rcvd));
+	size_t bytes = static_cast<size_t>(CONN_READAHEAD - (rcvd < 0 ? 0 : rcvd));
+	hasNotRecvBytes(conn, bytes);
 	if (rcvd < 0) {
 		conn.setError(std::string("Failed to receive response: ") +
 			       strerror(errno), errno);
@@ -215,7 +224,7 @@ connectionSend(Connection<BUFFER,  LibevNetProvider<BUFFER, Stream>> &conn)
 			assert(conn.get_strm().has_status(SS_NEED_EVENT_FOR_WRITE));
 			return 1;
 		} else {
-			hasSentBytes(conn, sent);
+			hasSentBytes(conn, static_cast<size_t>(sent));
 		}
 	}
 	/* All data from connection has been successfully written. */

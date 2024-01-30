@@ -197,7 +197,8 @@ UnixStream::connect(const ConnectOptions &opts_arg)
 				struct pollfd fds;
 				fds.fd = fd;
 				fds.events = POLLOUT;
-				if (poll(&fds, 1, opts.connect_timeout) == 0) {
+				int timeout = static_cast<int>(opts.connect_timeout);
+				if (poll(&fds, 1, timeout) == 0) {
 					connect_errno = ETIMEDOUT;
 					break;
 				}

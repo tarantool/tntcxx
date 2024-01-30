@@ -42,12 +42,12 @@
 /** rid == request id */
 typedef size_t rid_t;
 
-static constexpr size_t CONN_READAHEAD = 64 * 1024;
+static constexpr ssize_t CONN_READAHEAD = 64 * 1024;
 static constexpr size_t IOVEC_MAX_SIZE = 32;
 
 struct ConnectionError {
-	ConnectionError(const std::string &msg, int errno_ = 0) :
-		msg(msg), saved_errno(errno_)
+	ConnectionError(const std::string &errmsg, int errno_ = 0) :
+		msg(errmsg), saved_errno(errno_)
 	{
 	}
 
@@ -249,7 +249,7 @@ public:
 
 private:
 	ConnectionImpl<BUFFER, NetProvider> *impl;
-	static constexpr size_t GC_STEP_CNT = 100;
+	static constexpr int GC_STEP_CNT = 100;
 
 	template <class T>
 	rid_t insert(const T &tuple, uint32_t space_id);
@@ -549,8 +549,9 @@ processResponse(Connection<BUFFER, NetProvider> &conn,
 		std::abort();
 
 	}
-	response.size += MP_RESPONSE_SIZE;
-	if (! conn.impl->inBuf.has(conn.impl->endDecoded, response.size)) {
+	response.size += static_cast<int>(MP_RESPONSE_SIZE);
+	uint32_t size = static_cast<uint32_t>(response.size);
+	if (! conn.impl->inBuf.has(conn.impl->endDecoded, size)) {
 		//Response was received only partially. Reset decoder position
 		//to the start of response to make this function re-entered.
 		conn.impl->dec.reset(conn.impl->endDecoded);
@@ -558,7 +559,7 @@ processResponse(Connection<BUFFER, NetProvider> &conn,
 	}
 	if (conn.impl->dec.decodeResponse(response) != 0) {
 		conn.setError("Failed to decode response, skipping bytes..");
-		conn.impl->endDecoded += response.size;
+		conn.impl->endDecoded += size;
 		return DECODE_ERR;
 	}
 	LOG_DEBUG("Header: sync=", response.header.sync, ", code=",
@@ -569,7 +570,7 @@ processResponse(Connection<BUFFER, NetProvider> &conn,
 		conn.impl->futures.insert({response.header.sync,
 					   std::move(response)});
 	}
-	conn.impl->endDecoded += response.size;
+	conn.impl->endDecoded += size;
 	inputBufGC(conn);
 	return DECODE_SUCC;
 }
@@ -594,7 +595,7 @@ decodeGreeting(Connection<BUFFER, NetProvider> &conn)
 	char hex_salt[Iproto::MAX_SALT_SIZE * 2 + 1];
 	const char *hex = "0123456789abcdef";
 	for (size_t i = 0; i < conn.impl->greeting.salt_size; i++) {
-		uint8_t u = conn.impl->greeting.salt[i];
+		uint8_t u = static_cast<uint8_t>(conn.impl->greeting.salt[i]);
 		hex_salt[i * 2] = hex[u / 16];
 		hex_salt[i * 2 + 1] = hex[u % 16];
 	}

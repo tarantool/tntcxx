@@ -65,7 +65,8 @@ gen_src_strings()
 		decmap[i] = -1;
 	for (size_t i = 0; i < 2; i++)
 		for (size_t j = 0; j < 64; j++)
-			decmap[static_cast<uint8_t>(alphabets[i][j])] = j;
+			decmap[static_cast<uint8_t>(alphabets[i][j])] =
+				static_cast<char>(j);
 	decmap[size_t('=')] = 64;
 
 	std::cout << "\tconst char *alphabets[2] = {\n";
@@ -77,7 +78,7 @@ gen_src_strings()
 	for (size_t i = 0; i < 16; i++) {
 		std::cout << "\t\t\"";
 		for (size_t j = 0; j < 16; j++) {
-			uint8_t c = decmap[i * 16 + j];
+			uint8_t c = static_cast<uint8_t>(decmap[i * 16 + j]);
 			std::cout << "\\"
 				  << static_cast<char>(('0' + (c >> 6)))
 				  << static_cast<char>(('0' + ((c >> 3) & 0x7)))
@@ -97,8 +98,8 @@ simple_test(const char *orig, size_t orig_size,
 
 	{
 		auto [inp, out] = base64::encode(orig, orig + orig_size, buf);
-		size_t processed_src = inp - orig;
-		size_t processed_dst = out - buf;
+		size_t processed_src = static_cast<size_t>(inp - orig);
+		size_t processed_dst = static_cast<size_t>(out - buf);
 		fail_unless(processed_src == orig_size);
 		fail_unless(processed_dst == base64::enc_size(orig_size));
 		fail_unless(processed_dst == encoded_size);
@@ -107,8 +108,8 @@ simple_test(const char *orig, size_t orig_size,
 
 	{
 		auto [inp, out] = base64::decode(encoded, encoded + encoded_size, buf);
-		size_t processed_src = inp - encoded;
-		size_t processed_dst = out - buf;
+		size_t processed_src = static_cast<size_t>(inp - encoded);
+		size_t processed_dst = static_cast<size_t>(out - buf);
 		fail_unless(processed_src == encoded_size);
 		fail_unless(processed_dst == base64::dec_size(encoded_size) ||
 			    processed_dst + 1 == base64::dec_size(encoded_size) ||
@@ -139,8 +140,8 @@ forth_and_back_test(const char *orig, size_t orig_size)
 	size_t encoded_size;
 	{
 		auto [inp, out] = base64::encode(orig, orig + orig_size, buf);
-		size_t processed_src = inp - orig;
-		encoded_size = out - buf;
+		size_t processed_src = static_cast<size_t>(inp - orig);
+		encoded_size = static_cast<size_t>(out - buf);
 		fail_unless(processed_src == orig_size);
 		fail_unless(encoded_size == base64::enc_size(orig_size));
 	}
@@ -149,8 +150,8 @@ forth_and_back_test(const char *orig, size_t orig_size)
 	size_t decoded_size;
 	{
 		auto [inp, out] = base64::decode(buf, buf + encoded_size, buf2);
-		size_t processed_src = inp - buf;
-		decoded_size = out - buf2;
+		size_t processed_src = static_cast<size_t>(inp - buf);
+		decoded_size = static_cast<size_t>(out - buf2);
 		fail_unless(processed_src == encoded_size);
 		fail_unless(decoded_size == base64::dec_size(encoded_size) ||
 			    decoded_size + 1 == base64::dec_size(encoded_size) ||
@@ -170,9 +171,9 @@ forth_and_back_tests()
 
 	for (size_t k = 0; k < K; k++) {
 		for (size_t i = 0; i < N[k]; i++) {
-			size_t s = 1 + rand() % (M[k] - 1);
+			size_t s = 1 + static_cast<size_t>(rand()) % (M[k] - 1);
 			for (size_t j = 0; j < s; j++)
-				buf[j] = rand();
+				buf[j] = static_cast<char>(rand());
 			forth_and_back_test(buf, s);
 		}
 	}
@@ -186,8 +187,8 @@ check_bad_ending(const char *enc,
 	size_t enc_size = strlen(enc);
 	char res[256];
 	auto [cons_end,prod_end] = base64::decode(enc, enc + enc_size, res);
-	size_t real_cons = cons_end - enc;
-	size_t real_prod = prod_end - res;
+	size_t real_cons = static_cast<size_t>(cons_end - enc);
+	size_t real_prod = static_cast<size_t>(prod_end - res);
 	fail_unless(expected_consumed == real_cons);
 	fail_unless(expected_produced == real_prod);
 	fail_unless(memcmp(res, expected_dec, expected_produced) == 0);

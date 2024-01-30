@@ -401,7 +401,7 @@ ssize_t UnixSSLStream::send(struct iovec *iov, size_t iov_count)
 	size_t sent;
 	int ret = SSL_write_ex(ssl, iov->iov_base, iov->iov_len, &sent);
 	if (ret == 1)
-		return sent;
+		return static_cast<ssize_t>(sent);
 
 	int err = SSL_get_error(ssl, ret);
 	switch (err) {
@@ -444,7 +444,7 @@ ssize_t UnixSSLStream::recv(struct iovec *iov, size_t iov_count)
 	size_t rcvd;
 	int ret = SSL_read_ex(ssl, iov->iov_base, iov->iov_len, &rcvd);
 	if (ret == 1)
-		return rcvd;
+		return static_cast<ssize_t>(rcvd);
 
 	int err = SSL_get_error(ssl, ret);
 	switch (err) {

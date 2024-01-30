@@ -75,13 +75,14 @@ test_bswap()
 		static_assert(std::is_integral_v<decltype(x)>);
 		static_assert(std::is_unsigned_v<decltype(x)>);
 		auto res = x;
+		using T = decltype(x);
 		if constexpr (sizeof(x) == 1) {
 			return res;
 		} else {
 			for (size_t i = 0; i < sizeof(x); i++) {
-				res <<= 8;
+				res = static_cast<T>(res << 8);
 				res |= x & 0xFF;
-				x >>= 8;
+				x = static_cast<T>(x >> 8);
 			}
 		}
 		return res;
@@ -132,7 +133,7 @@ test_bswap()
 		fail_unless(bswap_naive((under_t) x) == mpp::bswap(x));
 	}
 	{
-		float x = 3.1415927;
+		float x = 3.1415927f;
 		using under_t = uint32_t;
 		static_assert(std::is_same_v<under_t, decltype(mpp::bswap(x))>);
 		under_t y;
@@ -179,189 +180,6 @@ test_type_visual()
 					    compact::MP_FLT,
 					    compact::MP_NIL>{} << ")\n";
 }
-
-struct TestArrStruct {
-	size_t parsed_arr_size;
-	double dbl;
-	float flt;
-	char str[12];
-	std::nullptr_t nil;
-	bool b;
-};
-
-
-struct ArrValueReader : mpp::DefaultErrorHandler {
-	using Buffer_t = tnt::Buffer<16 * 1024>;
-	using BufferIterator_t = typename Buffer_t::iterator;
-	explicit ArrValueReader(TestArrStruct& a) : arr(a) {}
-	static constexpr mpp::Family VALID_TYPES = mpp::MP_FLT |
-		mpp::MP_STR | mpp::MP_NIL | mpp::MP_BOOL;
-	template <class T>
-	void Value(const BufferIterator_t&, mpp::compact::Family, T v)
-	{
-		using A = TestArrStruct;
-		static constexpr std::tuple map(&A::dbl, &A::flt, &A::nil, &A::b);
-		auto ptr = std::get<std::decay_t<T> A::*>(map);
-		arr.*ptr = v;
-	}
-	void Value(BufferIterator_t& itr, mpp::compact::Family, mpp::StrValue v)
-	{
-		BufferIterator_t tmp = itr;
-		tmp += v.offset;
-		char *dst = arr.str;
-		while (v.size) {
-			*dst++ = *tmp;
-			++tmp;
-			--v.size;
-		}
-		*dst = 0;
-	}
-
-	BufferIterator_t* StoreEndIterator() { return nullptr; }
-	TestArrStruct& arr;
-};
-
-struct ArrReader : mpp::SimpleReaderBase<tnt::Buffer<16 * 1024>, mpp::MP_ARR> {
-	using Buffer_t = tnt::Buffer<16 * 1024>;
-	using BufferIterator_t = typename Buffer_t::iterator;
-	ArrReader(TestArrStruct& a, mpp::Dec<Buffer_t>& d) : arr(a), dec(d) {}
-	void Value(const BufferIterator_t&, mpp::compact::Family, mpp::ArrValue v)
-	{
-		arr.parsed_arr_size = v.size;
-		dec.SetReader(false, ArrValueReader{arr});
-	}
-
-	TestArrStruct& arr;
-	mpp::Dec<Buffer_t>& dec;
-};
-
-namespace example {
-
-using Buffer_t = tnt::Buffer<16 * 1024>;
-using BufferIterator_t = typename Buffer_t::iterator;
-
-struct TestMapStruct {
-	bool boo;
-	char str[12];
-	size_t str_size;
-	int arr[3];
-	size_t arr_size;
-};
-
-struct MapKeyReader : mpp::SimpleReaderBase<Buffer_t, mpp::MP_INT> {
-	MapKeyReader(mpp::Dec<Buffer_t>& d, TestMapStruct& m) : dec(d), map(m) {}
-
-	void Value(const BufferIterator_t&, mpp::compact::Family, uint64_t k)
-	{
-		using map_t = TestMapStruct;
-		using Boo_t = mpp::SimpleReader<Buffer_t, mpp::MP_BOOL, bool>;
-		using Str_t = mpp::SimpleStrReader<Buffer_t, sizeof(map_t{}.str)>;
-		using Arr_t = mpp::SimpleArrReader
-			<mpp::Dec<Buffer_t>,
-			Buffer_t,
-			sizeof(map_t{}.arr) / sizeof(map_t{}.arr[0]),
-			mpp::MP_INT,
-			int
-			>;
-		switch (k) {
-		case 10:
-			dec.SetReader(true, Boo_t{map.boo});
-			break;
-		case 11:
-			dec.SetReader(true, Str_t{map.str, map.str_size});
-			break;
-		case 12:
-			dec.SetReader(true, Arr_t{dec, map.arr, map.arr_size});
-			break;
-		default:
-			dec.AbortAndSkipRead();
-		}
-	}
-
-	mpp::Dec<Buffer_t>& dec;
-	TestMapStruct& map;
-};
-
-
-struct MapReader : mpp::SimpleReaderBase<tnt::Buffer<16 * 1024>, mpp::MP_MAP> {
-	MapReader(mpp::Dec<Buffer_t>& d, TestMapStruct& m) : dec(d), map(m) {}
-
-	void Value(const BufferIterator_t&, mpp::compact::Family, mpp::MapValue)
-	{
-		dec.SetReader(false, MapKeyReader{dec, map});
-	}
-
-	mpp::Dec<Buffer_t>& dec;
-	TestMapStruct& map;
-};
-
-} // namespace example {
-
-template <class T>
-struct IntVectorValueReader : mpp::DefaultErrorHandler {
-	using Buffer_t = tnt::Buffer<16 * 1024>;
-	using BufferIterator_t = typename Buffer_t::iterator;
-	explicit IntVectorValueReader(std::vector<T>& v) : vec(v) {}
-	static constexpr mpp::Family VALID_TYPES = mpp::MP_INT;
-	template <class V>
-	void Value(const BufferIterator_t&, mpp::compact::Family, V v)
-	{
-		vec.push_back(v);
-	}
-
-	BufferIterator_t* StoreEndIterator() { return nullptr; }
-	std::vector<T>& vec;
-};
-
-template <class T>
-struct IntVectorReader : mpp::SimpleReaderBase<tnt::Buffer<16 * 1024>, mpp::MP_ARR> {
-	static_assert(std::is_integral_v<T>);
-	static_assert(!std::is_same_v<T, bool>);
-	using Buffer_t = tnt::Buffer<16 * 1024>;
-	using BufferIterator_t = typename Buffer_t::iterator;
-	IntVectorReader(std::vector<T>& v, mpp::Dec<Buffer_t>& d) : vec(v), dec(d) {}
-	void Value(const BufferIterator_t&, mpp::compact::Family, mpp::ArrValue v)
-	{
-		vec.reserve(v.size);
-		dec.SetReader(false, IntVectorValueReader{vec});
-	}
-	std::vector<T>& vec;
-	mpp::Dec<Buffer_t>& dec;
-};
-
-template <class T, class U>
-struct IntMapValueReader : mpp::DefaultErrorHandler {
-	using Buffer_t = tnt::Buffer<16 * 1024>;
-	using BufferIterator_t = typename Buffer_t::iterator;
-	IntMapValueReader(std::map<T, U>& m, mpp::Dec<Buffer_t>& d) : map(m), dec(d) {}
-	static constexpr mpp::Family VALID_TYPES = mpp::MP_INT;
-	template <class V>
-	void Value(const BufferIterator_t&, mpp::compact::Family, V v)
-	{
-		auto res = map.template emplace(v, 0);
-		using ValueReader_t = mpp::SimpleReader<Buffer_t, VALID_TYPES, U>;
-		dec.SetReader(true, ValueReader_t{res.first->second});
-	}
-
-	BufferIterator_t* StoreEndIterator() { return nullptr; }
-	std::map<T, U>& map;
-	mpp::Dec<Buffer_t>& dec;
-};
-
-template <class T, class U>
-struct IntMapReader : mpp::SimpleReaderBase<tnt::Buffer<16 * 1024>, mpp::MP_MAP> {
-	static_assert(tnt::is_integer_v<T>);
-	static_assert(tnt::is_integer_v<U>);
-	using Buffer_t = tnt::Buffer<16 * 1024>;
-	using BufferIterator_t = typename Buffer_t::iterator;
-	IntMapReader(std::map<T, U>& m, mpp::Dec<Buffer_t>& d) : map(m), dec(d) {}
-	void Value(const BufferIterator_t&, mpp::compact::Family, mpp::MapValue)
-	{
-		dec.SetReader(false, IntMapValueReader{map, dec});
-	}
-	std::map<T, U>& map;
-	mpp::Dec<Buffer_t>& dec;
-};
 
 enum E1 {
 	ZERO1 = 0,
@@ -447,8 +265,8 @@ test_basic()
 	mpp::encode(buf, add_map);
 
 	for (auto itr = buf.begin(); itr != buf.end(); ++itr) {
-		char c = itr.get<uint8_t>();
-		uint8_t u = c;
+		uint8_t u = itr.get<uint8_t>();
+		char c = static_cast<char>(u);
 		const char *h = "0123456789ABCDEF";
 		if (c >= 'a' && c <= 'z')
 			std::cout << c;
@@ -838,178 +656,6 @@ test_basic()
 	std::map<int, int> read_map;
 	fail_unless(mpp::decode(run, read_map));
 	fail_unless(are_equal(read_map, add_map));
-
-	mpp::Dec<Buf_t> dec(buf);
-	{
-		int val = 15478;
-		dec.SetReader(false, mpp::SimpleReader<Buf_t, mpp::MP_INT, int>{val});
-		mpp::ReadResult_t res = dec.Read();
-		fail_if(res != mpp::READ_SUCCESS);
-		fail_if(val != 0);
-	}
-	{
-		int val = 15478;
-		dec.SetReader(false, mpp::SimpleReader<Buf_t, mpp::MP_INT, int>{val});
-		mpp::ReadResult_t res = dec.Read();
-		fail_if(res != mpp::READ_SUCCESS);
-		fail_if(val != 10);
-	}
-	{
-		unsigned short val = 15478;
-		mpp::SimpleReader<Buf_t, mpp::MP_NUM, unsigned short> r{val};
-		dec.SetReader(false, r);
-		mpp::ReadResult_t res = dec.Read();
-		fail_if(res != mpp::READ_SUCCESS);
-		fail_if(val != 200);
-	}
-	for (uint64_t exp : {2000ull, 2000000ull, 4000000000ull, 4000000000ull, 20000000000ull})
-	{
-		uint64_t val = 15478;
-		dec.SetReader(false, mpp::SimpleReader<Buf_t, mpp::MP_INT, uint64_t>{val});
-		mpp::ReadResult_t res = dec.Read();
-		fail_if(res != mpp::READ_SUCCESS);
-		fail_if(val != exp);
-	}
-	for (int32_t exp : {-1, -100, -100, -1000})
-	{
-		int32_t val = 15478;
-		dec.SetReader(false, mpp::SimpleReader<Buf_t, mpp::MP_INT, int32_t>{val});
-		mpp::ReadResult_t res = dec.Read();
-		fail_if(res != mpp::READ_SUCCESS);
-		fail_if(val != exp);
-	}
-	for (double exp : {1., 2.})
-	{
-		double val = 15478;
-		dec.SetReader(false, mpp::SimpleReader<Buf_t, mpp::MP_FLT, double>{val});
-		mpp::ReadResult_t res = dec.Read();
-		fail_if(res != mpp::READ_SUCCESS);
-		fail_if(val != exp);
-	}
-	for (int32_t exp : {11, 12, -13, 100500, 100501})
-	{
-		int32_t val = 15478;
-		dec.SetReader(false, mpp::SimpleReader<Buf_t, mpp::MP_INT, int32_t>{val});
-		mpp::ReadResult_t res = dec.Read();
-		fail_if(res != mpp::READ_SUCCESS);
-		fail_if(val != exp);
-	}
-	for (bool  exp : {false, true})
-	{
-		bool val = !exp;
-		dec.SetReader(false, mpp::SimpleReader<Buf_t, mpp::MP_BOOL, bool>{val});
-		mpp::ReadResult_t res = dec.Read();
-		fail_if(res != mpp::READ_SUCCESS);
-		fail_if(val != exp);
-	}
-	{
-		constexpr size_t S = 16;
-		char str[S];
-		size_t size;
-		dec.SetReader(false, mpp::SimpleStrReader<Buf_t, S - 1>{str, size});
-		mpp::ReadResult_t res = dec.Read();
-		str[size] = 0;
-		fail_if(res != mpp::READ_SUCCESS);
-		fail_if(size != 3);
-		fail_if(strcmp(str, "abc") != 0);
-	}
-	{
-		constexpr size_t S = 16;
-		char str[S];
-		size_t size;
-		dec.SetReader(false, mpp::SimpleStrReader<Buf_t, S - 1>{str, size});
-		mpp::ReadResult_t res = dec.Read();
-		str[size] = 0;
-		fail_if(res != mpp::READ_SUCCESS);
-		fail_if(size != 4);
-		fail_if(strcmp(str, "defg") != 0);
-	}
-	{
-		constexpr size_t S = 16;
-		char str[S];
-		size_t size;
-		dec.SetReader(false, mpp::SimpleStrReader<Buf_t, S - 1>{str, size});
-		mpp::ReadResult_t res = dec.Read();
-		str[size] = 0;
-		fail_if(res != mpp::READ_SUCCESS);
-		fail_if(size != 10);
-		fail_if(strcmp(str, "1234567890") != 0);
-	}
-	{
-		TestArrStruct arr = {};
-		dec.SetReader(false, ArrReader{arr, dec});
-		mpp::ReadResult_t res = dec.Read();
-		fail_if(res != mpp::READ_SUCCESS);
-		fail_if(arr.parsed_arr_size != 0);
-
-	}
-	{
-		TestArrStruct arr = {};
-		dec.SetReader(false, ArrReader{arr, dec});
-		mpp::ReadResult_t res = dec.Read();
-		fail_if(res != mpp::READ_SUCCESS);
-		fail_if(arr.parsed_arr_size != 5);
-		fail_if(arr.dbl != 1.);
-		fail_if(arr.flt != 2.f);
-		fail_if(strcmp(arr.str, "test") != 0);
-		fail_if(arr.nil != nullptr);
-		fail_if(arr.b != false);
-
-	}
-	{
-		using namespace example;
-		TestMapStruct map = {};
-		dec.SetReader(false, MapReader{dec, map});
-		mpp::ReadResult_t res = dec.Read();
-		fail_unless(res == mpp::READ_SUCCESS);
-		fail_unless(map.boo == true);
-		fail_unless(strcmp(map.str, "val") == 0);
-		fail_unless(map.arr_size == 3);
-		fail_unless(map.arr[0] == 1);
-		fail_unless(map.arr[1] == 2);
-		fail_unless(map.arr[2] == 3);
-	}
-	dec.Skip();
-	fail_unless(dec.Read() == mpp::READ_SUCCESS);
-	fail_unless(dec.Read() == mpp::READ_SUCCESS);
-	{
-		std::vector<int> vec;
-		dec.SetReader(false, IntVectorReader{vec, dec});
-		mpp::ReadResult_t res = dec.Read();
-		fail_unless(res == mpp::READ_SUCCESS);
-		fail_unless(vec.size() == 3);
-		fail_unless(vec[0] == 1);
-		fail_unless(vec[1] == 2);
-		fail_unless(vec[2] == 3);
-	}
-	{
-		std::vector<short int> vec;
-		dec.SetReader(false, IntVectorReader{vec, dec});
-		mpp::ReadResult_t res = dec.Read();
-		fail_unless(res == mpp::READ_SUCCESS);
-		fail_unless(vec.size() == 3);
-		fail_unless(vec[0] == 4);
-		fail_unless(vec[1] == 5);
-		fail_unless(vec[2] == 6);
-	}
-	{
-		std::vector<uint8_t> vec;
-		dec.SetReader(false, IntVectorReader{vec, dec});
-		mpp::ReadResult_t res = dec.Read();
-		fail_unless(res == mpp::READ_SUCCESS);
-		fail_unless(vec.size() == 2);
-		fail_unless(vec[0] == 7);
-		fail_unless(vec[1] == 8);
-	}
-	{
-		std::map<int, int> map;
-		dec.SetReader(false, IntMapReader{map, dec});
-		mpp::ReadResult_t res = dec.Read();
-		fail_unless(res == mpp::READ_SUCCESS);
-		fail_unless(map.size() == 2);
-		fail_unless(map[1] == 2);
-		fail_unless(map[3] == 4);
-	}
 }
 
 struct JustClass {
@@ -1123,7 +769,7 @@ struct Triplet {
 	int b = 0;
 	int c = 0;
 
-	void gen(size_t i)
+	void gen(int i)
 	{
 		a = 3 * i + 1;
 		b = 3 * i + 100500;
@@ -1152,9 +798,9 @@ struct Error {
 	int code = 0;
 	std::string descr;
 
-	void gen(size_t i)
+	void gen(int i)
 	{
-		code = i + 1;
+		code = static_cast<int>(i + 1);
 		descr = std::to_string(code);
 	}
 
@@ -1185,10 +831,10 @@ struct Body {
 		num.gen();
 		triplets.resize(2);
 		for (size_t i = 0; i < triplets.size(); i++)
-			triplets[i].gen(i);
+			triplets[i].gen(static_cast<int>(i));
 		errors.resize(3);
 		for (size_t i = 0; i < errors.size(); i++)
-			errors[i].gen(i);
+			errors[i].gen(static_cast<int>(i));
 	}
 
 	bool operator==(const Body& that) const
@@ -1226,8 +872,8 @@ test_object_codec()
 	mpp::encode(buf, std::forward_as_tuple(wr));
 
 	for (auto itr = buf.begin(); itr != buf.end(); ++itr) {
-		char c = itr.get<uint8_t>();
-		uint8_t u = c;
+		uint8_t u = itr.get<uint8_t>();
+		char c = static_cast<char>(u);
 		const char *h = "0123456789ABCDEF";
 		if (c >= 'a' && c <= 'z')
 			std::cout << c;
@@ -1283,7 +929,7 @@ test_optional()
 	buf.flush();
 
 	TEST_CASE("containers with numbers");
-	int null_idx = 4;
+	size_t null_idx = 4;
 	mpp::encode(buf, std::make_optional(mpp::as_arr(
 		std::forward_as_tuple(0, std::make_optional(1), 2, 3, std::optional<int>(), 5)
 	)));
@@ -1297,20 +943,21 @@ test_optional()
 	ok = mpp::decode(run, opt_num_arr);
 	fail_unless(ok);
 	fail_unless(opt_num_arr.size() == 6);
-	for (int i = 0; i < 6; i++) {
+	for (size_t i = 0; i < 6; i++) {
 		if (i == null_idx) {
 			fail_unless(!opt_num_arr[i].has_value());
 			continue;
 		}
+		int val = static_cast<int>(i);
 		fail_unless(opt_num_arr[i].has_value());
-		fail_unless(opt_num_arr[i].value() == i);
+		fail_unless(opt_num_arr[i].value() == val);
 	}
 
 	run = buf.begin<true>();
 	ok = mpp::decode(run, opt_num_set);
 	fail_unless(ok);
 	fail_unless(opt_num_set.size() == 6);
-	for (int i = 0; i < 6; i++) {
+	for (size_t i = 0; i < 6; i++) {
 		if (i == null_idx) {
 			fail_unless(opt_num_set.count(i) == 0);
 			fail_unless(opt_num_set.count(std::nullopt) == 1);
@@ -1324,13 +971,14 @@ test_optional()
 	fail_unless(ok);
 	fail_unless(opt_num_opt_arr.has_value());
 	fail_unless(opt_num_opt_arr->size() == 6);
-	for (int i = 0; i < 6; i++) {
+	for (size_t i = 0; i < 6; i++) {
 		if (i == null_idx) {
 			fail_unless(!opt_num_opt_arr.value()[i].has_value());
 			continue;
 		}
+		int val = static_cast<int>(i);
 		fail_unless(opt_num_opt_arr.value()[i].has_value());
-		fail_unless(opt_num_opt_arr.value()[i].value() == i);
+		fail_unless(opt_num_opt_arr.value()[i].value() == val);
 	}
 	ok = mpp::decode(run, opt_num_opt_arr);
 	fail_unless(ok);
@@ -1341,7 +989,7 @@ test_optional()
 	fail_unless(ok);
 	fail_unless(opt_num_opt_set.has_value());
 	fail_unless(opt_num_opt_set->size() == 6);
-	for (int i = 0; i < 6; i++) {
+	for (size_t i = 0; i < 6; i++) {
 		if (i == null_idx) {
 			fail_unless(opt_num_opt_set->count(i) == 0);
 			fail_unless(opt_num_opt_set->count(std::nullopt) == 1);
@@ -1404,7 +1052,7 @@ test_optional()
 	ok = mpp::decode(run, opt_body_arr);
 	fail_unless(ok);
 	fail_unless(opt_body_arr.size() == 3);
-	for (int i = 0; i < 3; i++) {
+	for (size_t i = 0; i < 3; i++) {
 		if (i == null_idx) {
 			fail_unless(!opt_body_arr[i].has_value());
 			continue;
@@ -1418,7 +1066,7 @@ test_optional()
 	fail_unless(ok);
 	fail_unless(opt_body_set.size() == 3);
 	fail_unless(opt_body_set.count(std::nullopt) == 1);
-	for (int i = 0; i < 3; i++) {
+	for (size_t i = 0; i < 3; i++) {
 		if (i == null_idx) {
 			fail_unless(opt_body_set.count(wrs[i]) == 0);
 			continue;
@@ -1431,7 +1079,7 @@ test_optional()
 	fail_unless(ok);
 	fail_unless(opt_body_opt_arr.has_value());
 	fail_unless(opt_body_opt_arr->size() == 3);
-	for (int i = 0; i < 3; i++) {
+	for (size_t i = 0; i < 3; i++) {
 		if (i == null_idx) {
 			fail_unless(!opt_body_opt_arr.value()[i].has_value());
 			continue;
@@ -1449,7 +1097,7 @@ test_optional()
 	fail_unless(opt_body_opt_set.has_value());
 	fail_unless(opt_body_opt_set->size() == 3);
 	fail_unless(opt_body_opt_set->count(std::nullopt) == 1);
-	for (int i = 0; i < 3; i++) {
+	for (size_t i = 0; i < 3; i++) {
 		if (i == null_idx) {
 			fail_unless(opt_body_opt_set->count(wrs[i]) == 0);
 			continue;

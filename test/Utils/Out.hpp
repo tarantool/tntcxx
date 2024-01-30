@@ -11,7 +11,7 @@
 
 namespace out_internal {
 template <class... T>
-void out(std::string_view names, T&&... t)
+void out(std::string_view names, T&&... ts)
 {
 	auto helper = [&names](auto&& t) {
 		size_t pos = names.find(',');
@@ -23,7 +23,7 @@ void out(std::string_view names, T&&... t)
 			names = names.substr(pos + 1);
 		}
 	};
-	(..., helper(std::forward<T>(t)));
+	(..., helper(std::forward<T>(ts)));
 	std::cout << std::endl;
 }
 } // namespace out_internal {

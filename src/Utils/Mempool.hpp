@@ -190,7 +190,8 @@ public:
 
 			size_t bc =  Stats_t::statBlockCount();
 			size_t total_block_count = sc * (M - 1);
-			size_t prealloc = (m_SlabDataEnd - m_SlabDataBeg) / B;
+			ptrdiff_t data_len = m_SlabDataEnd - m_SlabDataBeg;
+			size_t prealloc = static_cast<size_t>(data_len) / B;
 			size_t expect_free = total_block_count - prealloc - bc;
 			if (calc_free_block_count != expect_free)
 				res |= 2;

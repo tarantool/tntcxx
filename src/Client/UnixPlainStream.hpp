@@ -72,12 +72,12 @@ public:
 /////////////////////////////////////////////////////////////////////
 
 int
-UnixPlainStream::connect(const ConnectOptions &opts)
+UnixPlainStream::connect(const ConnectOptions &opts_arg)
 {
-	if (opts.transport != STREAM_PLAIN)
+	if (opts_arg.transport != STREAM_PLAIN)
 		US_DIE("Non-plain socket are unsupported in this build."
 		       "Consider enabling it with -DTNTCXX_ENABLE_TLS.");
-	return UnixStream::connect(opts);
+	return UnixStream::connect(opts_arg);
 }
 
 namespace internal {
@@ -86,7 +86,7 @@ create_msghdr(struct iovec *iov, size_t iov_count)
 {
 	struct msghdr msg{};
 	msg.msg_iov = iov;
-	msg.msg_iovlen = iov_count;
+	msg.msg_iovlen = static_cast<int>(iov_count);
 	return msg;
 }
 } // namespace internal

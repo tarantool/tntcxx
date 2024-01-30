@@ -184,7 +184,7 @@ operator<<(std::ostream& strm, Family t)
 	bool first = true;
 	do {
 		static_assert(sizeof(unsigned) == sizeof(t), "Wrong ctz");
-		unsigned part = __builtin_ctz(base);
+		unsigned part = static_cast<unsigned>(__builtin_ctz(base));
 		base ^= 1u << part;
 		if (first)
 			first = false;
@@ -287,7 +287,7 @@ operator<<(std::ostream& strm, ReadResult_t t)
 	bool first = true;
 	do {
 		static_assert(sizeof(unsigned) == sizeof(t), "Wrong ctz");
-		unsigned part = __builtin_ctz(base);
+		unsigned part = static_cast<unsigned>(__builtin_ctz(base));
 		base ^= 1u << part;
 		if (first)
 			first = false;

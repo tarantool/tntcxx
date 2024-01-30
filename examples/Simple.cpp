@@ -155,8 +155,8 @@ main()
 	uint32_t limit = 1;
 	uint32_t offset = 0;
 	IteratorType iter = IteratorType::EQ;
-	auto i = conn.space[space_id].index[index_id];
-	rid_t select = i.select(std::make_tuple(pk_value), limit, offset, iter);
+	auto index = conn.space[space_id].index[index_id];
+	rid_t select = index.select(std::make_tuple(pk_value), limit, offset, iter);
 	//doclabel09-2
 	/*
 	 * Now let's send our requests to the server. There are two options

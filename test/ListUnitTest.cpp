@@ -246,7 +246,7 @@ void check(const ObjectList& list, std::vector<int> arr,
 
 	if (failed) {
 		std::cerr << "Check failed: list {";
-		bool first = true;
+		first = true;
 		for (const Object& sObj : list) {
 			if (!first)
 				std::cerr << ", " << sObj.m_Data;
@@ -1161,7 +1161,7 @@ void test_multilinik_round()
 	auto create_add_near = [&]() {
 		if (objects.empty())
 			return;
-		MultilistObject& near = objects[rand() % objects.size()];
+		MultilistObject& near = objects[static_cast<size_t>(rand()) % objects.size()];
 		int id = next_id++;
 		int r = rand();
 		bool red_before = 0 != (r & 1);
@@ -1178,7 +1178,7 @@ void test_multilinik_round()
 	auto insert_to_list = [&]() {
 		if (objects.empty())
 			return;
-		MultilistObject& obj = objects[rand() % objects.size()];
+		MultilistObject& obj = objects[static_cast<size_t>(rand()) % objects.size()];
 		int color = rand() % 3;
 		bool to_back = 0 == (rand() & 1);
 		if (color == 0) {
@@ -1199,8 +1199,8 @@ void test_multilinik_round()
 	auto insert_to_near = [&]() {
 		if (objects.size() < 2)
 			return;
-		int r1 = rand() % objects.size(), r2;
-		do r2 = rand() % objects.size(); while (r1 == r2);
+		size_t r1 = static_cast<size_t>(rand()) % objects.size(), r2;
+		do r2 = static_cast<size_t>(rand()) % objects.size(); while (r1 == r2);
 		MultilistObject& obj = objects[r1];
 		MultilistObject& near = objects[r2];
 		int color = rand() % 3;
@@ -1226,7 +1226,7 @@ void test_multilinik_round()
 	auto remove = [&]() {
 		if (objects.empty())
 			return;
-		MultilistObject& victim = objects[rand() % objects.size()];
+		MultilistObject& victim = objects[static_cast<size_t>(rand()) % objects.size()];
 		int color = rand() % 3;
 		if (color == 0) {
 			victim.remove<in_red>();

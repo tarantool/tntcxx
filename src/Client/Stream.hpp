@@ -211,7 +211,7 @@ Stream::set_status(uint32_t st)
 	else
 		status |= st;
 	assert(has_status(SS_ESTABLISHED) ||
-	       (status & ~SS_READINESS_STATUS) == 0);
+	       (status & ~unsigned(SS_READINESS_STATUS)) == 0);
 	assert(!(has_status(SS_NEED_READ_EVENT_FOR_READ) &&
 		 has_status(SS_NEED_WRITE_EVENT_FOR_READ)));
 	assert(!(has_status(SS_NEED_READ_EVENT_FOR_WRITE) &&
