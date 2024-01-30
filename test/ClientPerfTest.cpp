@@ -29,9 +29,9 @@
  * SUCH DAMAGE.
  */
 #include "Utils/Helpers.hpp"
-#include "Utils/TupleReader.hpp"
-#include "Utils/System.hpp"
 #include "Utils/PerfTimer.hpp"
+#include "Utils/System.hpp"
+#include "Utils/UserTuple.hpp"
 
 #include "../src/Client/Connector.hpp"
 #include "../src/Client/LibevNetProvider.hpp"
@@ -53,6 +53,8 @@ constexpr size_t NUM_REQ = 2000;
 constexpr size_t NUM_TEST = 500;
 constexpr size_t TOTAL_REQ = NUM_REQ * NUM_TEST;
 constexpr size_t NUM_CONN = 1;
+
+using Buf_t = tnt::Buffer<16 * 1024>;
 
 struct RequestResult {
 	double rps;

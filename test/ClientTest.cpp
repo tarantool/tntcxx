@@ -29,8 +29,8 @@
  * SUCH DAMAGE.
  */
 #include "Utils/Helpers.hpp"
-#include "Utils/TupleReader.hpp"
 #include "Utils/System.hpp"
+#include "Utils/UserTuple.hpp"
 
 #include "../src/Client/LibevNetProvider.hpp"
 #include "../src/Client/Connector.hpp"
@@ -40,6 +40,8 @@ int port = 3301;
 int dummy_server_port = 3302;
 const char *unixsocket = "./tnt.sock";
 int WAIT_TIMEOUT = 1000; //milliseconds
+
+using Buf_t = tnt::Buffer<16 * 1024>;
 
 #ifdef TNTCXX_ENABLE_SSL
 constexpr bool enable_ssl = true;

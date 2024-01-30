@@ -43,7 +43,6 @@
 #include <string_view>
 
 #include "Connection.hpp"
-#include "../Utils/Timer.hpp"
 
 template<class BUFFER, class NetProvider>
 class Connector;

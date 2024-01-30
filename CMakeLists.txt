@@ -174,11 +174,6 @@ TNTCXX_TEST(NAME RefVectorUnit.test TYPE ctest
             LIBRARIES ${COMMON_LIB}
 )
 
-TNTCXX_TEST(NAME ItrRangeUnit.test TYPE ctest
-            SOURCES src/Utils/ItrRange.hpp test/ItrRangeUnitTest.cpp
-            LIBRARIES ${COMMON_LIB}
-)
-
 TNTCXX_TEST(NAME Base64Unit.test TYPE ctest
             SOURCES src/Utils/Base64.hpp test/Base64UnitTest.cpp
             LIBRARIES ${COMMON_LIB}
