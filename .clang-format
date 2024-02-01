@@ -8,6 +8,7 @@ UseTab: Always
 AccessModifierOffset: -8
 AlignAfterOpenBracket: Align
 AlwaysBreakAfterReturnType: TopLevel
+ColumnLimit: 120
 ContinuationIndentWidth: 8
 Cpp11BracedListStyle: true
 SpaceInEmptyBlock: false
