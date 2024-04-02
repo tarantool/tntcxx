@@ -487,7 +487,7 @@ test_universal_access()
 
 	fail_unless(tnt::get<0>(stdarr) == 4);
 	fail_unless(tnt::get<1>(stdarr) == 5);
-	tnt::get<1>(stdarr) += 5;
+	tnt::get<1>(stdarr) = static_cast<short>(tnt::get<1>(stdarr) + 5);
 	fail_unless(tnt::get<1>(stdarr) == 10);
 
 	TupleClass tc;

@@ -226,8 +226,7 @@ main()
 	client.waitAll(conn, prepared_select_futures);
 	for (size_t i = 0; i < prepared_select_futures.size(); ++i) {
 		assert(conn.futureIsReady(prepared_select_futures[i]));
-		Response<Buf_t> response =
-			conn.getResponse(prepared_select_futures[i]);
+		response = conn.getResponse(prepared_select_futures[i]);
 		printResponse<Buf_t>(response);
 	}
 

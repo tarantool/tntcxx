@@ -415,7 +415,7 @@ auto read_value(BUF& buf)
 		assert(tag >= rule_simplex_tag_range_v<RULE>.first);
 		assert(tag <= rule_simplex_tag_range_v<RULE>.last);
 		[[maybe_unused]] typename RULE::simplex_value_t val =
-			tag - RULE::simplex_tag;
+			static_cast<typename RULE::simplex_value_t>(tag - RULE::simplex_tag);
 
 		if constexpr (FAMILY == compact::MP_NIL)
 			return tnt::empty_value;
@@ -484,7 +484,7 @@ auto read_item(BUF& buf, ITEM& item)
 	} else if constexpr (tnt::is_optional_v<ITEM> && FAMILY == compact::MP_NIL) {
 		item.reset();
 	} else {
-		item = val;
+		item = static_cast<ITEM>(val);
 	}
 	return val;
 }
@@ -546,13 +546,13 @@ struct Jumps {
 	/** Override given tag with special jump. */
 	template <size_t... I>
 	static constexpr data_t
-	build_inject(data_t orig, uint8_t tag, jump_t inject, tnt::iseq<I...>)
+	build_inject(data_t orig, uint8_t tag, jump_t jump, tnt::iseq<I...>)
 	{
-		return {(I != tag ? orig[I] : inject)...};
+		return {(I != tag ? orig[I] : jump)...};
 	}
 
-	constexpr Jumps(Jumps a, uint8_t tag, jump_t inject)
-		: data(build_inject(a.data, tag, inject, is256))
+	constexpr Jumps(Jumps a, uint8_t tag, jump_t jump)
+		: data(build_inject(a.data, tag, jump, is256))
 	{
 	}
 
@@ -600,8 +600,8 @@ struct JumpsBuilder {
 			jump_common<FAMILY, SUBRULE, PATH, BUF, T...>;
 		if constexpr (SUBRULE == SIMPLEX_SUBRULE) {
 			constexpr auto t = RULE::simplex_tag;
-			constexpr uint8_t f = RULE::simplex_value_range.first;
-			constexpr uint8_t l = RULE::simplex_value_range.last;
+			constexpr uint8_t f = static_cast<uint8_t>(RULE::simplex_value_range.first);
+			constexpr uint8_t l = static_cast<uint8_t>(RULE::simplex_value_range.last);
 			return Jumps<BUF, T...>{j, t + f, t + l};
 		} else {
 			constexpr auto t = RULE::complex_tag;

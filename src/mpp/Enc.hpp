@@ -169,7 +169,8 @@ auto getValue([[maybe_unused]] const T& t, [[maybe_unused]] const U& u)
 			return uniLength32(u);
 		} else {
 			static_assert(std::is_standard_layout_v<U>);
-			return std::integral_constant<uint32_t, sizeof(U)>{};
+			constexpr uint32_t value = static_cast<uint32_t>(sizeof(U));
+			return std::integral_constant<uint32_t, value>{};
 		}
 	} else if constexpr (FAMILY == compact::MP_ARR) {
 		return uniSize32(u);
@@ -415,15 +416,15 @@ constexpr auto getTagValSimple([[maybe_unused]] V value)
 		return std::make_pair(tag, enc_val);
 	} else if constexpr(tnt::is_integral_constant_v<V>) {
 		constexpr auto cv = V::value;
-		constexpr size_t soff = find_simplex_offset<RULE>(cv);
+		constexpr size_t soff = static_cast<size_t>(find_simplex_offset<RULE>(cv));
 		if constexpr(soff < RULE::simplex_value_range.count) {
 			constexpr uint8_t ut = RULE::simplex_tag + soff;
-			constexpr int8_t t = static_cast<uint8_t>(ut);
+			constexpr int8_t t = static_cast<int8_t>(ut);
 			return std::make_pair(tnt::CStr<t>{}, Nothing{});
 		} else {
 			constexpr size_t coff = find_complex_offset<RULE>(cv);
 			constexpr uint8_t ut = RULE::complex_tag + coff;
-			constexpr int8_t t = static_cast<uint8_t>(ut);
+			constexpr int8_t t = static_cast<int8_t>(ut);
 			using types = typename RULE::complex_types;
 			using type = std::tuple_element_t<coff, types>;
 			std::integral_constant<type, cv> val;
@@ -432,8 +433,8 @@ constexpr auto getTagValSimple([[maybe_unused]] V value)
 		}
 	} else {
 		static_assert(RULE::has_simplex);
-		size_t soff = find_simplex_offset<RULE>(value);
-		uint8_t t = RULE::simplex_tag + soff;
+		size_t soff = static_cast<size_t>(find_simplex_offset<RULE>(value));
+		uint8_t t = static_cast<uint8_t>(RULE::simplex_tag + soff);
 		return std::make_pair(t, Nothing{});
 	}
 }
@@ -674,9 +675,9 @@ encode(CONT &cont, tnt::CStr<C...> prefix,
 			using types = typename rule_t::complex_types;
 
 			if constexpr(rule_t::has_simplex) {
-				size_t soff = find_simplex_offset<rule_t>(value);
+				size_t soff = static_cast<size_t>(find_simplex_offset<rule_t>(value));
 				if (soff < rule_t::simplex_value_range.count) {
-					uint8_t tag = rule_t::simplex_tag + soff;
+					uint8_t tag = static_cast<uint8_t>(rule_t::simplex_tag + soff);
 					cont.write(prefix);
 					cont.write(tag);
 					return encode(cont, tnt::CStr<>{}, is,

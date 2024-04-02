@@ -42,13 +42,13 @@ struct Allocation {
 		static size_t inc_id = 0;
 		ptr = alloc_ptr;
 		id = ++inc_id;
-		char v = id;
+		char v = static_cast<char>(id);
 		for (size_t i = 0; i < S; i++)
 			ptr[i] = v;
 	}
 	bool is_valid() const
 	{
-		char v = id;
+		char v = static_cast<char>(id);
 		for (size_t i = 0; i < S; i++)
 			if (ptr[i] != v)
 				return false;
@@ -140,7 +140,7 @@ test_instance()
 
 	for (size_t i = 0; i < 2 * EXPECT_BLOCKS_IN_SLAB; i++) {
 		for (size_t j = 0; j < i; j++) {
-			size_t k = rand() % all.count;
+			size_t k = static_cast<size_t>(rand()) % all.count;
 			fail_unless(all[k].is_valid());
 			mp.deallocate(all[k].ptr);
 			all.del(k);

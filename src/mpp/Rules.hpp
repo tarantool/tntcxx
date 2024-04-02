@@ -105,7 +105,7 @@ struct RuleRange {
 	T last;
 	size_t count;
 	constexpr RuleRange(T first_, T last_) : first(first_), last(last_),
-						 count(last - first + 1) {}
+		count(static_cast<size_t>(last - first + 1)) {}
 };
 
 template <compact::Family FAMILY, class ...TYPE>
@@ -322,18 +322,18 @@ constexpr int find_simplex_offset([[maybe_unused]] E eval)
 			      1 + (1 << RULE::simplex_value_range.last));
 		static_assert(details::exp_range[0] ==
 			      RULE::simplex_value_range.count);
-		return details::exp_range[val];
+		return static_cast<int>(details::exp_range[val]);
 	} else if constexpr (!RULE::is_simplex_signed || !std::is_signed_v<V>) {
 		constexpr std::make_unsigned_t<typename RULE::simplex_value_t>
 		        range_last = RULE::simplex_value_range.last;
 		if (val <= range_last)
-			return val;
+			return static_cast<int>(val);
 		else
 			return RULE::simplex_value_range.count;
 	} else {
 		if (val >= RULE::simplex_value_range.first &&
 		    val <= RULE::simplex_value_range.last)
-			return val;
+			return static_cast<int>(val);
 		else
 			return RULE::simplex_value_range.count;
 	}

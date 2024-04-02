@@ -75,13 +75,14 @@ test_bswap()
 		static_assert(std::is_integral_v<decltype(x)>);
 		static_assert(std::is_unsigned_v<decltype(x)>);
 		auto res = x;
+		using T = decltype(x);
 		if constexpr (sizeof(x) == 1) {
 			return res;
 		} else {
 			for (size_t i = 0; i < sizeof(x); i++) {
-				res <<= 8;
+				res = static_cast<T>(res << 8);
 				res |= x & 0xFF;
-				x >>= 8;
+				x = static_cast<T>(x >> 8);
 			}
 		}
 		return res;
@@ -132,7 +133,7 @@ test_bswap()
 		fail_unless(bswap_naive((under_t) x) == mpp::bswap(x));
 	}
 	{
-		float x = 3.1415927;
+		float x = 3.1415927f;
 		using under_t = uint32_t;
 		static_assert(std::is_same_v<under_t, decltype(mpp::bswap(x))>);
 		under_t y;
@@ -264,8 +265,8 @@ test_basic()
 	mpp::encode(buf, add_map);
 
 	for (auto itr = buf.begin(); itr != buf.end(); ++itr) {
-		char c = itr.get<uint8_t>();
-		uint8_t u = c;
+		uint8_t u = itr.get<uint8_t>();
+		char c = static_cast<char>(u);
 		const char *h = "0123456789ABCDEF";
 		if (c >= 'a' && c <= 'z')
 			std::cout << c;
@@ -768,7 +769,7 @@ struct Triplet {
 	int b = 0;
 	int c = 0;
 
-	void gen(size_t i)
+	void gen(int i)
 	{
 		a = 3 * i + 1;
 		b = 3 * i + 100500;
@@ -797,9 +798,9 @@ struct Error {
 	int code = 0;
 	std::string descr;
 
-	void gen(size_t i)
+	void gen(int i)
 	{
-		code = i + 1;
+		code = static_cast<int>(i + 1);
 		descr = std::to_string(code);
 	}
 
@@ -830,10 +831,10 @@ struct Body {
 		num.gen();
 		triplets.resize(2);
 		for (size_t i = 0; i < triplets.size(); i++)
-			triplets[i].gen(i);
+			triplets[i].gen(static_cast<int>(i));
 		errors.resize(3);
 		for (size_t i = 0; i < errors.size(); i++)
-			errors[i].gen(i);
+			errors[i].gen(static_cast<int>(i));
 	}
 
 	bool operator==(const Body& that) const
@@ -871,8 +872,8 @@ test_object_codec()
 	mpp::encode(buf, std::forward_as_tuple(wr));
 
 	for (auto itr = buf.begin(); itr != buf.end(); ++itr) {
-		char c = itr.get<uint8_t>();
-		uint8_t u = c;
+		uint8_t u = itr.get<uint8_t>();
+		char c = static_cast<char>(u);
 		const char *h = "0123456789ABCDEF";
 		if (c >= 'a' && c <= 'z')
 			std::cout << c;
@@ -928,7 +929,7 @@ test_optional()
 	buf.flush();
 
 	TEST_CASE("containers with numbers");
-	int null_idx = 4;
+	size_t null_idx = 4;
 	mpp::encode(buf, std::make_optional(mpp::as_arr(
 		std::forward_as_tuple(0, std::make_optional(1), 2, 3, std::optional<int>(), 5)
 	)));
@@ -942,20 +943,21 @@ test_optional()
 	ok = mpp::decode(run, opt_num_arr);
 	fail_unless(ok);
 	fail_unless(opt_num_arr.size() == 6);
-	for (int i = 0; i < 6; i++) {
+	for (size_t i = 0; i < 6; i++) {
 		if (i == null_idx) {
 			fail_unless(!opt_num_arr[i].has_value());
 			continue;
 		}
+		int val = static_cast<int>(i);
 		fail_unless(opt_num_arr[i].has_value());
-		fail_unless(opt_num_arr[i].value() == i);
+		fail_unless(opt_num_arr[i].value() == val);
 	}
 
 	run = buf.begin<true>();
 	ok = mpp::decode(run, opt_num_set);
 	fail_unless(ok);
 	fail_unless(opt_num_set.size() == 6);
-	for (int i = 0; i < 6; i++) {
+	for (size_t i = 0; i < 6; i++) {
 		if (i == null_idx) {
 			fail_unless(opt_num_set.count(i) == 0);
 			fail_unless(opt_num_set.count(std::nullopt) == 1);
@@ -969,13 +971,14 @@ test_optional()
 	fail_unless(ok);
 	fail_unless(opt_num_opt_arr.has_value());
 	fail_unless(opt_num_opt_arr->size() == 6);
-	for (int i = 0; i < 6; i++) {
+	for (size_t i = 0; i < 6; i++) {
 		if (i == null_idx) {
 			fail_unless(!opt_num_opt_arr.value()[i].has_value());
 			continue;
 		}
+		int val = static_cast<int>(i);
 		fail_unless(opt_num_opt_arr.value()[i].has_value());
-		fail_unless(opt_num_opt_arr.value()[i].value() == i);
+		fail_unless(opt_num_opt_arr.value()[i].value() == val);
 	}
 	ok = mpp::decode(run, opt_num_opt_arr);
 	fail_unless(ok);
@@ -986,7 +989,7 @@ test_optional()
 	fail_unless(ok);
 	fail_unless(opt_num_opt_set.has_value());
 	fail_unless(opt_num_opt_set->size() == 6);
-	for (int i = 0; i < 6; i++) {
+	for (size_t i = 0; i < 6; i++) {
 		if (i == null_idx) {
 			fail_unless(opt_num_opt_set->count(i) == 0);
 			fail_unless(opt_num_opt_set->count(std::nullopt) == 1);
@@ -1049,7 +1052,7 @@ test_optional()
 	ok = mpp::decode(run, opt_body_arr);
 	fail_unless(ok);
 	fail_unless(opt_body_arr.size() == 3);
-	for (int i = 0; i < 3; i++) {
+	for (size_t i = 0; i < 3; i++) {
 		if (i == null_idx) {
 			fail_unless(!opt_body_arr[i].has_value());
 			continue;
@@ -1063,7 +1066,7 @@ test_optional()
 	fail_unless(ok);
 	fail_unless(opt_body_set.size() == 3);
 	fail_unless(opt_body_set.count(std::nullopt) == 1);
-	for (int i = 0; i < 3; i++) {
+	for (size_t i = 0; i < 3; i++) {
 		if (i == null_idx) {
 			fail_unless(opt_body_set.count(wrs[i]) == 0);
 			continue;
@@ -1076,7 +1079,7 @@ test_optional()
 	fail_unless(ok);
 	fail_unless(opt_body_opt_arr.has_value());
 	fail_unless(opt_body_opt_arr->size() == 3);
-	for (int i = 0; i < 3; i++) {
+	for (size_t i = 0; i < 3; i++) {
 		if (i == null_idx) {
 			fail_unless(!opt_body_opt_arr.value()[i].has_value());
 			continue;
@@ -1094,7 +1097,7 @@ test_optional()
 	fail_unless(opt_body_opt_set.has_value());
 	fail_unless(opt_body_opt_set->size() == 3);
 	fail_unless(opt_body_opt_set->count(std::nullopt) == 1);
-	for (int i = 0; i < 3; i++) {
+	for (size_t i = 0; i < 3; i++) {
 		if (i == null_idx) {
 			fail_unless(opt_body_opt_set->count(wrs[i]) == 0);
 			continue;

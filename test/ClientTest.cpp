@@ -36,8 +36,8 @@
 #include "../src/Client/Connector.hpp"
 
 const char *localhost = "127.0.0.1";
-int port = 3301;
-int dummy_server_port = 3302;
+unsigned tarantool_port = 3301;
+unsigned dummy_server_port = 3302;
 const char *unixsocket = "./tnt.sock";
 int WAIT_TIMEOUT = 1000; //milliseconds
 
@@ -169,16 +169,16 @@ trivial(Connector<BUFFER, NetProvider> &client)
 	fail_unless(rc != 0);
 	/* Connect to the wrong address. */
 	TEST_CASE("Bad address");
-	rc = test_connect(client, conn, "asdasd", port);
+	rc = test_connect(client, conn, "asdasd", tarantool_port);
 	fail_unless(rc != 0);
 	TEST_CASE("Unreachable address");
-	rc = test_connect(client, conn, "101.101.101", port);
+	rc = test_connect(client, conn, "101.101.101", tarantool_port);
 	fail_unless(rc != 0);
 	TEST_CASE("Wrong port");
-	rc = test_connect(client, conn, localhost, -666);
+	rc = test_connect(client, conn, localhost, static_cast<uint>(-666));
 	fail_unless(rc != 0);
 	TEST_CASE("Connect timeout");
-	rc = test_connect(client, conn, "8.8.8.8", port);
+	rc = test_connect(client, conn, "8.8.8.8", tarantool_port);
 	fail_unless(rc != 0);
 }
 
@@ -189,7 +189,7 @@ single_conn_ping(Connector<BUFFER, NetProvider> &client)
 {
 	TEST_INIT(0);
 	Connection<Buf_t, NetProvider> conn(client);
-	int rc = test_connect(client, conn, localhost, port);
+	int rc = test_connect(client, conn, localhost, tarantool_port);
 	fail_unless(rc == 0);
 	rid_t f = conn.ping();
 	fail_unless(!conn.futureIsReady(f));
@@ -243,13 +243,13 @@ auto_close(Connector<BUFFER, NetProvider> &client)
 	{
 		TEST_CASE("Without requests");
 		Connection<Buf_t, NetProvider> conn(client);
-		int rc = test_connect(client, conn, localhost, port);
+		int rc = test_connect(client, conn, localhost, tarantool_port);
 		fail_unless(rc == 0);
 	}
 	{
 		TEST_CASE("With requests");
 		Connection<Buf_t, NetProvider> conn(client);
-		int rc = test_connect(client, conn, localhost, port);
+		int rc = test_connect(client, conn, localhost, tarantool_port);
 		fail_unless(rc == 0);
 
 		rid_t f = conn.ping();
@@ -270,18 +270,18 @@ many_conn_ping(Connector<BUFFER, NetProvider> &client)
 	Connection<Buf_t, NetProvider> conn1(client);
 	Connection<Buf_t, NetProvider> conn2(client);
 	Connection<Buf_t, NetProvider> conn3(client);
-	int rc = test_connect(client, conn1, localhost, port);
+	int rc = test_connect(client, conn1, localhost, tarantool_port);
 	fail_unless(rc == 0);
 	/* Try to connect to the same port */
-	rc = test_connect(client, conn2, localhost, port);
+	rc = test_connect(client, conn2, localhost, tarantool_port);
 	fail_unless(rc == 0);
 	/*
 	 * Try to re-connect to another address whithout closing
 	 * current connection.
 	 */
-	//rc = test_connect(client, conn2, localhost, port + 2);
+	//rc = test_connect(client, conn2, localhost, tarantool_port + 2);
 	//fail_unless(rc != 0);
-	rc = test_connect(client, conn3, localhost, port);
+	rc = test_connect(client, conn3, localhost, tarantool_port);
 	fail_unless(rc == 0);
 	rid_t f1 = conn1.ping();
 	rid_t f2 = conn2.ping();
@@ -302,10 +302,10 @@ single_conn_error(Connector<BUFFER, NetProvider> &client)
 {
 	TEST_INIT(0);
 	Connection<Buf_t, NetProvider> conn(client);
-	int rc = test_connect(client, conn, localhost, port);
+	int rc = test_connect(client, conn, localhost, tarantool_port);
 	fail_unless(rc == 0);
 	/* Fake space id. */
-	uint32_t space_id = -111;
+	uint32_t space_id = static_cast<uint32_t>(-111);
 	std::tuple data = std::make_tuple(666);
 	rid_t f1 = conn.space[space_id].replace(data);
 	client.wait(conn, f1, WAIT_TIMEOUT);
@@ -339,7 +339,7 @@ single_conn_replace(Connector<BUFFER, NetProvider> &client)
 {
 	TEST_INIT(0);
 	Connection<Buf_t, NetProvider> conn(client);
-	int rc = test_connect(client, conn, localhost, port);
+	int rc = test_connect(client, conn, localhost, tarantool_port);
 	fail_unless(rc == 0);
 	uint32_t space_id = 512;
 	std::tuple data = std::make_tuple(666, "111", 1.01);
@@ -373,7 +373,7 @@ single_conn_insert(Connector<BUFFER, NetProvider> &client)
 {
 	TEST_INIT(0);
 	Connection<Buf_t, NetProvider> conn(client);
-	int rc = test_connect(client, conn, localhost, port);
+	int rc = test_connect(client, conn, localhost, tarantool_port);
 	fail_unless(rc == 0);
 	TEST_CASE("Successful inserts");
 	uint32_t space_id = 512;
@@ -417,7 +417,7 @@ single_conn_update(Connector<BUFFER, NetProvider> &client)
 {
 	TEST_INIT(0);
 	Connection<Buf_t, NetProvider> conn(client);
-	int rc = test_connect(client, conn, localhost, port);
+	int rc = test_connect(client, conn, localhost, tarantool_port);
 	fail_unless(rc == 0);
 	TEST_CASE("Successful update");
 	uint32_t space_id = 512;
@@ -452,7 +452,7 @@ single_conn_delete(Connector<BUFFER, NetProvider> &client)
 {
 	TEST_INIT(0);
 	Connection<Buf_t, NetProvider> conn(client);
-	int rc = test_connect(client, conn, localhost, port);
+	int rc = test_connect(client, conn, localhost, tarantool_port);
 	fail_unless(rc == 0);
 	TEST_CASE("Successful deletes");
 	uint32_t space_id = 512;
@@ -496,7 +496,7 @@ single_conn_upsert(Connector<BUFFER, NetProvider> &client)
 {
 	TEST_INIT(0);
 	Connection<Buf_t, NetProvider> conn(client);
-	int rc = test_connect(client, conn, localhost, port);
+	int rc = test_connect(client, conn, localhost, tarantool_port);
 	fail_unless(rc == 0);
 	TEST_CASE("upsert-insert");
 	uint32_t space_id = 512;
@@ -527,7 +527,7 @@ single_conn_select(Connector<BUFFER, NetProvider> &client)
 {
 	TEST_INIT(0);
 	Connection<Buf_t, NetProvider> conn(client);
-	int rc = test_connect(client, conn, localhost, port);
+	int rc = test_connect(client, conn, localhost, tarantool_port);
 	fail_unless(rc == 0);
 	uint32_t space_id = 512;
 	uint32_t index_id = 0;
@@ -590,7 +590,7 @@ single_conn_call(Connector<BUFFER, NetProvider> &client)
 	const static char *return_map     = "remote_map";
 
 	Connection<Buf_t, NetProvider> conn(client);
-	int rc = test_connect(client, conn, localhost, port);
+	int rc = test_connect(client, conn, localhost, tarantool_port);
 	fail_unless(rc == 0);
 
 	TEST_CASE("call remote_replace");
@@ -761,7 +761,7 @@ single_conn_sql(Connector<BUFFER, NetProvider> &client)
 	using Body_t = Body<BUFFER>;
 
 	Connection<Buf_t, NetProvider> conn(client);
-	int rc = test_connect(client, conn, localhost, port);
+	int rc = test_connect(client, conn, localhost, tarantool_port);
 	fail_unless(rc == 0);
 
 	TEST_CASE("CREATE TABLE");
@@ -1005,7 +1005,7 @@ test_auth(Connector<BUFFER, NetProvider> &client)
 	const char *passwd  = "megapassword";
 
 	Connection<Buf_t, NetProvider> conn(client);
-	int rc = test_connect(client, conn, localhost, port, user, passwd);
+	int rc = test_connect(client, conn, localhost, tarantool_port, user, passwd);
 	fail_unless(rc == 0);
 
 	uint32_t space_id = 513;
