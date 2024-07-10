@@ -675,8 +675,6 @@ template <size_t N, class allocator>
 void
 Buffer<N, allocator>::write(WData data)
 {
-	assert(data.size != 0);
-
 	char *new_end = m_end + data.size;
 	if (TNT_LIKELY(isSameBlock(m_end, new_end))) {
 		// new_addr is still in block. just copy and advance.
@@ -1132,7 +1130,6 @@ template <bool LIGHT>
 void
 Buffer<N, allocator>::iterator_common<LIGHT>::write(WData data)
 {
-	assert(data.size > 0);
 	size_t left_in_block = N - (uintptr_t) m_position % N;
 	while (TNT_UNLIKELY(data.size >= left_in_block)) {
 		std::memcpy(m_position, data.data, left_in_block);
@@ -1238,7 +1235,6 @@ template <bool LIGHT>
 void
 Buffer<N, allocator>::iterator_common<LIGHT>::read(RData data)
 {
-	assert(data.size > 0);
 	/*
 	 * The same implementation as in ::set() method buf vice versa:
 	 * buffer and data sources are swapped.
