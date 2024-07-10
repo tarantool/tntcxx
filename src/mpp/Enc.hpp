@@ -68,7 +68,7 @@ namespace encode_details {
 struct Nothing {};
 
 template <class T>
-constexpr compact::Family detectFamily()
+constexpr Family detectFamily()
 {
 	using fixed_t = get_fixed_t<T>;
 	constexpr bool is_non_void_fixed = !std::is_same_v<fixed_t, void>;
@@ -77,33 +77,33 @@ constexpr compact::Family detectFamily()
 	if constexpr (is_wrapped_family_v<T>) {
 		return T::family;
 	} else if constexpr (std::is_convertible_v<V, tnt::empty_type>) {
-		return compact::MP_NIL;
+		return MP_NIL;
 	} else if constexpr (std::is_same_v<V, bool>) {
-		return compact::MP_BOOL;
+		return MP_BOOL;
 	} else if constexpr (tnt::is_integer_v<V>) {
-		return compact::MP_INT;
+		return MP_INT;
 	} else if constexpr (std::is_floating_point_v<V>) {
-		return compact::MP_FLT;
+		return MP_FLT;
 	} else if constexpr (tnt::is_string_constant_v<V>) {
-		return compact::MP_STR;
+		return MP_STR;
 	} else if constexpr (tnt::is_char_ptr_v<V>) {
-		return compact::MP_STR;
+		return MP_STR;
 	} else if constexpr (tnt::is_contiguous_char_v<V>) {
-		return compact::MP_STR;
+		return MP_STR;
 	} else if constexpr (tnt::is_const_pairs_iterable_v<V>) {
-		return compact::MP_MAP;
+		return MP_MAP;
 	} else if constexpr (tnt::is_const_iterable_v<V>) {
-		return compact::MP_ARR;
+		return MP_ARR;
 	} else if constexpr (tnt::is_tuplish_of_pairish_v<V>) {
 		if constexpr(tnt::tuple_size_v<V> == 0)
-			return compact::MP_ARR;
+			return MP_ARR;
 		else
-			return compact::MP_MAP;
+			return MP_MAP;
 	} else if constexpr (tnt::is_tuplish_v<V>) {
-		return compact::MP_ARR;
+		return MP_ARR;
 	} else {
 		static_assert(tnt::always_false_v<V>, "Failed to recognise type");
-		return compact::MP_END;
+		return MP_END;
 	}
 }
 
@@ -146,10 +146,10 @@ auto uniSize32([[maybe_unused]]const U& u)
 	}
 }
 
-template<compact::Family FAMILY, class T, class U>
+template<Family FAMILY, class T, class U>
 auto getValue([[maybe_unused]] const T& t, [[maybe_unused]] const U& u)
 {
-	if constexpr (FAMILY == compact::MP_STR) {
+	if constexpr (FAMILY == MP_STR) {
 		static_assert(tnt::is_char_ptr_v<U> ||
 			      tnt::is_string_constant_v<U> ||
 			      tnt::is_contiguous_char_v<U>);
@@ -162,8 +162,8 @@ auto getValue([[maybe_unused]] const T& t, [[maybe_unused]] const U& u)
 				      tnt::is_contiguous_char_v<U>);
 			return uniLength32(u);
 		}
-	} else if constexpr (FAMILY == compact::MP_BIN ||
-			     FAMILY == compact::MP_EXT) {
+	} else if constexpr (FAMILY == MP_BIN ||
+			     FAMILY == MP_EXT) {
 		if constexpr(tnt::is_string_constant_v<U> ||
 			     tnt::is_contiguous_v<U>) {
 			return uniLength32(u);
@@ -171,9 +171,9 @@ auto getValue([[maybe_unused]] const T& t, [[maybe_unused]] const U& u)
 			static_assert(std::is_standard_layout_v<U>);
 			return std::integral_constant<uint32_t, sizeof(U)>{};
 		}
-	} else if constexpr (FAMILY == compact::MP_ARR) {
+	} else if constexpr (FAMILY == MP_ARR) {
 		return uniSize32(u);
-	} else if constexpr (FAMILY == compact::MP_MAP) {
+	} else if constexpr (FAMILY == MP_MAP) {
 		if constexpr(tnt::is_tuplish_of_pairish_v<U> ||
 			     tnt::is_const_pairs_iterable_v<U>) {
 			return uniSize32(u);
@@ -191,10 +191,10 @@ auto getValue([[maybe_unused]] const T& t, [[maybe_unused]] const U& u)
 	}
 }
 
-template <compact::Family FAMILY, class T, class U>
+template <Family FAMILY, class T, class U>
 auto getExtType([[maybe_unused]] const T& t, [[maybe_unused]] const U& u)
 {
-	if constexpr (FAMILY == compact::MP_EXT) {
+	if constexpr (FAMILY == MP_EXT) {
 		using E = std::remove_cv_t<decltype(t.ext_type)>;
 		if constexpr(tnt::is_integral_constant_v<E>) {
 			using V = std::remove_cv_t<decltype(t.ext_type.value)>;
@@ -234,11 +234,11 @@ template <class V> struct ChildrenPairs : ChildrenPairsTag {
 	explicit ChildrenPairs(const V& u) : v(u) {}
 };
 
-template<compact::Family FAMILY, class T, class U, class V>
+template<Family FAMILY, class T, class U, class V>
 auto getData([[maybe_unused]] const T& t, [[maybe_unused]] const U& u,
 	     [[maybe_unused]] const V& value)
 {
-	if constexpr (FAMILY == compact::MP_STR) {
+	if constexpr (FAMILY == MP_STR) {
 		if constexpr (tnt::is_char_ptr_v<U> ||
 			      tnt::is_bounded_array_v<U>) {
 			using check0_t = decltype(u[0]);
@@ -258,8 +258,8 @@ auto getData([[maybe_unused]] const T& t, [[maybe_unused]] const U& u,
 			return std::string_view{std::data(u), std::size(u)};
 		}
 
-	} else if constexpr (FAMILY == compact::MP_BIN ||
-			     FAMILY == compact::MP_EXT) {
+	} else if constexpr (FAMILY == MP_BIN ||
+			     FAMILY == MP_EXT) {
 		if constexpr(tnt::is_string_constant_v<U>) {
 			return u;
 		} else if constexpr(tnt::is_contiguous_v<U>) {
@@ -270,9 +270,9 @@ auto getData([[maybe_unused]] const T& t, [[maybe_unused]] const U& u,
 			auto p = reinterpret_cast<const char*>(&u);
 			return std::string_view{p, value};
 		}
-	} else if constexpr (FAMILY == compact::MP_ARR) {
+	} else if constexpr (FAMILY == MP_ARR) {
 		return Children<U>{u};
-	} else if constexpr (FAMILY == compact::MP_MAP) {
+	} else if constexpr (FAMILY == MP_MAP) {
 		if constexpr(tnt::is_tuplish_of_pairish_v<U> ||
 			     tnt::is_const_pairs_iterable_v<U>)
 			return ChildrenPairs<U>{u};
@@ -283,10 +283,10 @@ auto getData([[maybe_unused]] const T& t, [[maybe_unused]] const U& u,
 	}
 }
 
-template<compact::Family FAMILY, class T, class U>
+template<Family FAMILY, class T, class U>
 auto getIS([[maybe_unused]] const T& t, [[maybe_unused]] const U& u)
 {
-	if constexpr (FAMILY == compact::MP_ARR || FAMILY == compact::MP_MAP) {
+	if constexpr (FAMILY == MP_ARR || FAMILY == MP_MAP) {
 		if constexpr(tnt::is_tuplish_v<U>) {
 			return tnt::tuple_iseq<U>{};
 		} else {
@@ -357,8 +357,8 @@ constexpr bool can_encode_simple()
 template <class RULE, bool IS_FIXED, class FIXED_T, class V>
 constexpr auto getTagValSimple([[maybe_unused]] V value)
 {
-	if constexpr(RULE::family == compact::MP_NIL ||
-		     RULE::family == compact::MP_IGNR) {
+	if constexpr(RULE::family == MP_NIL ||
+		     RULE::family == MP_IGNR) {
 		// That type is completely independent on value
 		static_assert(!IS_FIXED || std::is_same_v<FIXED_T, void>);
 		constexpr char t = static_cast<char>(RULE::simplex_tag);
@@ -654,7 +654,7 @@ encode(CONT &cont, tnt::CStr<C...> prefix,
 	} else {
 		constexpr bool is_fixed = is_wrapped_fixed_v<T>;
 		using fixed_t = get_fixed_t<T>;
-		constexpr compact::Family family = detectFamily<T>();
+		constexpr Family family = detectFamily<T>();
 		using rule_t = rule_by_family_t<family>;
 		auto value = getValue<family>(t, u);
 		using V = decltype(value);
