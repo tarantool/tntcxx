@@ -52,42 +52,6 @@ enum Family : uint8_t {
 };
 } // namespace compact {
 
-using FamilyUnder_t = uint32_t;
-enum Family : FamilyUnder_t {
-	MP_NIL  = 1u << compact::MP_NIL,
-	MP_IGNR = 1u << compact::MP_IGNR,
-	MP_BOOL = 1u << compact::MP_BOOL,
-	MP_INT  = 1u << compact::MP_INT,
-	MP_FLT  = 1u << compact::MP_FLT,
-	MP_STR  = 1u << compact::MP_STR,
-	MP_BIN  = 1u << compact::MP_BIN,
-	MP_ARR  = 1u << compact::MP_ARR,
-	MP_MAP  = 1u << compact::MP_MAP,
-	MP_EXT  = 1u << compact::MP_EXT,
-	MP_NUM = (1u << compact::MP_INT) | (1u << compact::MP_FLT),
-	MP_NONE = 0,
-	MP_ANY  = std::numeric_limits<FamilyUnder_t>::max(),
-};
-
-enum ReadError_t {
-	READ_ERROR_NEED_MORE,
-	READ_ERROR_BAD_MSGPACK,
-	READ_ERROR_WRONG_TYPE,
-	READ_ERROR_MAX_DEPTH_REACHED,
-	READ_ERROR_ABORTED_BY_USER,
-	READ_ERROR_END
-};
-
-enum ReadResult_t : FamilyUnder_t {
-	READ_SUCCESS = 0,
-	READ_NEED_MORE = 1u << READ_ERROR_NEED_MORE,
-	READ_BAD_MSGPACK = 1u << READ_ERROR_BAD_MSGPACK,
-	READ_WRONG_TYPE = 1u << READ_ERROR_WRONG_TYPE,
-	READ_MAX_DEPTH_REACHED = 1u << READ_ERROR_MAX_DEPTH_REACHED,
-	READ_ABORTED_BY_USER = 1u << READ_ERROR_ABORTED_BY_USER,
-	READ_RESULT_END
-};
-
 inline const char *FamilyName[] = {
 	"MP_NIL",
 	"MP_IGNR",
@@ -120,51 +84,6 @@ inline const char *FamilyHumanName[] = {
 };
 static_assert(std::size(FamilyHumanName) == compact::MP_END + 2, "Smth is forgotten");
 
-inline const char *ReadErrorName[] = {
-	"READ_ERROR_NEED_MORE",
-	"READ_ERROR_BAD_MSGPACK",
-	"READ_ERROR_WRONG_TYPE",
-	"READ_ERROR_MAX_DEPTH_REACHED",
-	"READ_ERROR_ABORTED_BY_USER",
-	"READ_ERROR_UNKNOWN",
-	"READ_SUCCESS",
-};
-static_assert(std::size(ReadErrorName) == READ_ERROR_END + 2, "Forgotten");
-
-inline constexpr Family
-operator|(Family a, Family b)
-{
-	return static_cast<Family>(static_cast<FamilyUnder_t>(a) |
-				   static_cast<FamilyUnder_t>(b));
-}
-
-inline constexpr Family
-operator&(Family a, Family b)
-{
-	return static_cast<Family>(static_cast<FamilyUnder_t>(a) &
-				   static_cast<FamilyUnder_t>(b));
-}
-
-inline constexpr ReadResult_t
-operator|(ReadResult_t a, ReadResult_t b)
-{
-	return static_cast<ReadResult_t>(static_cast<FamilyUnder_t>(a) |
-					 static_cast<FamilyUnder_t>(b));
-}
-
-inline constexpr ReadResult_t
-operator&(ReadResult_t a, ReadResult_t b)
-{
-	return static_cast<ReadResult_t>(static_cast<FamilyUnder_t>(a) &
-					 static_cast<FamilyUnder_t>(b));
-}
-
-inline constexpr ReadResult_t
-operator~(ReadResult_t a)
-{
-	return static_cast<ReadResult_t>(~static_cast<FamilyUnder_t>(a));
-}
-
 inline std::ostream&
 operator<<(std::ostream& strm, compact::Family t)
 {
@@ -172,27 +91,6 @@ operator<<(std::ostream& strm, compact::Family t)
 		return strm << FamilyName[compact::Family::MP_END]
 			    << "(" << static_cast<uint64_t>(t) << ")";
 	return strm << FamilyName[t];
-}
-
-inline std::ostream&
-operator<<(std::ostream& strm, Family t)
-{
-	if (t == MP_NONE)
-		return strm << FamilyName[compact::Family::MP_END + 1];
-	static_assert(sizeof(FamilyUnder_t) == sizeof(t), "Very wrong");
-	FamilyUnder_t base = t;
-	bool first = true;
-	do {
-		static_assert(sizeof(unsigned) == sizeof(t), "Wrong ctz");
-		unsigned part = __builtin_ctz(base);
-		base ^= 1u << part;
-		if (first)
-			first = false;
-		else
-			strm << "|";
-		strm << static_cast<compact::Family>(part);
-	} while (base != 0);
-	return strm;
 }
 
 template <compact::Family ...FAMILY>
@@ -203,7 +101,7 @@ struct family_sequence {
 	}
 };
 
-template <compact::Family NEW_FAMILY, compact::Family ...FAMILY>
+template <compact::Family NEW_FAMILY, compact::Family... FAMILY>
 static constexpr auto family_sequence_populate(struct family_sequence<FAMILY...>)
 {
 	return family_sequence<NEW_FAMILY, FAMILY...>{};
@@ -250,7 +148,7 @@ struct family_sequence_contains_h<NEEDLE> {
 	static constexpr bool value = false;
 };
 
-} //namespace details
+} // namespace details
 
 template <compact::Family NEEDLE, compact::Family ...HAYSTACK>
 static constexpr bool family_sequence_contains(family_sequence<HAYSTACK...>) {
@@ -268,40 +166,4 @@ operator<<(std::ostream& strm, family_sequence<FAMILY...>)
 	return strm;
 }
 
-inline std::ostream&
-operator<<(std::ostream& strm, ReadError_t t)
-{
-	if (t >= READ_ERROR_END)
-		return strm << ReadErrorName[READ_ERROR_END]
-			    << "(" << static_cast<uint64_t>(t) << ")";
-	return strm << ReadErrorName[t];
-}
-
-inline std::ostream&
-operator<<(std::ostream& strm, ReadResult_t t)
-{
-	if (t == READ_SUCCESS)
-		return strm << ReadErrorName[READ_ERROR_END + 1];
-	static_assert(sizeof(FamilyUnder_t) == sizeof(t), "Very wrong");
-	FamilyUnder_t base = t;
-	bool first = true;
-	do {
-		static_assert(sizeof(unsigned) == sizeof(t), "Wrong ctz");
-		unsigned part = __builtin_ctz(base);
-		base ^= 1u << part;
-		if (first)
-			first = false;
-		else
-			strm << "|";
-		strm << static_cast<ReadError_t>(part);
-	} while (base != 0);
-	return strm;
-}
-
-struct StrValue { uint32_t offset; uint32_t size; };
-struct BinValue { uint32_t offset; uint32_t size; };
-struct ArrValue { uint32_t offset; uint32_t size; };
-struct MapValue { uint32_t offset; uint32_t size; };
-struct ExtValue { int8_t type; uint8_t offset; uint32_t size; };
-
-} // namespace mpp {
+} // namespace mpp
