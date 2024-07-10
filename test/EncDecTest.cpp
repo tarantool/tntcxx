@@ -167,11 +167,6 @@ test_type_visual()
 	std::cout << compact::MP_ARR << " "
 		  << compact::MP_MAP << " "
 		  << compact::MP_EXT << "\n";
-	std::cout << MP_NIL << " "
-		  << MP_BOOL << " "
-		  << (MP_INT) << " "
-		  << (MP_BIN | MP_STR) << " "
-		  << (MP_INT | MP_FLT) << "\n";
 
 	std::cout << "(" << family_sequence<>{} << ") "
 		  << "(" << family_sequence<compact::MP_NIL>{} << ") "
