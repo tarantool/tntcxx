@@ -1,16 +1,73 @@
 ---
 Language: Cpp
-BasedOnStyle: WebKit
+BasedOnStyle: LLVM
 Standard: c++17
-IndentWidth: 8
-UseTab: Always
-
-AccessModifierOffset: -8
-AlignAfterOpenBracket: Align
-AlwaysBreakAfterReturnType: TopLevel
 ColumnLimit: 120
+
+# Tabs and indents
+IndentWidth: 8
 ContinuationIndentWidth: 8
+ConstructorInitializerIndentWidth: 8
+AccessModifierOffset: -8
+UseTab: Always
+TabWidth: 8
+AlignAfterOpenBracket: Align
+AlignOperands: Align
+AlignConsecutiveAssignments: None
+NamespaceIndentation: None
+
+
+# Spaces
 Cpp11BracedListStyle: true
-SpaceInEmptyBlock: false
 PointerAlignment: Right
-ReferenceAlignment: Right
+ReferenceAlignment: Left
+SpaceAfterCStyleCast: false
+SpaceAfterLogicalNot: false
+SpaceAfterTemplateKeyword: true
+SpaceBeforeAssignmentOperators: true
+SpaceBeforeCpp11BracedList: false
+SpaceBeforeCtorInitializerColon: true
+SpaceBeforeInheritanceColon: true
+SpaceBeforeParens: ControlStatements
+SpaceBeforeRangeBasedForLoopColon: false
+SpaceInEmptyBlock: false
+SpaceInEmptyParentheses: false
+SpacesBeforeTrailingComments: 1
+SpacesInAngles: false
+SpacesInCStyleCastParentheses: false
+SpacesInContainerLiterals: false
+SpacesInParentheses: false
+SpacesInSquareBrackets: false
+FixNamespaceComments: true
+
+# Wrapping and braces
+AlwaysBreakAfterReturnType: TopLevel
+AlwaysBreakTemplateDeclarations: Yes
+
+AllowAllArgumentsOnNextLine: false
+AllowAllConstructorInitializersOnNextLine: false
+AllowAllParametersOfDeclarationOnNextLine: false
+AllowShortBlocksOnASingleLine: Always
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLambdasOnASingleLine: All
+AllowShortLoopsOnASingleLine: false
+
+BreakInheritanceList: AfterColon
+BreakStringLiterals: true
+BreakConstructorInitializers: AfterColon
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterCaseLabel: false
+  AfterClass: false
+  AfterControlStatement: Never
+  AfterEnum: false
+  AfterFunction: true
+  AfterNamespace: false
+  AfterUnion: false
+  BeforeCatch: false
+  BeforeElse: false
+  IndentBraces: false
+  SplitEmptyFunction: false
+  SplitEmptyRecord: true
