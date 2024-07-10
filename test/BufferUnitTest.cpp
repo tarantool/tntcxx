@@ -125,6 +125,12 @@ buffer_basic()
 	TEST_INIT(1, N);
 	tnt::Buffer<N> buf;
 	fail_unless(buf.empty());
+
+	/* Empty write should work and don't write anything. */
+	buf.write(typename tnt::Buffer<N>::WData {nullptr, 0});
+	fail_unless(buf.empty());
+	fail_if(buf.debugSelfCheck());
+
 	buf.write(int_sample);
 	fail_unless(! buf.empty());
 	fail_if(buf.debugSelfCheck());
@@ -382,6 +388,20 @@ buffer_iterator()
 	itr = buf.begin();
 	const auto& citr = itr;
 	typename tnt::Buffer<N>::iterator itr2(itr);
+
+	/* Empty writes and reads should work and don't write anything. */
+	itr.write(typename tnt::Buffer<N>::WData {nullptr, 0});
+	fail_unless(buf.empty());
+	fail_if(buf.debugSelfCheck());
+	itr.set(typename tnt::Buffer<N>::WData {nullptr, 0});
+	fail_unless(buf.empty());
+	fail_if(buf.debugSelfCheck());
+	itr.get(typename tnt::Buffer<N>::RData {nullptr, 0});
+	fail_unless(buf.empty());
+	fail_if(buf.debugSelfCheck());
+	itr.read(typename tnt::Buffer<N>::RData {nullptr, 0});
+	fail_unless(buf.empty());
+	fail_if(buf.debugSelfCheck());
 
 	auto litr1 = itr.enlight();
 	{
