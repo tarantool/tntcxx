@@ -164,15 +164,11 @@ test_type_visual()
 {
 	TEST_INIT(0);
 	using namespace mpp;
-	std::cout << compact::MP_ARR << " "
-		  << compact::MP_MAP << " "
-		  << compact::MP_EXT << "\n";
+	std::cout << MP_ARR << " " << MP_MAP << " " << MP_EXT << "\n";
 
 	std::cout << "(" << family_sequence<>{} << ") "
-		  << "(" << family_sequence<compact::MP_NIL>{} << ") "
-		  << "(" << family_sequence<compact::MP_INT,
-					    compact::MP_FLT,
-					    compact::MP_NIL>{} << ")\n";
+		  << "(" << family_sequence<MP_NIL>{} << ") "
+		  << "(" << family_sequence<MP_INT, MP_FLT, MP_NIL>{} << ")\n";
 }
 
 enum E1 {
