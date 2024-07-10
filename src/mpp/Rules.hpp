@@ -108,55 +108,55 @@ struct RuleRange {
 						 count(last - first + 1) {}
 };
 
-template <compact::Family FAMILY, class ...TYPE>
+template <Family FAMILY, class ...TYPE>
 struct BaseRule {
 	// Widest types that can represent the value.
 	using types = std::tuple<TYPE...>;
 	// Msgpack family.
-	static constexpr compact::Family family = FAMILY;
+	static constexpr Family family = FAMILY;
 	// The rule stores bool values.
-	static constexpr bool is_bool = FAMILY == compact::MP_BOOL;
+	static constexpr bool is_bool = FAMILY == MP_BOOL;
 	// The rule stores floating point values.
-	static constexpr bool is_floating_point = FAMILY == compact::MP_FLT;
+	static constexpr bool is_floating_point = FAMILY == MP_FLT;
 	// The rule actually doest not store value, only type matters.
-	static constexpr bool is_valueless = FAMILY == compact::MP_NIL ||
-					     FAMILY == compact::MP_IGNR;
+	static constexpr bool is_valueless = FAMILY == MP_NIL ||
+					     FAMILY == MP_IGNR;
 	// The encoded object has data section (of size equal to value).
-	static constexpr bool has_data = FAMILY == compact::MP_STR ||
-					 FAMILY == compact::MP_BIN ||
-					 FAMILY == compact::MP_EXT;
+	static constexpr bool has_data = FAMILY == MP_STR ||
+					 FAMILY == MP_BIN ||
+					 FAMILY == MP_EXT;
 	// The encoded object has ext type byte.
-	static constexpr bool has_ext = FAMILY == compact::MP_EXT;
+	static constexpr bool has_ext = FAMILY == MP_EXT;
 	// The encoded object has children...
-	static constexpr bool has_children = FAMILY == compact::MP_ARR ||
-					     FAMILY == compact::MP_MAP;
+	static constexpr bool has_children = FAMILY == MP_ARR ||
+					     FAMILY == MP_MAP;
 	// ... and the number of children is value * children_multiplier.
 	static constexpr uint32_t children_multiplier =
-		FAMILY == compact::MP_ARR ? 1 :
-		FAMILY == compact::MP_MAP ? 2 : 0;
+		FAMILY == MP_ARR ? 1 :
+		FAMILY == MP_MAP ? 2 : 0;
 	// The encoded object can be read by value.
 	static constexpr bool is_readable_by_value = !has_data && !has_ext && !has_children;
 	// The rule has simplex form.
-	static constexpr bool has_simplex = FAMILY == compact::MP_NIL ||
-					    FAMILY == compact::MP_IGNR ||
-					    FAMILY == compact::MP_BOOL ||
-					    FAMILY == compact::MP_INT ||
-					    FAMILY == compact::MP_STR ||
-					    FAMILY == compact::MP_ARR ||
-					    FAMILY == compact::MP_MAP ||
-					    FAMILY == compact::MP_EXT;
+	static constexpr bool has_simplex = FAMILY == MP_NIL ||
+					    FAMILY == MP_IGNR ||
+					    FAMILY == MP_BOOL ||
+					    FAMILY == MP_INT ||
+					    FAMILY == MP_STR ||
+					    FAMILY == MP_ARR ||
+					    FAMILY == MP_MAP ||
+					    FAMILY == MP_EXT;
 	// The rule has simplex form.
-	static constexpr bool has_complex = FAMILY == compact::MP_INT ||
-					    FAMILY == compact::MP_FLT ||
-					    FAMILY == compact::MP_STR ||
-					    FAMILY == compact::MP_BIN ||
-					    FAMILY == compact::MP_ARR ||
-					    FAMILY == compact::MP_MAP ||
-					    FAMILY == compact::MP_EXT;
+	static constexpr bool has_complex = FAMILY == MP_INT ||
+					    FAMILY == MP_FLT ||
+					    FAMILY == MP_STR ||
+					    FAMILY == MP_BIN ||
+					    FAMILY == MP_ARR ||
+					    FAMILY == MP_MAP ||
+					    FAMILY == MP_EXT;
 	// The rule has signed simplex range.
-	static constexpr bool is_simplex_signed = FAMILY == compact::MP_INT;
+	static constexpr bool is_simplex_signed = FAMILY == MP_INT;
 	// The rule has logarithmic simplex range.
-	static constexpr bool is_simplex_log_range = FAMILY == compact::MP_EXT;
+	static constexpr bool is_simplex_log_range = FAMILY == MP_EXT;
 	// The type of simplex value in simplex range.
 	using simplex_value_t =
 		std::conditional_t<is_simplex_signed, int8_t, uint8_t>;
@@ -164,22 +164,22 @@ struct BaseRule {
 	using simplex_value_range_t = RuleRange<simplex_value_t>;
 };
 
-struct NilRule : BaseRule<compact::MP_NIL, std::nullptr_t, std::monostate, std::nullopt_t> {
+struct NilRule : BaseRule<MP_NIL, std::nullptr_t, std::monostate, std::nullopt_t> {
 	static constexpr simplex_value_range_t simplex_value_range = {0, 0};
 	static constexpr uint8_t simplex_tag = 0xc0;
 };
 
-struct IgnrRule : BaseRule<compact::MP_IGNR, decltype(std::ignore)> {
+struct IgnrRule : BaseRule<MP_IGNR, decltype(std::ignore)> {
 	static constexpr simplex_value_range_t simplex_value_range = {0, 0};
 	static constexpr uint8_t simplex_tag = 0xc1;
 };
 
-struct BoolRule : BaseRule<compact::MP_BOOL, bool> {
+struct BoolRule : BaseRule<MP_BOOL, bool> {
 	static constexpr simplex_value_range_t simplex_value_range = {0, 1};
 	static constexpr uint8_t simplex_tag = 0xc2;
 };
 
-struct IntRule : BaseRule<compact::MP_INT, uint64_t, int64_t> {
+struct IntRule : BaseRule<MP_INT, uint64_t, int64_t> {
 	static constexpr simplex_value_range_t simplex_value_range = {-32, 127};
 	static constexpr uint8_t simplex_tag = 0x00;
 	using complex_types = std::tuple<uint8_t, uint16_t, uint32_t, uint64_t,
@@ -187,38 +187,38 @@ struct IntRule : BaseRule<compact::MP_INT, uint64_t, int64_t> {
 	static constexpr uint8_t complex_tag = 0xcc;
 };
 
-struct FltRule : BaseRule<compact::MP_FLT, double> {
+struct FltRule : BaseRule<MP_FLT, double> {
 	using complex_types = std::tuple<float, double>;
 	static constexpr uint8_t complex_tag = 0xca;
 };
 
-struct StrRule : BaseRule<compact::MP_STR, uint32_t> {
+struct StrRule : BaseRule<MP_STR, uint32_t> {
 	static constexpr simplex_value_range_t simplex_value_range = {0, 31};
 	static constexpr uint8_t simplex_tag = 0xa0;
 	using complex_types = std::tuple<uint8_t, uint16_t, uint32_t>;
 	static constexpr uint8_t complex_tag = 0xd9;
 };
 
-struct BinRule : BaseRule<compact::MP_BIN, uint32_t> {
+struct BinRule : BaseRule<MP_BIN, uint32_t> {
 	using complex_types = std::tuple<uint8_t, uint16_t, uint32_t>;
 	static constexpr uint8_t complex_tag = 0xc4;
 };
 
-struct ArrRule : BaseRule<compact::MP_ARR, uint32_t> {
+struct ArrRule : BaseRule<MP_ARR, uint32_t> {
 	static constexpr simplex_value_range_t simplex_value_range = {0, 15};
 	static constexpr uint8_t simplex_tag = 0x90;
 	using complex_types = std::tuple<uint16_t, uint32_t>;
 	static constexpr uint8_t complex_tag = 0xdc;
 };
 
-struct MapRule : BaseRule<compact::MP_MAP, uint32_t> {
+struct MapRule : BaseRule<MP_MAP, uint32_t> {
 	static constexpr simplex_value_range_t simplex_value_range = {0, 15};
 	static constexpr uint8_t simplex_tag = 0x80;
 	using complex_types = std::tuple<uint16_t, uint32_t>;
 	static constexpr uint8_t complex_tag = 0xde;
 };
 
-struct ExtRule : BaseRule<compact::MP_EXT, uint32_t> {
+struct ExtRule : BaseRule<MP_EXT, uint32_t> {
 	static constexpr simplex_value_range_t simplex_value_range = {0, 4};
 	static constexpr uint8_t simplex_tag = 0xd4;
 	using complex_types = std::tuple<uint8_t, uint16_t, uint32_t>;
@@ -229,9 +229,9 @@ using all_rules_t = std::tuple<NilRule, IgnrRule, BoolRule, IntRule,
 	FltRule, StrRule, BinRule, ArrRule, MapRule, ExtRule>;
 
 /**
- * Find a rule by compact::Family.
+ * Find a rule by Family.
  */
-template <compact::Family FAMILY>
+template <Family FAMILY>
 using rule_by_family_t = std::tuple_element_t<FAMILY, all_rules_t>;
 
 /**
@@ -397,7 +397,7 @@ constexpr size_t rule_complex_apply(E eval, F &&f)
 	static_assert(RULE::has_complex);
 	auto val = details::rule_unenum(eval);
 	using V = decltype(val);
-	constexpr bool is_int = RULE::family == compact::MP_INT;
+	constexpr bool is_int = RULE::family == MP_INT;
 	constexpr size_t N = rule_complex_count_v<RULE>;
 	if constexpr (is_int && std::is_signed_v<V>) {
 		static_assert(N == 8);

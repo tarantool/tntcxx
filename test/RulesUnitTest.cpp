@@ -37,7 +37,7 @@
 #include "Utils/Helpers.hpp"
 
 namespace test {
-using fis_t = std::make_index_sequence<mpp::compact::MP_END>;
+using fis_t = std::make_index_sequence<mpp::MP_END>;
 
 template <class R, class _ = void>
 struct has_simplex : std::false_type {};
@@ -86,7 +86,7 @@ constexpr bool rule_has_tag_v =
 template <uint8_t TAG, size_t FAMILY, size_t ...MORE>
 constexpr auto rule_by_tag_h(std::index_sequence<FAMILY, MORE...>)
 {
-	constexpr mpp::compact::Family family{FAMILY};
+	constexpr mpp::Family family{FAMILY};
 	using rule_t = mpp::rule_by_family_t<family>;
 	if constexpr (rule_has_tag_v<rule_t, TAG>) {
 		return rule_t{};
@@ -101,7 +101,7 @@ using rule_by_tag_t = decltype(rule_by_tag_h<TAG>(test::fis_t{}));
 
 } // namespace test
 
-template <mpp::compact::Family FAMILY>
+template <mpp::Family FAMILY>
 void
 check_family_rule()
 {
@@ -112,14 +112,14 @@ check_family_rule()
 	if constexpr (Rule_t::has_simplex)
 		static_assert(Rule_t::simplex_value_range.first == 0 ||
 			      (Rule_t::simplex_value_range.first < 0 &&
-			       FAMILY == mpp::compact::MP_INT));
+			       FAMILY == mpp::MP_INT));
 }
 
 template <size_t ...FAMILY>
 void
 check_family_rule(std::index_sequence<FAMILY...>)
 {
-	(check_family_rule<static_cast<mpp::compact::Family>(FAMILY)>(), ...);
+	(check_family_rule<static_cast<mpp::Family>(FAMILY)>(), ...);
 }
 
 void
@@ -134,8 +134,8 @@ test_basic()
 	// Some selective checks.
 	static_assert(std::is_same_v<std::tuple<bool>, BoolRule::types>);
 	static_assert(std::is_same_v<std::tuple<uint64_t, int64_t>, IntRule::types>);
-	static_assert(NilRule::family == compact::MP_NIL);
-	static_assert(BinRule::family == compact::MP_BIN);
+	static_assert(NilRule::family == MP_NIL);
+	static_assert(BinRule::family == MP_BIN);
 	static_assert(IgnrRule::has_data == false);
 	static_assert(StrRule::has_data == true);
 	static_assert(BinRule::has_data == true);
@@ -281,7 +281,7 @@ template <class T>
 constexpr std::array<size_t, std::tuple_size_v<T>> tuple_sizes =
 	tuple_sizes_h<T>(std::make_index_sequence<std::tuple_size_v<T>>{});
 
-template <mpp::compact::Family FAMILY>
+template <mpp::Family FAMILY>
 void collectByType(FullInfo& infos)
 {
 	using Rule = mpp::rule_by_family_t<FAMILY>;
@@ -323,7 +323,7 @@ template <size_t ...FAMILY>
 FullInfo collectByType(std::index_sequence<FAMILY...>)
 {
 	FullInfo infos;
-	(collectByType<static_cast<mpp::compact::Family>(FAMILY)>(infos), ...);
+	(collectByType<static_cast<mpp::Family>(FAMILY)>(infos), ...);
 	return infos;
 }
 
