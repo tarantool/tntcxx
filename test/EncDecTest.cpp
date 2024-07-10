@@ -221,6 +221,7 @@ test_basic()
 	mpp::encode(buf, std::integral_constant<bool, false>{});
 	mpp::encode(buf, std::integral_constant<bool, true>{});
 	// Strings.
+	mpp::encode(buf, "");
 	mpp::encode(buf, "abc");
 	const char *bbb = "defg";
 	mpp::encode(buf, bbb);
@@ -313,7 +314,9 @@ test_basic()
 	fail_if(bt != true);
 
 	// Strings.
-	std::string a;
+	std::string a = "to be overwritten";
+	fail_unless(mpp::decode(run, a));
+	fail_if(a != "");
 	char b_data[10];
 	size_t b_size = 0;
 	auto b = tnt::make_ref_vector(b_data, b_size);
