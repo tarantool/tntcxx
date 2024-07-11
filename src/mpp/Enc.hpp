@@ -38,6 +38,7 @@
 
 #include "BSwap.hpp"
 #include "ClassRule.hpp"
+#include "ContAdapter.hpp"
 #include "Constants.hpp"
 #include "Rules.hpp"
 #include "Spec.hpp"
@@ -50,10 +51,6 @@
 //TODO : error handling + names
 //TODO : min + max (detect max for string literal and static capacity)
 //TODO : avoid reinterpret_cast
-//TODO : add raw(N)
-//TODO : add std::variant
-//TODO : add std::optional
-//TODO : universal buffer
 
 namespace mpp {
 
@@ -503,7 +500,7 @@ bool
 encode(CONT &cont, tnt::CStr<C...> prefix, tnt::iseq<I...>)
 {
 	static_assert(sizeof...(I) == 0);
-	cont.write(prefix);
+	wr(cont).write(prefix);
 	return true;
 }
 
@@ -642,13 +639,13 @@ encode(CONT &cont, tnt::CStr<C...> prefix,
 		} else if constexpr(tnt::is_string_constant_v<U>) {
 			return encode(cont, prefix.join(u), ais, more...);
 		} else if constexpr(tnt::is_contiguous_v<U>) {
-			cont.write(prefix);
-			cont.write({std::data(u), std::size(u)});
+			wr(cont).write(prefix);
+			wr(cont).write({std::data(u), std::size(u)});
 			return encode(cont, tnt::CStr<>{}, ais, more...);
 		} else {
 			static_assert(std::is_standard_layout_v<U>);
-			cont.write(prefix);
-			cont.write(u);
+			wr(cont).write(prefix);
+			wr(cont).write(u);
 			return encode(cont, tnt::CStr<>{}, ais, more...);
 		}
 	} else {
@@ -677,8 +674,8 @@ encode(CONT &cont, tnt::CStr<C...> prefix,
 				size_t soff = find_simplex_offset<rule_t>(value);
 				if (soff < rule_t::simplex_value_range.count) {
 					uint8_t tag = rule_t::simplex_tag + soff;
-					cont.write(prefix);
-					cont.write(tag);
+					wr(cont).write(prefix);
+					wr(cont).write(tag);
 					return encode(cont, tnt::CStr<>{}, is,
 						      as_raw(ext), as_raw(data),
 						      more...);
@@ -706,7 +703,7 @@ encode(CONT &cont, tnt::CStr<C...> prefix,
 
 template <class CONT, class... T>
 bool
-encode(CONT &cont, const T&... t)
+encode(CONT &&cont, const T&... t)
 {
 	// TODO: Guard
 	tnt::iseq<> is;

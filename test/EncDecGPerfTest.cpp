@@ -103,6 +103,10 @@ struct SimpleRData {
 	size_t size;
 };
 
+struct SimpleSkip {
+	size_t size;
+};
+
 struct SimpleReader {
 	const char *pos;
 
@@ -111,19 +115,15 @@ struct SimpleReader {
 		memcpy(data.data, pos, data.size);
 		pos += data.size;
 	}
+	void read(SimpleSkip data)
+	{
+		pos += data.size;
+	}
 	template <class T>
 	void read(T &t)
 	{
 		memcpy(&t, pos, sizeof(t));
 		pos += sizeof(t);
-	}
-	template <class T>
-	T read()
-	{
-		T t;
-		memcpy(&t, pos, sizeof(t));
-		pos += sizeof(t);
-		return t;
 	}
 	template <class T>
 	T get()

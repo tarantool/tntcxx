@@ -33,12 +33,19 @@
 #include <cassert>
 #include <functional>
 #include <cstdint>
+#include <cstring>
+#include <tuple>
 #include <utility>
+#include <variant>
 
+#include "BSwap.hpp"
 #include "ClassRule.hpp"
+#include "ContAdapter.hpp"
 #include "Constants.hpp"
 #include "Rules.hpp"
 #include "Spec.hpp"
+#include "../Utils/CStr.hpp"
+#include "../Utils/Traits.hpp"
 
 namespace mpp {
 
@@ -60,7 +67,7 @@ constexpr bool is_any_putable_v =
 /**
  * If it is true, the object of type T will not be decoded - raw data will
  * be saved to it.
- * 
+ *
  * Now it supports only a pair of iterators (probably, wrapped with
  * mpp::as_raw). The check implicilty implies that BUF is an iterator, not
  * buffer - it would be strange to pass a pair of buffer to decoder.
@@ -411,7 +418,7 @@ auto read_value(BUF& buf)
 	using RULE = rule_by_family_t<FAMILY>;
 	if constexpr (SUBRULE == SIMPLEX_SUBRULE) {
 		typename RULE::simplex_value_t tag;
-		buf.read(tag);
+		rd(buf).read(tag);
 		assert(tag >= rule_simplex_tag_range_v<RULE>.first);
 		assert(tag <= rule_simplex_tag_range_v<RULE>.last);
 		[[maybe_unused]] typename RULE::simplex_value_t val =
@@ -427,12 +434,12 @@ auto read_value(BUF& buf)
 			return val;
 	} else {
 		uint8_t tag;
-		buf.read(tag);
+		rd(buf).read(tag);
 		assert(tag == RULE::complex_tag + SUBRULE);
 		using TYPES = typename RULE::complex_types;
 		using V = std::tuple_element_t<SUBRULE, TYPES>;
 		under_uint_t<V> u;
-		buf.read(u);
+		rd(buf).read(u);
 		V val = bswap<V>(u);
 		return val;
 	}
@@ -445,7 +452,7 @@ auto read_item(BUF& buf, ITEM& item)
 	auto val = read_value<FAMILY, SUBRULE>(buf);
 	if constexpr (RULE::has_ext) {
 		int8_t ext_type;
-		buf.read(ext_type);
+		rd(buf).read(ext_type);
 		item.ext_type = ext_type;
 	}
 	if constexpr (RULE::has_data) {
@@ -468,11 +475,11 @@ auto read_item(BUF& buf, ITEM& item)
 			if (size > std::size(item))
 				size = std::size(item);
 		}
-		buf.read({std::data(item), size});
+		rd(buf).read({std::data(item), size});
 		if constexpr (tnt::is_limited_v<ITEM> ||
 			      !tnt::is_resizable_v<ITEM>) {
 			if (size < size_t(val))
-				buf.read({size_t(val) - size});
+				rd(buf).read({size_t(val) - size});
 		}
 	} else if constexpr (RULE::has_children) {
 		if constexpr (tnt::is_clearable_v<ITEM>)
@@ -743,7 +750,7 @@ decode_jump(BUF& buf, T... t)
 {
 	static_assert(path_item_type(PATH::last()) != PIT_BAD);
 	static constexpr auto jumps = JumpsBuilder<PATH, BUF, T...>::build();
-	uint8_t tag = buf.template get<uint8_t>();
+	uint8_t tag = rd(buf).template get<uint8_t>();
 	return jumps.data[tag](buf, t...);
 }
 
@@ -922,10 +929,10 @@ bool jump_skip(BUF& buf, T... t)
 
 	if constexpr (RULE::has_ext) {
 		int8_t ext_type;
-		buf.read(ext_type);
+		rd(buf).read(ext_type);
 	}
 	if constexpr (RULE::has_data) {
-		buf.read({size_t(val)});
+		rd(buf).read({size_t(val)});
 	}
 	if constexpr (RULE::has_children) {
 		auto& arg = std::get<sizeof...(T) - 1>(std::tie(t...));
@@ -1116,7 +1123,7 @@ bool jump_find_key([[maybe_unused]] K k, tnt::iseq<>, BUF& buf, T... t)
 	static_assert(path_item_type(PATH::last()) == PIT_DYN_KEY);
 	using NEXT_PATH = path_push_t<PATH, PIT_DYN_SKIP>;
 	if constexpr (FAMILY == MP_STR)
-		buf.read({k});
+		rd(buf).read({k});
 	return decode_impl<NEXT_PATH>(buf, t..., size_t(1));
 }
 
@@ -1143,7 +1150,7 @@ bool jump_find_key(K k, tnt::iseq<I, J...>, BUF& buf, T... t)
 
 	if (compare_key<FAMILY>(k, key, buf)) {
 		if constexpr (FAMILY == MP_STR)
-			buf.read({k});
+			rd(buf).read({k});
 		return decode_impl<NEXT_PATH>(buf, t...);
 	}
 
@@ -1274,7 +1281,7 @@ bool broken_msgpack_jump(BUF&, T...)
 
 template <class BUF, class... T>
 bool
-decode(BUF& buf, T&&... t)
+decode(BUF&& buf, T&&... t)
 {
 	// TODO: Guard
 	bool res = decode_details::decode(buf, std::forward<T>(t)...);
