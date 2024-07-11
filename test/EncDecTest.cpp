@@ -1323,6 +1323,39 @@ test_variant()
 	fail_unless(monostate_wr == monostate_rd);
 }
 
+void
+test_cont_adapter()
+{
+	{
+		std::vector<char> vec;
+		mpp::encode(vec, 10, "abc", std::forward_as_tuple(false, 1.));
+		int res1 = 0;
+		std::string res2;
+		bool res3 = true;
+		double res4 = 2.;
+		mpp::decode(vec.data(), res1, res2, std::tie(res3, res4));
+		fail_unless(res1 == 10);
+		fail_unless(res2 == "abc");
+		fail_unless(res3 == false);
+		fail_unless(res4 == 1.);
+	}
+	{
+		char buf[16];
+		char *p = buf;
+		mpp::encode(p, 10, "abc", std::forward_as_tuple(false, 1.));
+		int res1 = 0;
+		std::string res2;
+		bool res3 = true;
+		double res4 = 2.;
+		p = buf;
+		mpp::decode(p, res1, res2, std::tie(res3, res4));
+		fail_unless(res1 == 10);
+		fail_unless(res2 == "abc");
+		fail_unless(res3 == false);
+		fail_unless(res4 == 1.);
+	}
+}
+
 int main()
 {
 	test_under_ints();
@@ -1334,4 +1367,5 @@ int main()
 	test_optional();
 	test_raw();
 	test_variant();
+	test_cont_adapter();
 }
