@@ -28,7 +28,7 @@
  * THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
-#include "../src/mpp/mpp.hpp"
+#include "../src/mpp/Dec.hpp"
 #include "../src/Buffer/Buffer.hpp"
 
 #include <set>
@@ -38,6 +38,16 @@
 
 #include "Utils/Helpers.hpp"
 #include "Utils/RefVector.hpp"
+
+#define encode(...) encode1(__VA_ARGS__)
+namespace mpp {
+template <class... T>
+bool
+encode(T&&...)
+{
+	return false;
+}
+} // namespace mpp
 
 // Test mpp::under_uint_t and mpp::under_int_t
 void

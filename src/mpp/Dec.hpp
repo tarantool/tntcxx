@@ -57,8 +57,6 @@ namespace literal = tnt::literal;
 
 namespace decode_details {
 
-constexpr auto is256 = tnt::make_iseq<256>{};
-
 template <class T>
 constexpr bool is_any_putable_v =
 	tnt::is_emplacable_v<T> || tnt::is_back_emplacable_v<T> ||
@@ -514,73 +512,54 @@ struct Jumps {
 		return n <= x ? (i >= n && i <= x) : (i >= n || i <= x);
 	}
 
-	template <size_t... I>
-	static constexpr data_t
-	build_by_range(jump_t jump, uint8_t min_tag, uint8_t max_tag, tnt::iseq<I...>)
+	/** Build by range of tags. */
+	constexpr Jumps(jump_t jump, uint8_t min_tag, uint8_t max_tag) : data{}
 	{
-		return {(belongs(I, min_tag, max_tag) ? jump : nullptr)...};
+		for (size_t i = 0; i < 256; i++)
+			data[i] = belongs(i, min_tag, max_tag) ? jump : nullptr;
 	}
 
-	constexpr Jumps(jump_t jump, uint8_t min_tag, uint8_t max_tag)
-		: data(build_by_range(jump, min_tag, max_tag, is256))
-	{
-	}
-
-	/** Create as union of two jump vectors. */
+	/** Choose a if it's not null, b otherwise. */
 	static constexpr jump_t
 	choose(jump_t a, jump_t b)
 	{
 		return a != nullptr ? a : b;
 	}
 
-	template <size_t... I>
-	static constexpr data_t
-	build_choosing(data_t a, data_t b, tnt::iseq<I...>)
+	/* Helper of operator+. */
+	constexpr Jumps(Jumps a, Jumps b) : data{}
 	{
-		return {choose(a[I], b[I])...};
+		for (size_t i = 0; i < 256; i++)
+			data[i] = choose(a.data[i], b.data[i]);
 	}
 
-	constexpr Jumps(Jumps a, Jumps b)
-		: data(build_choosing(a.data, b.data, is256))
-	{
-	}
-
+	/** Take non-nulls from a, complement from b */
 	friend constexpr Jumps operator+(Jumps a, Jumps b)
 	{
 		return {a, b};
 	}
 
+	/* Helper of inject. */
+	constexpr Jumps(Jumps a, uint8_t tag, jump_t inject) : data{}
+	{
+		for (size_t i = 0; i < 256; i++)
+			data[i] = i != tag ? a.data[i] : inject;
+	}
+
 	/** Override given tag with special jump. */
-	template <size_t... I>
-	static constexpr data_t
-	build_inject(data_t orig, uint8_t tag, jump_t inject, tnt::iseq<I...>)
-	{
-		return {(I != tag ? orig[I] : inject)...};
-	}
-
-	constexpr Jumps(Jumps a, uint8_t tag, jump_t inject)
-		: data(build_inject(a.data, tag, inject, is256))
-	{
-	}
-
 	constexpr Jumps inject(uint8_t tag, jump_t jump) const
 	{
 		return {*this, tag, jump};
 	}
 
+	/* Helper of finalize. */
+	constexpr Jumps(Jumps a, jump_t deflt) : data{}
+	{
+		for (size_t i = 0; i < 256; i++)
+			data[i] = choose(a.data[i], deflt);
+	}
+
 	/** Finalize replacing null jumps with default jump. */
-	template <size_t... I>
-	static constexpr data_t
-	build_default(data_t a, jump_t deflt, tnt::iseq<I...>)
-	{
-		return {choose(a[I], deflt)...};
-	}
-
-	constexpr Jumps(Jumps a, jump_t deflt)
-		: data(build_default(a.data, deflt, is256))
-	{
-	}
-
 	constexpr Jumps finalize(jump_t deflt) const
 	{
 		return {*this, deflt};
