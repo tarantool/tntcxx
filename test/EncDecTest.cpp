@@ -769,14 +769,16 @@ struct Triplet {
 		c = 3 * i + 3;
 	}
 
+	auto tie() const { return std::tie(a, b, c); }
+
 	bool operator==(const Triplet& that) const
 	{
-		return std::tie(a, b, c) == std::tie(that.a, that.b, that.c);
+		return tie() == that.tie();
 	}
 
 	bool operator<(const Triplet& that) const
 	{
-		return std::tie(a, b, c) < std::tie(that.a, that.b, that.c);
+		return tie() < that.tie();
 	}
 };
 
@@ -797,19 +799,29 @@ struct Error {
 		descr = std::to_string(code);
 	}
 
-	bool operator==(const Error& that) const
-	{
-		return std::tie(code, descr) == std::tie(that.code, that.descr);
-	}
-
-	bool operator<(const Error& that) const
-	{
-		return std::tie(code, descr) < std::tie(that.code, that.descr);
-	}
+	auto tie() const { return std::tie(code, descr); }
+	bool operator==(const Error &that) const { return tie() == that.tie(); }
+	bool operator<(const Error &that) const { return tie() < that.tie(); }
 
 	static constexpr auto mpp = std::make_tuple(
 		std::make_pair(0, &Error::code),
 		std::make_pair(1, &Error::descr));
+};
+
+struct Legs {
+	void gen()
+	{
+		left = 31;
+		right = 32;
+	}
+	int left;
+	int right;
+
+	auto tie() const { return std::tie(left, right); }
+	bool operator==(const Legs &that) const { return tie() == that.tie(); }
+	bool operator<(const Legs &that) const { return tie() < that.tie(); }
+
+	static constexpr auto mpp = std::make_tuple(&Legs::left, &Legs::right);
 };
 
 struct Body {
@@ -817,6 +829,7 @@ struct Body {
 	IntegerWrapper num;
 	std::vector<Triplet> triplets;
 	std::vector<Error> errors;
+	Legs legs;
 
 	void gen()
 	{
@@ -828,25 +841,19 @@ struct Body {
 		errors.resize(3);
 		for (size_t i = 0; i < errors.size(); i++)
 			errors[i].gen(i);
+		legs.gen();
 	}
 
-	bool operator==(const Body& that) const
-	{
-		return std::tie(str, num, triplets, errors) ==
-		       std::tie(that.str, that.num, that.triplets, that.errors);
-	}
-
-	bool operator<(const Body& that) const
-	{
-		return std::tie(str, num, triplets, errors) <
-		       std::tie(that.str, that.num, that.triplets, that.errors);
-	}
+	auto tie() const { return std::tie(str, num, triplets, errors, legs); }
+	bool operator==(const Body &that) const { return tie() == that.tie(); }
+	bool operator<(const Body &that) const { return tie() < that.tie(); }
 
 	static constexpr auto mpp = std::make_tuple(
 		std::make_pair(0, &Body::str),
 		std::make_pair(1, &Body::num),
 		std::make_pair(2, &Body::triplets),
-		std::make_pair(3, &Body::errors));
+		std::make_pair(3, &Body::errors),
+		std::make_pair(4, &Body::legs));
 };
 
 void

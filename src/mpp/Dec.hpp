@@ -253,6 +253,24 @@ using path_push_t =
 							 STATIC_SIZE,
 							 STATIC_POS)>;
 
+/*
+ * Construct a pair of two references to two given objects.
+ */
+template <class T, class U>
+static constexpr std::pair<T&, U&> ref_pair(T& t, U& u)
+{
+	return std::pair<T&, U&>{t, u};
+}
+
+/*
+ * Construct a pair of two references to given object and to std::ignore.
+ */
+template <class T>
+static constexpr std::pair<T&, decltype(std::ignore)&> ref_uno(T& t)
+{
+	return ref_pair(t, std::ignore);
+}
+
 template <size_t I, size_t... P>
 struct Resolver {
 	template <size_t J>
@@ -270,6 +288,7 @@ struct Resolver {
 	static_assert((requires_pos_and_size && POS < SIZE) ||
 		      (!requires_pos_and_size && POS + SIZE == 0));
 
+	/** Helper of dyn_arg_pos(). */
 	template <size_t... J>
 	static constexpr size_t dyn_arg_pos(tnt::iseq<J...>)
 	{
@@ -278,104 +297,101 @@ struct Resolver {
 		return USR_ARG_COUNT + X;
 	}
 
+	/**
+	 * Find index of an argument that represents dynamic position of
+	 * current (Ith) path element.
+	 */
 	static constexpr size_t dyn_arg_pos()
 	{
 		return dyn_arg_pos(tnt::make_iseq<I>{});
 	}
 
+	/**
+	 * Base resolver. Simply resolve Ith element of path, which along
+	 * with general types can return reference to an object (which is
+	 * expected to have decoding rules) or pointer to member.
+	 * Return a pair, with the resolved thing as the first member. The
+	 * second member of the pair is exactly what was got from resolving
+	 * the parent, (I-1)th element of the path (std::ignore if I == 0).
+	 */
 	template <class... T>
-	static constexpr size_t find_obj_index()
-	{
-		using E = decltype(extract<T...>(std::declval<T>()...));
-		using R = unwrap_t<E>;
-		if constexpr (has_dec_rule_v<R>) {
-			return I;
-		} else if constexpr (std::is_member_pointer_v<R> ||
-				     tnt::is_tuplish_v<R>) {
-			using PrevResolver = Resolver<I - 1, P...>;
-			return PrevResolver::template find_obj_index<T...>();
-		} else {
-			static_assert(tnt::always_false_v<E>);
-		}
-	}
-
-	template <class... T>
-	static constexpr auto&& prev(T... t)
-	{
-		return unwrap(Resolver<I - 1, P...>::get(t...));
-	}
-
-	template <class... T>
-	static constexpr auto&& extract(T... t)
+	static constexpr auto get_raw(T... t)
 	{
 		if constexpr (TYPE == PIT_STATIC_L0) {
-			return std::get<POS>(std::tie(t...)).get();
+			return ref_uno(std::get<POS>(std::tie(t...)).get());
 		} else if constexpr (is_path_item_static(PI)) {
-			return tnt::get<POS>(prev(t...));
+			auto p = Resolver<I - 1, P...>::get_pair(t...);
+			auto& b = unwrap(p.first);
+			return ref_pair(tnt::get<POS>(b), p.second);
 		} else if constexpr (TYPE == PIT_DYN_POS) {
+			auto p = Resolver<I - 1, P...>::get_pair(t...);
+			auto& b = unwrap(p.first);
 			constexpr size_t ARG_POS = dyn_arg_pos();
 			uint64_t arg = std::get<ARG_POS>(std::tie(t...));
-			return std::data(prev(t...))[arg >> 32];
+			return ref_pair(std::data(b)[arg >> 32], p.second);
 		} else if constexpr (TYPE == PIT_DYN_BACK) {
-			return prev(t...).back();
+			auto p = Resolver<I - 1, P...>::get_pair(t...);
+			auto& b = unwrap(p.first);
+			return ref_pair(b.back(), p.second);
 		} else if constexpr (TYPE == PIT_DYN_ADD) {
-			return prev(t...);
+			return Resolver<I - 1, P...>::get_pair(t...);
 		} else if constexpr (TYPE == PIT_DYN_KEY) {
-			return prev(t...);
+			return Resolver<I - 1, P...>::get_pair(t...);
 		} else if constexpr (TYPE == PIT_OPTIONAL) {
-			auto &&opt = prev(t...);
+			auto p = Resolver<I - 1, P...>::get_pair(t...);
+			auto& opt = unwrap(p.first);
 			assert(opt.has_value());
-			return *opt;
+			return ref_pair(*opt, p.second);
 		} else if constexpr (TYPE == PIT_VARIANT) {
-			return tnt::get<POS>(prev(t...));
+			auto p = Resolver<I - 1, P...>::get_pair(t...);
+			auto& var = unwrap(p.first);
+			return ref_pair(tnt::get<POS>(var), p.second);
 		} else {
 			static_assert(tnt::always_false_v<T...>);
 		}
 	}
 
-	template <class... T>
-	static constexpr auto&& unrule(T... t)
-	{
-		using E = decltype(extract<T...>(std::declval<T>()...));
-		using R = unwrap_t<E>;
-		if constexpr (has_dec_rule_v<R>)
-			return get_dec_rule<R>();
-		else
-			return extract(t...);
-	}
-
-	template <class T>
-	static constexpr auto&& self_unwrap(T&& t)
+	/**
+	 * Transform a pair that was got from the get_raw method above.
+	 * The result is also a pair of references.
+	 * 1. If the first member of pair is an object with decoding rule -
+	 *  create pair with decoding rule and the object and recall this
+	 *  function recursively.
+	 * 2. If the first member of pair is pointer to member - apply it to
+	 *  object in the second member. Create a pair with the result as the
+	 *  first member and recall this function recursively.
+	 * 3. Return original pair otherwise.
+	 */
+	template <class T, class U>
+	static constexpr auto transform_raw(std::pair<T, U> p)
 	{
 		using R = unwrap_t<T>;
 		if constexpr (has_dec_rule_v<R>) {
-			using RULE = unwrap_t<decltype(get_dec_rule<R>())>;
-			if constexpr (std::is_member_pointer_v<RULE>) {
-				return self_unwrap(unwrap(std::forward<T>(t)).*
-						   unwrap(get_dec_rule<R>()));
-			} else {
-				return std::forward<T>(t);
-			}
+			auto q = ref_pair(get_dec_rule<R>(), p.first);
+			return transform_raw(q);
+		} else if constexpr (std::is_member_pointer_v<R>) {
+			auto q = ref_uno(unwrap(p.second).*unwrap(p.first));
+			return transform_raw(q);
 		} else {
-			return std::forward<T>(t);
+			return p;
 		}
 	}
 
+	/** Get transformed pair. */
 	template <class... T>
-	static constexpr auto&& get(T... t)
+	static constexpr auto get_pair(T... t)
 	{
-		using U = decltype(unrule<T...>(std::declval<T>()...));
-		using R = unwrap_t<U>;
-		if constexpr (std::is_member_pointer_v<R>) {
-			constexpr size_t OBJ_I = find_obj_index<T...>();
-			using Res = Resolver<OBJ_I, P...>;
-			return self_unwrap(unwrap(Res::extract(t...)).*
-					   unwrap(unrule(t...)));
-		} else {
-			return unrule(t...);
-		}
+		return transform_raw(get_raw(t...));
 	}
 
+	/** Resolve path to Ith element. */
+	template <class... T>
+	static constexpr auto& get(T... t)
+	{
+		return get_pair(t...).first;
+	}
+
+	/** Get the expected number of argument in get(T...) above. */
 	static constexpr size_t expected_arg_count()
 	{
 		return dyn_arg_pos() + (is_path_item_dynamic(ITEM<I>) ? 1 : 0);
@@ -704,7 +720,7 @@ struct JumpsBuilder {
 		} else if constexpr (path_item_type(LAST) == PIT_DYN_KEY) {
 			using R = decltype(path_resolve(PATH{},
 							std::declval<T>()...));
-			using DST = std::remove_reference_t<R>;
+			using DST = unwrap_t<R>;
 			static_assert(tnt::is_tuplish_v<DST>);
 			constexpr size_t S = tnt::tuple_size_v<DST>;
 			if constexpr (tnt::is_tuplish_of_pairish_v<DST>) {
@@ -789,8 +805,8 @@ decode_impl(BUF& buf, T... t)
 	static_assert(path_item_type(PATH::last()) != PIT_BAD);
 	if constexpr (path_item_type(PATH::last()) != PIT_DYN_SKIP &&
 		      path_item_type(PATH::last()) != PIT_RAW) {
-		auto&& wrapped_dst = path_resolve(PATH{}, t...);
-		using wrapped_dst_t = std::remove_reference_t<decltype(wrapped_dst)>;
+		using wrapped_dst_t = std::remove_reference_t<
+			decltype(path_resolve(PATH{}, t...))>;
 		if constexpr (is_raw_decoded_v<wrapped_dst_t, BUF>) {
 			return decode_raw<PATH>(buf, t...);
 		} else {
@@ -1131,9 +1147,9 @@ template <bool PAIRS, size_t I, class DST>
 auto&& key_path_resolve(DST&& dst)
 {
 	if constexpr (PAIRS)
-		return tnt::get<0>(tnt::get<I>(dst));
+		return tnt::get<0>(tnt::get<I>(unwrap(dst)));
 	else
-		return tnt::get<I * 2>(dst);
+		return tnt::get<I * 2>(unwrap(dst));
 }
 
 template <bool PAIRS, Family FAMILY, class PATH, class K,
@@ -1164,7 +1180,7 @@ bool jump_read_key(BUF& buf, T... t)
 {
 	static_assert(path_item_type(PATH::last()) == PIT_DYN_KEY);
 	auto&& dst = path_resolve(PATH{}, t...);
-	using dst_t = std::remove_reference_t<decltype(dst)>;
+	using dst_t = unwrap_t<decltype(dst)>;
 	static_assert(tnt::is_tuplish_v<dst_t>);
 
 	constexpr bool PAIRS = tnt::is_tuplish_of_pairish_v<dst_t>;
