@@ -164,20 +164,11 @@ test_type_visual()
 {
 	TEST_INIT(0);
 	using namespace mpp;
-	std::cout << compact::MP_ARR << " "
-		  << compact::MP_MAP << " "
-		  << compact::MP_EXT << "\n";
-	std::cout << MP_NIL << " "
-		  << MP_BOOL << " "
-		  << (MP_INT) << " "
-		  << (MP_BIN | MP_STR) << " "
-		  << (MP_INT | MP_FLT) << "\n";
+	std::cout << MP_ARR << " " << MP_MAP << " " << MP_EXT << "\n";
 
 	std::cout << "(" << family_sequence<>{} << ") "
-		  << "(" << family_sequence<compact::MP_NIL>{} << ") "
-		  << "(" << family_sequence<compact::MP_INT,
-					    compact::MP_FLT,
-					    compact::MP_NIL>{} << ")\n";
+		  << "(" << family_sequence<MP_NIL>{} << ") "
+		  << "(" << family_sequence<MP_INT, MP_FLT, MP_NIL>{} << ")\n";
 }
 
 enum E1 {
@@ -230,6 +221,7 @@ test_basic()
 	mpp::encode(buf, std::integral_constant<bool, false>{});
 	mpp::encode(buf, std::integral_constant<bool, true>{});
 	// Strings.
+	mpp::encode(buf, "");
 	mpp::encode(buf, "abc");
 	const char *bbb = "defg";
 	mpp::encode(buf, bbb);
@@ -322,7 +314,9 @@ test_basic()
 	fail_if(bt != true);
 
 	// Strings.
-	std::string a;
+	std::string a = "nothing";
+	fail_unless(mpp::decode(run, a));
+	fail_if(a != "");
 	char b_data[10];
 	size_t b_size = 0;
 	auto b = tnt::make_ref_vector(b_data, b_size);
@@ -775,14 +769,16 @@ struct Triplet {
 		c = 3 * i + 3;
 	}
 
+	auto tie() const { return std::tie(a, b, c); }
+
 	bool operator==(const Triplet& that) const
 	{
-		return std::tie(a, b, c) == std::tie(that.a, that.b, that.c);
+		return tie() == that.tie();
 	}
 
 	bool operator<(const Triplet& that) const
 	{
-		return std::tie(a, b, c) < std::tie(that.a, that.b, that.c);
+		return tie() < that.tie();
 	}
 };
 
@@ -803,19 +799,29 @@ struct Error {
 		descr = std::to_string(code);
 	}
 
-	bool operator==(const Error& that) const
-	{
-		return std::tie(code, descr) == std::tie(that.code, that.descr);
-	}
-
-	bool operator<(const Error& that) const
-	{
-		return std::tie(code, descr) < std::tie(that.code, that.descr);
-	}
+	auto tie() const { return std::tie(code, descr); }
+	bool operator==(const Error &that) const { return tie() == that.tie(); }
+	bool operator<(const Error &that) const { return tie() < that.tie(); }
 
 	static constexpr auto mpp = std::make_tuple(
 		std::make_pair(0, &Error::code),
 		std::make_pair(1, &Error::descr));
+};
+
+struct Legs {
+	void gen()
+	{
+		left = 31;
+		right = 32;
+	}
+	int left;
+	int right;
+
+	auto tie() const { return std::tie(left, right); }
+	bool operator==(const Legs &that) const { return tie() == that.tie(); }
+	bool operator<(const Legs &that) const { return tie() < that.tie(); }
+
+	static constexpr auto mpp = std::make_tuple(&Legs::left, &Legs::right);
 };
 
 struct Body {
@@ -823,6 +829,7 @@ struct Body {
 	IntegerWrapper num;
 	std::vector<Triplet> triplets;
 	std::vector<Error> errors;
+	Legs legs;
 
 	void gen()
 	{
@@ -834,25 +841,19 @@ struct Body {
 		errors.resize(3);
 		for (size_t i = 0; i < errors.size(); i++)
 			errors[i].gen(i);
+		legs.gen();
 	}
 
-	bool operator==(const Body& that) const
-	{
-		return std::tie(str, num, triplets, errors) ==
-		       std::tie(that.str, that.num, that.triplets, that.errors);
-	}
-
-	bool operator<(const Body& that) const
-	{
-		return std::tie(str, num, triplets, errors) <
-		       std::tie(that.str, that.num, that.triplets, that.errors);
-	}
+	auto tie() const { return std::tie(str, num, triplets, errors, legs); }
+	bool operator==(const Body &that) const { return tie() == that.tie(); }
+	bool operator<(const Body &that) const { return tie() < that.tie(); }
 
 	static constexpr auto mpp = std::make_tuple(
 		std::make_pair(0, &Body::str),
 		std::make_pair(1, &Body::num),
 		std::make_pair(2, &Body::triplets),
-		std::make_pair(3, &Body::errors));
+		std::make_pair(3, &Body::errors),
+		std::make_pair(4, &Body::legs));
 };
 
 void
@@ -1329,6 +1330,39 @@ test_variant()
 	fail_unless(monostate_wr == monostate_rd);
 }
 
+void
+test_cont_adapter()
+{
+	{
+		std::vector<char> vec;
+		mpp::encode(vec, 10, "abc", std::forward_as_tuple(false, 1.));
+		int res1 = 0;
+		std::string res2;
+		bool res3 = true;
+		double res4 = 2.;
+		mpp::decode(vec.data(), res1, res2, std::tie(res3, res4));
+		fail_unless(res1 == 10);
+		fail_unless(res2 == "abc");
+		fail_unless(res3 == false);
+		fail_unless(res4 == 1.);
+	}
+	{
+		char buf[16];
+		char *p = buf;
+		mpp::encode(p, 10, "abc", std::forward_as_tuple(false, 1.));
+		int res1 = 0;
+		std::string res2;
+		bool res3 = true;
+		double res4 = 2.;
+		p = buf;
+		mpp::decode(p, res1, res2, std::tie(res3, res4));
+		fail_unless(res1 == 10);
+		fail_unless(res2 == "abc");
+		fail_unless(res3 == false);
+		fail_unless(res4 == 1.);
+	}
+}
+
 int main()
 {
 	test_under_ints();
@@ -1340,4 +1374,5 @@ int main()
 	test_optional();
 	test_raw();
 	test_variant();
+	test_cont_adapter();
 }

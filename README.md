@@ -200,105 +200,80 @@ msgpacks. See section below to understand how to decode tuples.
 ### Data manipulation
 
 Now let's consider a bit more sophisticated requests.
-Assume we have space with `id = 512` and following format on the server:
-`CREATE TABLE t(id INT PRIMARY KEY, a TEXT, b DOUBLE);`  
-Preparing analogue of `t:replace(1, "111", 1.01);` request can be done this way:
+Assume we have a space with `id = 512` and following format on the server:
+`CREATE TABLE t(id INT PRIMARY KEY, name TEXT, coef DOUBLE);`
+Preparing analogue of `t:replace{1, "111", 1.01};` request can be done this way:
 
 ```
-std::tuple data = std::make_tuple(1 /* field 1*/, "111" /* field 2*/, 1.01 /* field 3*/);
-rid_t replace = conn.space[512].replace(data);
+std::tuple data = std::make_tuple(1 /*id*/, "111" /*name*/, 1.01 /*coef*/);
+rid_t my_replace = conn.space[512].replace(data);
 ```
+
+As a good alternative, we could use structure instead of std::tuple, but we
+would have to provide once a way how it must be encoded:
+
+```
+struct UserTuple {
+    uint64_t id;
+    std::string name;
+    double coef;
+
+    static constexpr auto mpp = std::make_tuple(
+        &UserTuple::id, &UserTuple::name, &UserTuple::coef);
+};
+
+...
+
+UserTuple tuple{.id = 1, .name = "aa", .coef = 1.01};
+rid_t my_replace = conn.space[512].replace(data);
+```
+
 To execute select query `t.index[1]:select({1}, {limit = 1})`:
 
 ```
 auto i = conn.space[512].index[1];
-rid_t select = i.select(std::make_tuple(1), 1, 0 /*offset*/, IteratorType::EQ);
+rid_t my_select = i.select(std::make_tuple(1), 1, 0 /*offset*/, IteratorType::EQ);
 ```
 
-### Data readers
+### Decoding result
 
-Responses from server contain raw data (i.e. encoded into msgpuck tuples). To
-decode client's data, users have to write their own decoders (based on featured
-schema). Let's define structure describing data stored in space `t`:
+Responses from server contain raw data (i.e. encoded into msgpuck tuples).
+To decode client's data, we have to provide user storage that implicitly 
+describes tuple format. For example, we know that the space (and each tuple)
+has three fields: unsigned, string and number.
+Then std::tuple<uint64_t, std::string, double> can be used as complete storage 
+for decoding tuples of such space. Since select returns a dynamic array of
+tuples, the storage also must be a dynamic array (for example, vector):
+
+```
+rid_t my_select = i.select(....);
+// wait for response...
+assert(conn.futureIsReady(my_select));
+auto response = conn.getResponse(my_select);
+std::vector<std::tuple<uint64_t, std::string, double>> results;
+response.body.data.decode(results);
+// use results...
+```
+
+std::tuple is good since it has clearly readable format, but common structures
+are much more convenient to use. To decode structures we have to declare their
+format for decoder:
 
 ```
 struct UserTuple {
-    uint64_t field1;
-    std::string field2;
-    double field3;
-};
-```
+    uint64_t id;
+    std::string name;
+    double coef;
 
-Prototype of the base reader is given in `src/mpp/Dec.hpp`:
-```
-template <class BUFFER, Type TYPE>
-struct SimpleReaderBase : DefaultErrorHandler {
-    using BufferIterator_t = typename BUFFER::iterator;
-    /* Allowed type of values to be parsed. */
-    static constexpr Type VALID_TYPES = TYPE;
-    BufferIterator_t* StoreEndIterator() { return nullptr; }
+    static constexpr auto mpp = std::make_tuple(
+        &UserTuple::id, &UserTuple::name, &UserTuple::coef);
 };
-```
-So every new reader should inherit from it or directly from `DefaultErrorHandler`.
-To parse particular value, we should define `Value()` method. First two arguments
-are common and unused as a rule, but the third - defines parsed value. So in
-case of POD stuctures it's enough to provide byte-to-byte copy. Since in our
-schema there are fields of three different types, let's descripe three `Value()`
-functions:
-```
-struct UserTupleValueReader : mpp::DefaultErrorHandler {
-    /* Store instance of tuple to be parsed. */
-    UserTuple& tuple;
-    /* Enumerate all types which can be parsed. Otherwise */
-    static constexpr mpp::Type VALID_TYPES = mpp::MP_UINT | mpp::MP_STR | mpp::MP_DBL;
-    UserTupleValueReader(UserTuple& t) : tuple(t) {}
 
-    /* Value's extractors. */
-    void Value(const BufIter_t&, mpp::compact::Type, uint64_t u)
-    {
-       tuple.field1 = u;
-    }
-    void Value(const BufIter_t&, mpp::compact::Type, double d)
-    {
-        tuple.field3 = d;
-    }
-    void Value(const BufIter_t& itr, mpp::compact::Type, mpp::StrValue v)
-    {
-        BufIter_t tmp = itr;
-        tmp += v.offset;
-        std::string &dst = tuple.field2;
-        while (v.size) {
-            dst.push_back(*tmp);
-            ++tmp;
-            --v.size;
-        }
-    }
-};
-```
-It is worth mentioning that tuple itself is wrapped into array, so in fact
-firstly we should parse array. Let's define another one reader:
-```
-template <class BUFFER>
-struct UserTupleReader : mpp::SimpleReaderBase<BUFFER, mpp::MP_ARR> {
-    mpp::Dec<BUFFER>& dec;
-    UserTuple& tuple;
-
-    UserTupleReader(mpp::Dec<BUFFER>& d, UserTuple& t) : dec(d), tuple(t) {}
-    void Value(const iterator_t<BUFFER>&, mpp::compact::Type, mpp::ArrValue)
-    {
-        dec.SetReader(false, UserTupleValueReader{tuple});
-    }
-};
-```
-`SetReader();` sets the reader which is invoked while every entry of the array is
-parsed. Now, to make these two readers work, we should create decoder, set
-its iterator to the position of encoded tuple and invoke `Read()` method:
-```
-    UserTuple tuple;
-    mpp::Dec dec(conn.getInBuf());
-    dec.SetPosition(*t.begin);
-    dec.SetReader(false, UserTupleReader<BUFFER>{dec, tuple});
-    dec.Read();
+// Perform select and wait for result...
+auto response = conn.getResponse(my_select);
+std::vector<UserTuple> results;
+response.body.data.decode(results);
+// use results...
 ```
 
 ### Writing custom buffer and network provider

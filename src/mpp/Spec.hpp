@@ -45,18 +45,18 @@ namespace mpp {
  * use temporary specificators, like encoder.add(mpp::as_map(<that tuple>)).
  */
 
-template <compact::Family FAMILY, class T>
+template <Family FAMILY, class T>
 constexpr auto as_family(T&& t);
 
-template <class T> constexpr auto as_nil (T&& t) { return as_family<compact::MP_NIL >(std::forward<T>(t)); }
-template <class T> constexpr auto as_ignr(T&& t) { return as_family<compact::MP_IGNR>(std::forward<T>(t)); }
-template <class T> constexpr auto as_bool(T&& t) { return as_family<compact::MP_BOOL>(std::forward<T>(t)); }
-template <class T> constexpr auto as_int (T&& t) { return as_family<compact::MP_INT >(std::forward<T>(t)); }
-template <class T> constexpr auto as_flt (T&& t) { return as_family<compact::MP_FLT >(std::forward<T>(t)); }
-template <class T> constexpr auto as_str (T&& t) { return as_family<compact::MP_STR >(std::forward<T>(t)); }
-template <class T> constexpr auto as_bin (T&& t) { return as_family<compact::MP_BIN >(std::forward<T>(t)); }
-template <class T> constexpr auto as_arr (T&& t) { return as_family<compact::MP_ARR >(std::forward<T>(t)); }
-template <class T> constexpr auto as_map (T&& t) { return as_family<compact::MP_MAP >(std::forward<T>(t)); }
+template <class T> constexpr auto as_nil (T&& t) { return as_family<MP_NIL >(std::forward<T>(t)); }
+template <class T> constexpr auto as_ignr(T&& t) { return as_family<MP_IGNR>(std::forward<T>(t)); }
+template <class T> constexpr auto as_bool(T&& t) { return as_family<MP_BOOL>(std::forward<T>(t)); }
+template <class T> constexpr auto as_int (T&& t) { return as_family<MP_INT >(std::forward<T>(t)); }
+template <class T> constexpr auto as_flt (T&& t) { return as_family<MP_FLT >(std::forward<T>(t)); }
+template <class T> constexpr auto as_str (T&& t) { return as_family<MP_STR >(std::forward<T>(t)); }
+template <class T> constexpr auto as_bin (T&& t) { return as_family<MP_BIN >(std::forward<T>(t)); }
+template <class T> constexpr auto as_arr (T&& t) { return as_family<MP_ARR >(std::forward<T>(t)); }
+template <class T> constexpr auto as_map (T&& t) { return as_family<MP_MAP >(std::forward<T>(t)); }
 
 template <class EXT_TYPE, class T>
 constexpr auto as_ext(EXT_TYPE&& e, T&& t);
@@ -97,20 +97,20 @@ struct wrapped : wrapped_tag
 	constexpr explicit wrapped(T&& arg) : object(std::forward<T>(arg)) {}
 };
 
-template <compact::Family FAMILY, class BASE>
+template <Family FAMILY, class BASE>
 struct wrapped_family : wrapped_family_tag, BASE {
-	static constexpr compact::Family family = FAMILY;
+	static constexpr Family family = FAMILY;
 	constexpr explicit wrapped_family(BASE&& arg)
 	: BASE(std::forward<BASE>(arg)) {}
 };
 
-template <compact::Family FAMILY, class T>
+template <Family FAMILY, class T>
 constexpr auto as_family(T&& t)
 {
 	static_assert(!is_wrapped_family_v<T>, "Family is already set");
 	static_assert(!is_wrapped_raw_v<T>, "Incompatible with raw");
-	static_assert(FAMILY < compact::MP_END, "Invalid family");
-	static_assert(FAMILY != compact::MP_EXT, "Please use as_ext");
+	static_assert(FAMILY < MP_END, "Invalid family");
+	static_assert(FAMILY != MP_EXT, "Please use as_ext");
 
 	if constexpr(is_wrapped_v<T>) {
 		using WRAP_T = std::remove_reference_t<T>;
@@ -123,7 +123,7 @@ constexpr auto as_family(T&& t)
 
 template <class EXT_TYPE, class BASE>
 struct wrapped_ext : wrapped_family_tag, BASE {
-	static constexpr compact::Family family = compact::MP_EXT;
+	static constexpr Family family = MP_EXT;
 	EXT_TYPE ext_type;
 	constexpr wrapped_ext(EXT_TYPE e, BASE&& arg)
 	: BASE(std::forward<BASE>(arg)), ext_type(e) {}

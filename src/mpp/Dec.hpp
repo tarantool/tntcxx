@@ -33,12 +33,19 @@
 #include <cassert>
 #include <functional>
 #include <cstdint>
+#include <cstring>
+#include <tuple>
 #include <utility>
+#include <variant>
 
+#include "BSwap.hpp"
 #include "ClassRule.hpp"
+#include "ContAdapter.hpp"
 #include "Constants.hpp"
 #include "Rules.hpp"
 #include "Spec.hpp"
+#include "../Utils/CStr.hpp"
+#include "../Utils/Traits.hpp"
 
 namespace mpp {
 
@@ -60,7 +67,7 @@ constexpr bool is_any_putable_v =
 /**
  * If it is true, the object of type T will not be decoded - raw data will
  * be saved to it.
- * 
+ *
  * Now it supports only a pair of iterators (probably, wrapped with
  * mpp::as_raw). The check implicilty implies that BUF is an iterator, not
  * buffer - it would be strange to pass a pair of buffer to decoder.
@@ -131,33 +138,33 @@ constexpr auto detectFamily()
 	} else if constexpr (has_dec_rule_v<U>) {
 		return detectFamily<BUF, decltype(get_dec_rule<U>())>();
 	} else if constexpr (tnt::is_optional_v<U>) {
-		return family_sequence_populate<compact::MP_NIL>(
+		return family_sequence_populate<MP_NIL>(
 			detectFamily<BUF, tnt::value_type_t<U>>());
 	} else if constexpr (tnt::is_variant_v<U>) {
 		return detectFamilyVariant<BUF, U>();
 	} else if constexpr (std::is_convertible_v<U, tnt::empty_type>) {
-		return family_sequence<compact::MP_NIL>{};
+		return family_sequence<MP_NIL>{};
 	} else if constexpr (std::is_same_v<U, bool>) {
-		return family_sequence<compact::MP_BOOL>{};
+		return family_sequence<MP_BOOL>{};
 	} else if constexpr (tnt::is_integer_v<U>) {
-		return family_sequence<compact::MP_INT>{};
+		return family_sequence<MP_INT>{};
 	} else if constexpr (std::is_floating_point_v<U>) {
-		return family_sequence<compact::MP_INT, compact::MP_FLT>{};
+		return family_sequence<MP_INT, MP_FLT>{};
 	} else if constexpr (tnt::is_contiguous_char_v<U>) {
-		return family_sequence<compact::MP_STR>{};
+		return family_sequence<MP_STR>{};
 	} else if constexpr (tnt::is_tuplish_v<U>) {
 		if constexpr (tnt::tuple_size_v<U> == 0)
-			return family_sequence<compact::MP_ARR,
-					       compact::MP_MAP>{};
+			return family_sequence<MP_ARR,
+					       MP_MAP>{};
 		else if constexpr (tnt::is_tuplish_of_pairish_v<U>)
-			return family_sequence<compact::MP_MAP>{};
+			return family_sequence<MP_MAP>{};
 		else
-			return family_sequence<compact::MP_ARR>{};
+			return family_sequence<MP_ARR>{};
 	} else if constexpr (is_any_putable_v<U> || tnt::is_contiguous_v<U>) {
 		if constexpr (tnt::is_pairish_v<tnt::value_type_t<U>>)
-			return family_sequence<compact::MP_MAP>{};
+			return family_sequence<MP_MAP>{};
 		else
-			return family_sequence<compact::MP_ARR>{};
+			return family_sequence<MP_ARR>{};
 	} else {
 		static_assert(tnt::always_false_v<U>,
 			      "Failed to recognise type");
@@ -165,7 +172,7 @@ constexpr auto detectFamily()
 	}
 }
 
-template <compact::Family... FAMILY>
+template <Family... FAMILY>
 constexpr bool hasChildren(family_sequence<FAMILY...>)
 {
 	return (rule_by_family_t<FAMILY>::has_children || ...);
@@ -246,6 +253,24 @@ using path_push_t =
 							 STATIC_SIZE,
 							 STATIC_POS)>;
 
+/*
+ * Construct a pair of two references to two given objects.
+ */
+template <class T, class U>
+static constexpr std::pair<T&, U&> ref_pair(T& t, U& u)
+{
+	return std::pair<T&, U&>{t, u};
+}
+
+/*
+ * Construct a pair of two references to given object and to std::ignore.
+ */
+template <class T>
+static constexpr std::pair<T&, decltype(std::ignore)&> ref_uno(T& t)
+{
+	return ref_pair(t, std::ignore);
+}
+
 template <size_t I, size_t... P>
 struct Resolver {
 	template <size_t J>
@@ -263,6 +288,7 @@ struct Resolver {
 	static_assert((requires_pos_and_size && POS < SIZE) ||
 		      (!requires_pos_and_size && POS + SIZE == 0));
 
+	/** Helper of dyn_arg_pos(). */
 	template <size_t... J>
 	static constexpr size_t dyn_arg_pos(tnt::iseq<J...>)
 	{
@@ -271,104 +297,101 @@ struct Resolver {
 		return USR_ARG_COUNT + X;
 	}
 
+	/**
+	 * Find index of an argument that represents dynamic position of
+	 * current (Ith) path element.
+	 */
 	static constexpr size_t dyn_arg_pos()
 	{
 		return dyn_arg_pos(tnt::make_iseq<I>{});
 	}
 
+	/**
+	 * Base resolver. Simply resolve Ith element of path, which along
+	 * with general types can return reference to an object (which is
+	 * expected to have decoding rules) or pointer to member.
+	 * Return a pair, with the resolved thing as the first member. The
+	 * second member of the pair is exactly what was got from resolving
+	 * the parent, (I-1)th element of the path (std::ignore if I == 0).
+	 */
 	template <class... T>
-	static constexpr size_t find_obj_index()
-	{
-		using E = decltype(extract<T...>(std::declval<T>()...));
-		using R = unwrap_t<E>;
-		if constexpr (has_dec_rule_v<R>) {
-			return I;
-		} else if constexpr (std::is_member_pointer_v<R> ||
-				     tnt::is_tuplish_v<R>) {
-			using PrevResolver = Resolver<I - 1, P...>;
-			return PrevResolver::template find_obj_index<T...>();
-		} else {
-			static_assert(tnt::always_false_v<E>);
-		}
-	}
-
-	template <class... T>
-	static constexpr auto&& prev(T... t)
-	{
-		return unwrap(Resolver<I - 1, P...>::get(t...));
-	}
-
-	template <class... T>
-	static constexpr auto&& extract(T... t)
+	static constexpr auto get_raw(T... t)
 	{
 		if constexpr (TYPE == PIT_STATIC_L0) {
-			return std::get<POS>(std::tie(t...)).get();
+			return ref_uno(std::get<POS>(std::tie(t...)).get());
 		} else if constexpr (is_path_item_static(PI)) {
-			return tnt::get<POS>(prev(t...));
+			auto p = Resolver<I - 1, P...>::get_pair(t...);
+			auto& b = unwrap(p.first);
+			return ref_pair(tnt::get<POS>(b), p.second);
 		} else if constexpr (TYPE == PIT_DYN_POS) {
+			auto p = Resolver<I - 1, P...>::get_pair(t...);
+			auto& b = unwrap(p.first);
 			constexpr size_t ARG_POS = dyn_arg_pos();
 			uint64_t arg = std::get<ARG_POS>(std::tie(t...));
-			return std::data(prev(t...))[arg >> 32];
+			return ref_pair(std::data(b)[arg >> 32], p.second);
 		} else if constexpr (TYPE == PIT_DYN_BACK) {
-			return prev(t...).back();
+			auto p = Resolver<I - 1, P...>::get_pair(t...);
+			auto& b = unwrap(p.first);
+			return ref_pair(b.back(), p.second);
 		} else if constexpr (TYPE == PIT_DYN_ADD) {
-			return prev(t...);
+			return Resolver<I - 1, P...>::get_pair(t...);
 		} else if constexpr (TYPE == PIT_DYN_KEY) {
-			return prev(t...);
+			return Resolver<I - 1, P...>::get_pair(t...);
 		} else if constexpr (TYPE == PIT_OPTIONAL) {
-			auto &&opt = prev(t...);
+			auto p = Resolver<I - 1, P...>::get_pair(t...);
+			auto& opt = unwrap(p.first);
 			assert(opt.has_value());
-			return *opt;
+			return ref_pair(*opt, p.second);
 		} else if constexpr (TYPE == PIT_VARIANT) {
-			return tnt::get<POS>(prev(t...));
+			auto p = Resolver<I - 1, P...>::get_pair(t...);
+			auto& var = unwrap(p.first);
+			return ref_pair(tnt::get<POS>(var), p.second);
 		} else {
 			static_assert(tnt::always_false_v<T...>);
 		}
 	}
 
-	template <class... T>
-	static constexpr auto&& unrule(T... t)
-	{
-		using E = decltype(extract<T...>(std::declval<T>()...));
-		using R = unwrap_t<E>;
-		if constexpr (has_dec_rule_v<R>)
-			return get_dec_rule<R>();
-		else
-			return extract(t...);
-	}
-
-	template <class T>
-	static constexpr auto&& self_unwrap(T&& t)
+	/**
+	 * Transform a pair that was got from the get_raw method above.
+	 * The result is also a pair of references.
+	 * 1. If the first member of pair is an object with decoding rule -
+	 *  create pair with decoding rule and the object and recall this
+	 *  function recursively.
+	 * 2. If the first member of pair is pointer to member - apply it to
+	 *  object in the second member. Create a pair with the result as the
+	 *  first member and recall this function recursively.
+	 * 3. Return original pair otherwise.
+	 */
+	template <class T, class U>
+	static constexpr auto transform_raw(std::pair<T, U> p)
 	{
 		using R = unwrap_t<T>;
 		if constexpr (has_dec_rule_v<R>) {
-			using RULE = unwrap_t<decltype(get_dec_rule<R>())>;
-			if constexpr (std::is_member_pointer_v<RULE>) {
-				return self_unwrap(unwrap(std::forward<T>(t)).*
-						   unwrap(get_dec_rule<R>()));
-			} else {
-				return std::forward<T>(t);
-			}
+			auto q = ref_pair(get_dec_rule<R>(), p.first);
+			return transform_raw(q);
+		} else if constexpr (std::is_member_pointer_v<R>) {
+			auto q = ref_uno(unwrap(p.second).*unwrap(p.first));
+			return transform_raw(q);
 		} else {
-			return std::forward<T>(t);
+			return p;
 		}
 	}
 
+	/** Get transformed pair. */
 	template <class... T>
-	static constexpr auto&& get(T... t)
+	static constexpr auto get_pair(T... t)
 	{
-		using U = decltype(unrule<T...>(std::declval<T>()...));
-		using R = unwrap_t<U>;
-		if constexpr (std::is_member_pointer_v<R>) {
-			constexpr size_t OBJ_I = find_obj_index<T...>();
-			using Res = Resolver<OBJ_I, P...>;
-			return self_unwrap(unwrap(Res::extract(t...)).*
-					   unwrap(unrule(t...)));
-		} else {
-			return unrule(t...);
-		}
+		return transform_raw(get_raw(t...));
 	}
 
+	/** Resolve path to Ith element. */
+	template <class... T>
+	static constexpr auto& get(T... t)
+	{
+		return get_pair(t...).first;
+	}
+
+	/** Get the expected number of argument in get(T...) above. */
 	static constexpr size_t expected_arg_count()
 	{
 		return dyn_arg_pos() + (is_path_item_dynamic(ITEM<I>) ? 1 : 0);
@@ -393,7 +416,7 @@ constexpr auto&& path_resolve_parent(tnt::iseq<P...>, T... t)
 
 constexpr size_t SIMPLEX_SUBRULE = 16;
 
-template <compact::Family FAMILY>
+template <Family FAMILY>
 constexpr auto get_subrules()
 {
 	using RULE = rule_by_family_t<FAMILY>;
@@ -405,19 +428,19 @@ constexpr auto get_subrules()
 		return complex_seq{};
 }
 
-template <compact::Family FAMILY, size_t SUBRULE, class BUF>
+template <Family FAMILY, size_t SUBRULE, class BUF>
 auto read_value(BUF& buf)
 {
 	using RULE = rule_by_family_t<FAMILY>;
 	if constexpr (SUBRULE == SIMPLEX_SUBRULE) {
 		typename RULE::simplex_value_t tag;
-		buf.read(tag);
+		rd(buf).read(tag);
 		assert(tag >= rule_simplex_tag_range_v<RULE>.first);
 		assert(tag <= rule_simplex_tag_range_v<RULE>.last);
 		[[maybe_unused]] typename RULE::simplex_value_t val =
 			tag - RULE::simplex_tag;
 
-		if constexpr (FAMILY == compact::MP_NIL)
+		if constexpr (FAMILY == MP_NIL)
 			return tnt::empty_value;
 		else if constexpr (RULE::is_bool)
 			return bool(val);
@@ -427,25 +450,25 @@ auto read_value(BUF& buf)
 			return val;
 	} else {
 		uint8_t tag;
-		buf.read(tag);
+		rd(buf).read(tag);
 		assert(tag == RULE::complex_tag + SUBRULE);
 		using TYPES = typename RULE::complex_types;
 		using V = std::tuple_element_t<SUBRULE, TYPES>;
 		under_uint_t<V> u;
-		buf.read(u);
+		rd(buf).read(u);
 		V val = bswap<V>(u);
 		return val;
 	}
 }
 
-template <compact::Family FAMILY, size_t SUBRULE, class BUF, class ITEM>
+template <Family FAMILY, size_t SUBRULE, class BUF, class ITEM>
 auto read_item(BUF& buf, ITEM& item)
 {
 	using RULE = rule_by_family_t<FAMILY>;
 	auto val = read_value<FAMILY, SUBRULE>(buf);
 	if constexpr (RULE::has_ext) {
 		int8_t ext_type;
-		buf.read(ext_type);
+		rd(buf).read(ext_type);
 		item.ext_type = ext_type;
 	}
 	if constexpr (RULE::has_data) {
@@ -468,11 +491,11 @@ auto read_item(BUF& buf, ITEM& item)
 			if (size > std::size(item))
 				size = std::size(item);
 		}
-		buf.read({std::data(item), size});
+		rd(buf).read({std::data(item), size});
 		if constexpr (tnt::is_limited_v<ITEM> ||
 			      !tnt::is_resizable_v<ITEM>) {
 			if (size < size_t(val))
-				buf.read({size_t(val) - size});
+				rd(buf).read({size_t(val) - size});
 		}
 	} else if constexpr (RULE::has_children) {
 		if constexpr (tnt::is_clearable_v<ITEM>)
@@ -481,7 +504,7 @@ auto read_item(BUF& buf, ITEM& item)
 			item.resize(val);
 	} else if constexpr (std::is_enum_v<ITEM>) {
 		item = static_cast<ITEM>(val);
-	} else if constexpr (tnt::is_optional_v<ITEM> && FAMILY == compact::MP_NIL) {
+	} else if constexpr (tnt::is_optional_v<ITEM> && FAMILY == MP_NIL) {
 		item.reset();
 	} else {
 		item = val;
@@ -580,7 +603,7 @@ struct Jumps {
 	}
 };
 
-template <compact::Family FAMILY, size_t SUBRULE,
+template <Family FAMILY, size_t SUBRULE,
 	class PATH, class BUF, class... T>
 bool jump_common(BUF& buf, T... t);
 
@@ -592,7 +615,7 @@ bool broken_msgpack_jump(BUF&, T...);
 
 template <class PATH, class BUF, class... T>
 struct JumpsBuilder {
-	template <compact::Family FAMILY, size_t SUBRULE>
+	template <Family FAMILY, size_t SUBRULE>
 	static constexpr auto build()
 	{
 		using RULE = rule_by_family_t<FAMILY>;
@@ -609,13 +632,13 @@ struct JumpsBuilder {
 		}
 	}
 
-	template <compact::Family FAMILY, size_t... SUBRULE>
+	template <Family FAMILY, size_t... SUBRULE>
 	static constexpr auto build(tnt::iseq<SUBRULE...>)
 	{
 		return (build<FAMILY, SUBRULE>() + ...);
 	}
 
-	template <compact::Family... FAMILY>
+	template <Family... FAMILY>
 	static constexpr auto build(family_sequence<FAMILY...> s)
 	{
 		if constexpr (s.size() == 0)
@@ -665,11 +688,11 @@ struct JumpsBuilder {
 		constexpr bool has_str =
 			(is_str_key<tnt::tuple_element_t<I, TYPES>>() || ...);
 		if constexpr (has_int && has_str)
-			return family_sequence<compact::MP_INT, compact::MP_STR>{};
+			return family_sequence<MP_INT, MP_STR>{};
 		else if constexpr (has_int)
-			return family_sequence<compact::MP_INT>{};
+			return family_sequence<MP_INT>{};
 		else if constexpr (has_str)
-			return family_sequence<compact::MP_STR>{};
+			return family_sequence<MP_STR>{};
 		else
 			return family_sequence<>{};
 	}
@@ -697,7 +720,7 @@ struct JumpsBuilder {
 		} else if constexpr (path_item_type(LAST) == PIT_DYN_KEY) {
 			using R = decltype(path_resolve(PATH{},
 							std::declval<T>()...));
-			using DST = std::remove_reference_t<R>;
+			using DST = unwrap_t<R>;
 			static_assert(tnt::is_tuplish_v<DST>);
 			constexpr size_t S = tnt::tuple_size_v<DST>;
 			if constexpr (tnt::is_tuplish_of_pairish_v<DST>) {
@@ -743,7 +766,7 @@ decode_jump(BUF& buf, T... t)
 {
 	static_assert(path_item_type(PATH::last()) != PIT_BAD);
 	static constexpr auto jumps = JumpsBuilder<PATH, BUF, T...>::build();
-	uint8_t tag = buf.template get<uint8_t>();
+	uint8_t tag = rd(buf).template get<uint8_t>();
 	return jumps.data[tag](buf, t...);
 }
 
@@ -782,8 +805,8 @@ decode_impl(BUF& buf, T... t)
 	static_assert(path_item_type(PATH::last()) != PIT_BAD);
 	if constexpr (path_item_type(PATH::last()) != PIT_DYN_SKIP &&
 		      path_item_type(PATH::last()) != PIT_RAW) {
-		auto&& wrapped_dst = path_resolve(PATH{}, t...);
-		using wrapped_dst_t = std::remove_reference_t<decltype(wrapped_dst)>;
+		using wrapped_dst_t = std::remove_reference_t<
+			decltype(path_resolve(PATH{}, t...))>;
 		if constexpr (is_raw_decoded_v<wrapped_dst_t, BUF>) {
 			return decode_raw<PATH>(buf, t...);
 		} else {
@@ -912,7 +935,7 @@ bool decode_next(BUF& buf, T... t)
 	}
 }
 
-template <compact::Family FAMILY, size_t SUBRULE,
+template <Family FAMILY, size_t SUBRULE,
 	class PATH, class BUF, class... T>
 bool jump_skip(BUF& buf, T... t)
 {
@@ -922,10 +945,10 @@ bool jump_skip(BUF& buf, T... t)
 
 	if constexpr (RULE::has_ext) {
 		int8_t ext_type;
-		buf.read(ext_type);
+		rd(buf).read(ext_type);
 	}
 	if constexpr (RULE::has_data) {
-		buf.read({size_t(val)});
+		rd(buf).read({size_t(val)});
 	}
 	if constexpr (RULE::has_children) {
 		auto& arg = std::get<sizeof...(T) - 1>(std::tie(t...));
@@ -934,7 +957,7 @@ bool jump_skip(BUF& buf, T... t)
 	return decode_next<PATH>(buf, t...);
 }
 
-template <compact::Family FAMILY, size_t SUBRULE,
+template <Family FAMILY, size_t SUBRULE,
 	class PATH, class BUF, class... T>
 bool jump_add(BUF& buf, T... t)
 {
@@ -981,7 +1004,7 @@ constexpr size_t get_next_arr_static_size()
 		return 0;
 }
 
-template <compact::Family FAMILY, size_t SUBRULE,
+template <Family FAMILY, size_t SUBRULE,
 	  class PATH, class BUF, class... T>
 bool jump_read(BUF& buf, T... t)
 {
@@ -994,7 +1017,7 @@ bool jump_read(BUF& buf, T... t)
 			return decode_next<PATH>(buf, t...);
 	}
 
-	if constexpr (FAMILY == compact::MP_ARR) {
+	if constexpr (FAMILY == MP_ARR) {
 		constexpr auto NT = get_next_arr_item_type<BUF, dst_t>();
 		constexpr size_t NS = get_next_arr_static_size<dst_t, NT>();
 		using NEXT_PATH = path_push_t<PATH, NT, NS>;
@@ -1028,7 +1051,7 @@ bool jump_read(BUF& buf, T... t)
 			uint64_t arg = val;
 			return decode_impl<NEXT_PATH>(buf, t..., arg);
 		}
-	} else if constexpr (FAMILY == compact::MP_MAP) {
+	} else if constexpr (FAMILY == MP_MAP) {
 		if constexpr (tnt::is_tuplish_v<dst_t>) {
 			uint64_t arg = val;
 			using NEXT_PATH = path_push_t<PATH, PIT_DYN_KEY>;
@@ -1072,14 +1095,14 @@ constexpr bool signed_compare(K k, V v)
 	}
 }
 
-template <compact::Family FAMILY, class K, class W, class BUF>
+template <Family FAMILY, class K, class W, class BUF>
 constexpr bool compare_key([[maybe_unused]] K k, W&& w, [[maybe_unused]] BUF& buf)
 {
 	auto&& u = mpp::unwrap(w);
 	using U = mpp::unwrap_t<W>;
 	static_assert(std::is_integral_v<K>);
 	static_assert(!std::is_same_v<K, bool>);
-	if constexpr (FAMILY == compact::MP_INT) {
+	if constexpr (FAMILY == MP_INT) {
 		if constexpr (tnt::is_integral_constant_v<U>) {
 			using V = typename U::value_type;
 			constexpr tnt::base_enum_t<V> v = U::value;
@@ -1091,7 +1114,7 @@ constexpr bool compare_key([[maybe_unused]] K k, W&& w, [[maybe_unused]] BUF& bu
 			return false;
 		}
 	} else {
-		static_assert(FAMILY == compact::MP_STR);
+		static_assert(FAMILY == MP_STR);
 		if constexpr (tnt::is_string_constant_v<U>) {
 			return k == u.size && buf.startsWith({u.data, u.size});
 		} else if constexpr (tnt::is_char_ptr_v<U>) {
@@ -1109,14 +1132,14 @@ constexpr bool compare_key([[maybe_unused]] K k, W&& w, [[maybe_unused]] BUF& bu
 	}
 }
 
-template <bool PAIRS, compact::Family FAMILY, class PATH, class K,
+template <bool PAIRS, Family FAMILY, class PATH, class K,
           class BUF, class... T>
 bool jump_find_key([[maybe_unused]] K k, tnt::iseq<>, BUF& buf, T... t)
 {
 	static_assert(path_item_type(PATH::last()) == PIT_DYN_KEY);
 	using NEXT_PATH = path_push_t<PATH, PIT_DYN_SKIP>;
-	if constexpr (FAMILY == compact::MP_STR)
-		buf.read({k});
+	if constexpr (FAMILY == MP_STR)
+		rd(buf).read({k});
 	return decode_impl<NEXT_PATH>(buf, t..., size_t(1));
 }
 
@@ -1124,12 +1147,12 @@ template <bool PAIRS, size_t I, class DST>
 auto&& key_path_resolve(DST&& dst)
 {
 	if constexpr (PAIRS)
-		return tnt::get<0>(tnt::get<I>(dst));
+		return tnt::get<0>(tnt::get<I>(unwrap(dst)));
 	else
-		return tnt::get<I * 2>(dst);
+		return tnt::get<I * 2>(unwrap(dst));
 }
 
-template <bool PAIRS, compact::Family FAMILY, class PATH, class K,
+template <bool PAIRS, Family FAMILY, class PATH, class K,
 	  size_t I, size_t... J, class BUF, class... T>
 bool jump_find_key(K k, tnt::iseq<I, J...>, BUF& buf, T... t)
 {
@@ -1142,8 +1165,8 @@ bool jump_find_key(K k, tnt::iseq<I, J...>, BUF& buf, T... t)
 	using NEXT_PATH = std::conditional_t<PAIRS, PAIRS_NEXT_PATH, FLAT_NEXT_PATH>;
 
 	if (compare_key<FAMILY>(k, key, buf)) {
-		if constexpr (FAMILY == compact::MP_STR)
-			buf.read({k});
+		if constexpr (FAMILY == MP_STR)
+			rd(buf).read({k});
 		return decode_impl<NEXT_PATH>(buf, t...);
 	}
 
@@ -1151,13 +1174,13 @@ bool jump_find_key(K k, tnt::iseq<I, J...>, BUF& buf, T... t)
 	return jump_find_key<PAIRS, FAMILY, PATH>(k, IS, buf, t...);
 }
 
-template <compact::Family FAMILY, size_t SUBRULE,
+template <Family FAMILY, size_t SUBRULE,
 	  class PATH, class BUF, class... T>
 bool jump_read_key(BUF& buf, T... t)
 {
 	static_assert(path_item_type(PATH::last()) == PIT_DYN_KEY);
 	auto&& dst = path_resolve(PATH{}, t...);
-	using dst_t = std::remove_reference_t<decltype(dst)>;
+	using dst_t = unwrap_t<decltype(dst)>;
 	static_assert(tnt::is_tuplish_v<dst_t>);
 
 	constexpr bool PAIRS = tnt::is_tuplish_of_pairish_v<dst_t>;
@@ -1166,24 +1189,24 @@ bool jump_read_key(BUF& buf, T... t)
 	constexpr size_t S = PAIRS ? TS : TS / 2;
 	constexpr auto IS = tnt::make_iseq<S>{};
 
-	static_assert(FAMILY == compact::MP_INT || FAMILY == compact::MP_STR);
+	static_assert(FAMILY == MP_INT || FAMILY == MP_STR);
 	auto val = read_value<FAMILY, SUBRULE>(buf);
 
 	return jump_find_key<PAIRS, FAMILY, PATH>(val, IS, buf, t...);
 }
 
-template <compact::Family FAMILY, size_t SUBRULE, class DST, class BUF>
+template <Family FAMILY, size_t SUBRULE, class DST, class BUF>
 constexpr bool is_object_readable_by_value_v = rule_by_family_t<FAMILY>::is_readable_by_value
 	&& std::is_assignable_v<DST, decltype(read_value<FAMILY, SUBRULE>(std::declval<BUF &>()))>;
 
-template <compact::Family FAMILY, size_t SUBRULE,
+template <Family FAMILY, size_t SUBRULE,
 	  class PATH, class BUF, class... T>
 bool jump_read_optional(BUF& buf, T... t)
 {
 	auto&& dst = unwrap(path_resolve(PATH{}, t...));
 	using dst_t = std::remove_reference_t<decltype(dst)>;
 	static_assert(tnt::is_optional_v<dst_t>);
-	if constexpr (FAMILY == compact::MP_NIL) {
+	if constexpr (FAMILY == MP_NIL) {
 		[[maybe_unused]] auto val = read_value<FAMILY, SUBRULE>(buf);
 		dst.reset();
 		return decode_next<PATH>(buf, t...);
@@ -1200,7 +1223,7 @@ bool jump_read_optional(BUF& buf, T... t)
 	}
 }
 
-template <size_t I, compact::Family FAMILY, size_t SUBRULE,
+template <size_t I, Family FAMILY, size_t SUBRULE,
 	  class PATH, class BUF, class... T>
 bool jump_read_variant_impl(BUF& buf, T... t)
 {
@@ -1221,7 +1244,7 @@ bool jump_read_variant_impl(BUF& buf, T... t)
 	}
 }
 
-template <compact::Family FAMILY, size_t SUBRULE,
+template <Family FAMILY, size_t SUBRULE,
 	  class PATH, class BUF, class... T>
 bool jump_read_variant(BUF& buf, T... t)
 {
@@ -1236,7 +1259,7 @@ bool jump_read_variant(BUF& buf, T... t)
 	}
 }
 
-template <compact::Family FAMILY, size_t SUBRULE,
+template <Family FAMILY, size_t SUBRULE,
 	  class PATH, class BUF, class... T>
 bool jump_common(BUF& buf, T... t)
 {
@@ -1274,7 +1297,7 @@ bool broken_msgpack_jump(BUF&, T...)
 
 template <class BUF, class... T>
 bool
-decode(BUF& buf, T&&... t)
+decode(BUF&& buf, T&&... t)
 {
 	// TODO: Guard
 	bool res = decode_details::decode(buf, std::forward<T>(t)...);
