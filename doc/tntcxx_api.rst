@@ -420,7 +420,6 @@ Public methods
         int rc = client.connect(conn, address, port);
 
         if (rc != 0) {
-            assert(conn.status.is_failed);
             std::cerr << conn.getError() << std::endl;
             return -1;
         }
