@@ -1238,7 +1238,8 @@ template <bool LIGHT>
 void
 Buffer<N, allocator>::iterator_common<LIGHT>::read(RData data)
 {
-	assert(data.size > 0);
+	if (data.size == 0)
+		return;
 	/*
 	 * The same implementation as in ::set() method buf vice versa:
 	 * buffer and data sources are swapped.
