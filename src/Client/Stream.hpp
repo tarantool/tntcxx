@@ -181,7 +181,7 @@ private:
 ////////////////////////// Implementation  //////////////////////////
 /////////////////////////////////////////////////////////////////////
 
-std::ostream &
+inline std::ostream &
 operator<<(std::ostream &strm, enum StreamTransport transport)
 {
 	if (transport == STREAM_PLAIN)
@@ -192,7 +192,7 @@ operator<<(std::ostream &strm, enum StreamTransport transport)
 		return strm << "unknown transport";
 }
 
-std::ostream &
+inline std::ostream &
 operator<<(std::ostream &strm, const ConnectOptions &opts)
 {
 	strm << opts.address;
@@ -203,7 +203,7 @@ operator<<(std::ostream &strm, const ConnectOptions &opts)
 	return strm;
 }
 
-int
+inline int
 Stream::set_status(uint32_t st)
 {
 	if (st & SS_READINESS_STATUS)
@@ -219,7 +219,7 @@ Stream::set_status(uint32_t st)
 	return 0;
 }
 
-int
+inline int
 Stream::remove_status(uint32_t st)
 {
 	assert(!(st & SS_READINESS_STATUS));

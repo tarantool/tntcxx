@@ -142,7 +142,7 @@ UnixStream::tell(StreamStatus st, const char *file, int line,
 	return 0;
 }
 
-int
+inline int
 UnixStream::check_pending()
 {
 	assert(has_status(SS_CONNECT_PENDING));
@@ -154,7 +154,7 @@ UnixStream::check_pending()
 	return US_DIE("Failed to connect", strerror(rc == 0 ? err : errno));
 }
 
-int
+inline int
 UnixStream::connect(const ConnectOptions &opts_arg)
 {
 	if (!has_status(SS_DEAD))
@@ -217,12 +217,14 @@ UnixStream::connect(const ConnectOptions &opts_arg)
 		return US_DIE("Failed to connect");
 }
 
+inline
 UnixStream::~UnixStream() noexcept
 {
 	close();
 }
 
-void UnixStream::close()
+inline void
+UnixStream::close()
 {
 	if (fd >= 0) {
 		if (::close(fd) == 0)
