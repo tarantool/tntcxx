@@ -36,7 +36,7 @@
 
 namespace tnt {
 
-tnt::Sha1_type
+inline tnt::Sha1_type
 scramble(std::string_view password, const char *salt)
 {
 	Sha1_type hash1 = sha1(password);

@@ -71,7 +71,7 @@ public:
 ////////////////////////// Implementation  //////////////////////////
 /////////////////////////////////////////////////////////////////////
 
-int
+inline int
 UnixPlainStream::connect(const ConnectOptions &opts)
 {
 	if (opts.transport != STREAM_PLAIN)
@@ -81,7 +81,7 @@ UnixPlainStream::connect(const ConnectOptions &opts)
 }
 
 namespace internal {
-struct msghdr
+inline struct msghdr
 create_msghdr(struct iovec *iov, size_t iov_count)
 {
 	struct msghdr msg{};
@@ -91,7 +91,7 @@ create_msghdr(struct iovec *iov, size_t iov_count)
 }
 } // namespace internal
 
-ssize_t
+inline ssize_t
 UnixPlainStream::send(struct iovec *iov, size_t iov_count)
 {
 	if (!(has_status(SS_ESTABLISHED))) {
@@ -120,7 +120,7 @@ UnixPlainStream::send(struct iovec *iov, size_t iov_count)
 	}
 }
 
-ssize_t
+inline ssize_t
 UnixPlainStream::recv(struct iovec *iov, size_t iov_count)
 {
 	if (!(has_status(SS_ESTABLISHED))) {

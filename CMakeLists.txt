@@ -248,3 +248,8 @@ TNTCXX_TEST(NAME SchemalessExample TYPE other
             SOURCES examples/Schemaless.cpp
             LIBRARIES ${COMMON_LIB}
 )
+
+TNTCXX_TEST(NAME LinkTest TYPE other
+            SOURCES test/LinkTest/Main.cpp test/LinkTest/Secondary.cpp
+            LIBRARIES ${COMMON_LIB}
+)

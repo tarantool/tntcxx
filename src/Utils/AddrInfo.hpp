@@ -91,6 +91,7 @@ AddrInfo::~AddrInfo() noexcept
 		freeaddrinfo(infos);
 }
 
+inline
 AddrInfo::AddrInfo(const std::string &addr, const std::string &service)
 {
 	resolve(addr, service);
