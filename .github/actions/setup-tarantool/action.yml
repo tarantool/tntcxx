@@ -16,7 +16,7 @@ runs:
 
     - name: Setup Tarantool 3.2
       if: startsWith(inputs.runs-on, 'ubuntu')
-      uses: tarantool/setup-tarantool@v1
+      uses: tarantool/setup-tarantool@v3
       with:
         tarantool-version: '3.2'
 
