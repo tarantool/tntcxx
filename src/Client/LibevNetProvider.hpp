@@ -270,7 +270,7 @@ LibevNetProvider<BUFFER, Stream>::LibevNetProvider(Connector_t &connector,
 	m_Connector(connector), m_Loop(loop), m_IsOwnLoop(false)
 {
 	if (m_Loop == nullptr) {
-		m_Loop = ev_default_loop(0);
+		m_Loop = ev_loop_new(0);
 		m_IsOwnLoop = true;
 	}
 	assert(m_Loop != nullptr);
