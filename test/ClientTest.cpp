@@ -588,6 +588,7 @@ single_conn_call(Connector<BUFFER, NetProvider> &client)
 	const static char *return_multi   = "remote_multi";
 	const static char *return_nil     = "remote_nil";
 	const static char *return_map     = "remote_map";
+	const static char *echo		  = "remote_echo";
 
 	Connection<Buf_t, NetProvider> conn(client);
 	int rc = test_connect(client, conn, localhost, port);
@@ -670,6 +671,15 @@ single_conn_call(Connector<BUFFER, NetProvider> &client)
 	response = conn.getResponse(f10);
 	printResponse<BUFFER>(*response,
 		std::make_tuple(std::make_tuple(std::make_pair("key", int()))));
+
+	TEST_CASE("call remote_echo with raw arguments");
+	/* [1, 2, 3] as a raw MsgPack. */
+	const char raw_data[4] = {static_cast<char>(0x93), 1, 2, 3};
+	rid_t f11 = conn.call(echo, mpp::as_raw(raw_data));
+	client.wait(conn, f11, WAIT_TIMEOUT);
+	fail_unless(conn.futureIsReady(f11));
+	response = conn.getResponse(f11);
+	printResponse<BUFFER>(*response, std::make_tuple(std::make_tuple(0, 0, 0)));
 
 	client.close(conn);
 }

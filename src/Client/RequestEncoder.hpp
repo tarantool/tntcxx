@@ -318,7 +318,7 @@ RequestEncoder<BUFFER>::encodeCall(const std::string &func, const T &args)
 	encodeHeader(Iproto::CALL);
 	mpp::encode(m_Buf, mpp::as_map(std::forward_as_tuple(
 		MPP_AS_CONST(Iproto::FUNCTION_NAME), func,
-		MPP_AS_CONST(Iproto::TUPLE), mpp::as_arr(args))));
+		MPP_AS_CONST(Iproto::TUPLE), args)));
 	uint32_t request_size = (m_Buf.end() - request_start) - PREHEADER_SIZE;
 	++request_start;
 	request_start.set(__builtin_bswap32(request_size));
