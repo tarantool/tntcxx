@@ -104,7 +104,7 @@ private:
 	static_assert(sizeof(Slab) == B * M, "Smth went wrong");
 	static constexpr size_t FIRST_OFFSET = B - sizeof(Slab::next);
 
-	using Stats_t = MempoolStats<ENABLE_STATS>; 
+	using Stats_t = MempoolStats<ENABLE_STATS>;
 
 public:
 	// Constants for stat.
@@ -253,7 +253,7 @@ private:
 public:
 	static char *allocate() { return instance().allocate(); }
 	static void deallocate(char *ptr) noexcept { instance().deallocate(ptr); }
-	int selfcheck() const { return instance().selfcheck(); } 
+	int selfcheck() const { return instance().selfcheck(); }
 
 	static constexpr size_t REAL_SIZE = Base_t::REAL_SIZE;
 	static constexpr size_t BLOCK_SIZE = Base_t::BLOCK_SIZE;

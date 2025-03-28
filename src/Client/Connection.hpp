@@ -177,7 +177,7 @@ public:
 	template <class T>
 	rid_t call(const std::string &func, const T &args);
 	rid_t ping();
-	
+
 	/**
 	 * Execute the SQL statement contained in the 'statement' parameter.
 	 * @param statement statement, which should conform to the rules for SQL grammar

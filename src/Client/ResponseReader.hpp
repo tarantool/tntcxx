@@ -99,7 +99,7 @@ template<class BUFFER>
 struct Data {
 	using it_t = iterator_t<BUFFER>;
 	std::pair<it_t, it_t> iters;
-	
+
 	/** Unpacks tuples to passed container. */
 	template<class T>
 	bool decode(T& tuples)
