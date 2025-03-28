@@ -1093,6 +1093,42 @@ test_dead_connection_wait(Connector<BUFFER, NetProvider> &client)
 #endif
 }
 
+/**
+ * Test for miscellaneous issues related to response decoding.
+ */
+template <class BUFFER, class NetProvider>
+void
+response_decoding(Connector<BUFFER, NetProvider> &client)
+{
+	TEST_INIT(0);
+
+	Connection<Buf_t, NetProvider> conn(client);
+	int rc = test_connect(client, conn, localhost, port);
+	fail_unless(rc == 0);
+
+	TEST_CASE("decode data with non-matching format");
+	rid_t f = conn.call("remote_uint", std::make_tuple());
+	client.wait(conn, f, WAIT_TIMEOUT);
+	fail_unless(conn.futureIsReady(f));
+	std::optional<Response<Buf_t>> response = conn.getResponse(f);
+
+	fail_unless(response.has_value());
+	fail_unless(response->body.data.has_value());
+
+	std::string str;
+	unsigned num;
+	std::tuple<std::string> arr_of_str;
+	std::tuple<unsigned> arr_of_num;
+	/* Try to decode data with non-matching format. */
+	fail_if(response->body.data->decode(str));
+	fail_if(response->body.data->decode(num));
+	fail_if(response->body.data->decode(arr_of_str));
+	/* We should successfully decode data after all. */
+	fail_unless(response->body.data->decode(arr_of_num));
+
+	client.close(conn);
+}
+
 int main()
 {
 #ifdef TNTCXX_ENABLE_SSL
@@ -1141,5 +1177,6 @@ int main()
 	::test_sigpipe(client);
 #endif
 	::test_dead_connection_wait(client);
+	response_decoding(client);
 	return 0;
 }

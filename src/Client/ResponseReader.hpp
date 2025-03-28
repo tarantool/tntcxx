@@ -106,7 +106,7 @@ struct Data {
 	{
 		it_t itr = iters.first;
 		bool ok = mpp::decode(itr, tuples);
-		assert(itr == iters.second);
+		assert(!ok || itr == iters.second);
 		return ok;
 	}
 
