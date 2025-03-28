@@ -30,7 +30,7 @@ function remote_map()
     return {key = 777}
 end
 
-function bench_func(...)
+function remote_echo(...)
     return {...}
 end
 
