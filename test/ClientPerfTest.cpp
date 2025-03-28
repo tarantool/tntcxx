@@ -100,7 +100,7 @@ executeRequest(Connection<BUFFER, NetProvider> &conn, int request_type, int key)
 		case Iproto::SELECT:
 			return conn.space[space_id].select(std::make_tuple(key));
 		case Iproto::CALL:
-			return conn.call("bench_func", std::make_tuple(1, 2, 3, 4, 5));
+			return conn.call("remote_echo", std::make_tuple(1, 2, 3, 4, 5));
 		default:
 			abort();
 	}

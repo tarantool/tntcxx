@@ -28,7 +28,7 @@ function remote_multi()
     return 'Hello', 1, 6.66
 end
 
-function bench_func(...)
+function remote_echo(...)
     return {...}
 end
 
