@@ -1128,7 +1128,7 @@ test_raw()
 
 	using it_t = Buf_t::iterator_common<true>;
 	it_t run = buf.begin<true>();
-	
+
 	std::pair<it_t, it_t> to_wrap;
 	auto raw_decoders = std::make_tuple(
 		std::pair<it_t, it_t>(),
@@ -1148,7 +1148,7 @@ test_raw()
 		fail_if(dec2.first != begin);
 		fail_if(dec2.second != end);
 	};
-	
+
 	auto check_raw_decoders = [&](auto& begin, auto& end) {
 		std::apply([&](auto&... decs){(
 			...,
@@ -1185,7 +1185,7 @@ test_raw()
 	const auto arr_end = run;
 	TEST_CASE("decode the first element of array");
 	run = svp;
-	begin = run;	
+	begin = run;
 	mpp::decode(run, mpp::as_arr(std::forward_as_tuple(num)));
 	fail_if(num != arr[0]);
 	fail_if(run != arr_end);
@@ -1203,7 +1203,7 @@ test_raw()
 	auto elem_begin = begin + 1;
 	auto elem_end = elem_begin;
 	mpp::decode(elem_end, num);
-	check_each_raw_decoder(elem_begin, elem_end);		
+	check_each_raw_decoder(elem_begin, elem_end);
 	TEST_CASE("decode the array key by key");
 	run = svp;
 	// Array is small - its header occupies one byte.
@@ -1227,7 +1227,7 @@ test_raw()
 	const auto map_end = run;
 	TEST_CASE("decode one value from map");
 	run = svp;
-	begin = run;	
+	begin = run;
 	mpp::decode(run, mpp::as_map(std::forward_as_tuple(1, num)));
 	fail_if(run != map_end);
 	fail_if(num != 2);
@@ -1248,7 +1248,7 @@ test_raw()
 	elem_end = elem_begin;
 	// Skip value.
 	mpp::decode(elem_end, num);
-	check_each_raw_decoder(elem_begin, elem_end);		
+	check_each_raw_decoder(elem_begin, elem_end);
 	TEST_CASE("decode the map key by key");
 	run = svp;
 	// Map is small - its header occupies one byte.
@@ -1292,7 +1292,7 @@ test_variant()
 	mpp::encode(buf, wr);
 	mpp::decode(run, rd);
 	fail_unless(wr == rd);
-	
+
 	wr.emplace<2>("string variant");
 	mpp::encode(buf, wr);
 	mpp::decode(run, rd);

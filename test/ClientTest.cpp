@@ -114,7 +114,7 @@ printDatum(const Datum &datum)
  */
 template <class BUFFER, class Data = std::vector<UserTuple>>
 void
-printResponse(Response<BUFFER> &response, Data data = std::vector<UserTuple>()) 
+printResponse(Response<BUFFER> &response, Data data = std::vector<UserTuple>())
 {
 	if (response.body.error_stack != std::nullopt) {
 		Error err = (*response.body.error_stack)[0];
@@ -699,7 +699,7 @@ public:
 		std::string &stmt)
 	{
 		rid_t future = conn.prepare(stmt);
-	
+
 		client.wait(conn, future, WAIT_TIMEOUT);
 		fail_unless(conn.futureIsReady(future));
 		std::optional<Response<Buf_t>> response = conn.getResponse(future);
@@ -769,7 +769,7 @@ single_conn_sql(Connector<BUFFER, NetProvider> &client)
 			       "COLUMN2 VARCHAR(50), COLUMN3 DOUBLE);";
 	auto stmt = StmtProcessor::process(client, conn, stmt_str);
 	rid_t create_table = conn.execute(stmt, std::make_tuple());
-	
+
 	client.wait(conn, create_table, WAIT_TIMEOUT);
 	fail_unless(conn.futureIsReady(create_table));
 	std::optional<Response<Buf_t>> response = conn.getResponse(create_table);
@@ -784,7 +784,7 @@ single_conn_sql(Connector<BUFFER, NetProvider> &client)
 	stmt_str = "INSERT INTO TSQL VALUES (20, 'first', 3.2), (21, 'second', 5.4)";
 	stmt = StmtProcessor::process(client, conn, stmt_str);
 	rid_t insert = conn.execute(stmt, std::make_tuple());
-	
+
 	client.wait(conn, insert, WAIT_TIMEOUT);
 	fail_unless(conn.futureIsReady(insert));
 	response = conn.getResponse(insert);
@@ -803,7 +803,7 @@ single_conn_sql(Connector<BUFFER, NetProvider> &client)
 	stmt_str = "INSERT INTO TSQL VALUES (?, ?, ?), (?, ?, ?), (?, ?, ?);";
 	stmt = StmtProcessor::process(client, conn, stmt_str);
 	rid_t insert_args = conn.execute(stmt, args);
-	
+
 	client.wait(conn, insert_args, WAIT_TIMEOUT);
 	fail_unless(conn.futureIsReady(insert_args));
 	response = conn.getResponse(insert_args);
@@ -818,7 +818,7 @@ single_conn_sql(Connector<BUFFER, NetProvider> &client)
 	stmt_str = "SELECT * FROM SEQSCAN TSQL;";
 	stmt = StmtProcessor::process(client, conn, stmt_str);
 	rid_t select = conn.execute(stmt, std::make_tuple());
-	
+
 	client.wait(conn, select, WAIT_TIMEOUT);
 	fail_unless(conn.futureIsReady(select));
 	response = conn.getResponse(select);
@@ -841,7 +841,7 @@ single_conn_sql(Connector<BUFFER, NetProvider> &client)
 	stmt_str = "DROP TABLE IF EXISTS TSQL;";
 	stmt = StmtProcessor::process(client, conn, stmt_str);
 	rid_t drop_table = conn.execute(stmt, std::make_tuple());
-	
+
 	client.wait(conn, drop_table, WAIT_TIMEOUT);
 	fail_unless(conn.futureIsReady(drop_table));
 	response = conn.getResponse(drop_table);
@@ -902,7 +902,7 @@ single_conn_sql(Connector<BUFFER, NetProvider> &client)
 	stmt_str = "SELECT * FROM SEQSCAN TSQL;";
 	stmt = StmtProcessor::process(client, conn, stmt_str);
 	select = conn.execute(stmt, std::make_tuple());
-	
+
 	client.wait(conn, select, WAIT_TIMEOUT);
 	fail_unless(conn.futureIsReady(select));
 	response = conn.getResponse(select);
@@ -955,7 +955,7 @@ single_conn_sql(Connector<BUFFER, NetProvider> &client)
 	stmt_str = "UPDATE \"_session_settings\" SET \"value\" = false WHERE \"name\" = 'sql_full_metadata';";
 	stmt = StmtProcessor::process(client, conn, stmt_str);
 	rid_t disable_metadata = conn.execute(stmt, std::make_tuple());
-	
+
 	client.wait(conn, disable_metadata, WAIT_TIMEOUT);
 	fail_unless(conn.futureIsReady(disable_metadata));
 	response = conn.getResponse(disable_metadata);

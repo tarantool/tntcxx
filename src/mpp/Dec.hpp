@@ -60,7 +60,7 @@ constexpr bool is_any_putable_v =
 /**
  * If it is true, the object of type T will not be decoded - raw data will
  * be saved to it.
- * 
+ *
  * Now it supports only a pair of iterators (probably, wrapped with
  * mpp::as_raw). The check implicilty implies that BUF is an iterator, not
  * buffer - it would be strange to pass a pair of buffer to decoder.
