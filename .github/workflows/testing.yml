@@ -16,9 +16,9 @@ jobs:
         runs-on:
           - ubuntu-20.04
           - ubuntu-22.04
-          - macos-12
           - macos-13
           - macos-14
+          - macos-15
         build-type:
           - Debug
           - RelWithDebInfo
@@ -37,9 +37,9 @@ jobs:
         runs-on:
           - ubuntu-20.04
           - ubuntu-22.04
-          - macos-12
           - macos-13
           - macos-14
+          - macos-15
         compiler:
           - {c: gcc, cxx: g++}
           - {c: clang, cxx: clang++}
@@ -54,11 +54,11 @@ jobs:
           - cxx-standard: 17
             compiler: {c: gcc, cxx: g++}
           # gcc on macos is just an alias for clang
-          - runs-on: macos-12
-            compiler: {c: gcc, cxx: g++}
           - runs-on: macos-13
             compiler: {c: gcc, cxx: g++}
           - runs-on: macos-14
+            compiler: {c: gcc, cxx: g++}
+          - runs-on: macos-15
             compiler: {c: gcc, cxx: g++}
     name: build (${{ matrix.runs-on }}, ${{ matrix.build-type }}, ${{ matrix.compiler.c }}, C++${{ matrix.cxx-standard }})
     with:
@@ -89,7 +89,7 @@ jobs:
       matrix:
         runs-on:
           - ubuntu-22.04
-          - macos-12
+          - macos-14
         build-type:
           - Debug
           - RelWithDebInfo
@@ -98,7 +98,7 @@ jobs:
           - {c: clang, cxx: clang++}
         # gcc on macos is just an alias for clang
         exclude:
-          - runs-on: macos-12
+          - runs-on: macos-14
             compiler: {c: gcc, cxx: g++}
     name: sanitizers (${{ matrix.runs-on }}, ${{ matrix.build-type }}, ${{ matrix.compiler.c }})
     with:
