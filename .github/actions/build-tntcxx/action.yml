@@ -29,6 +29,7 @@ runs:
         -DTNTCXX_ENABLE_SANITIZERS=${{ inputs.enable-sanitizers }} \
         -DCMAKE_CXX_STANDARD=${{ inputs.cxx-standard }} \
         -DCMAKE_C_COMPILER=${{ inputs.c-compiler }} \
-        -DCMAKE_CXX_COMPILER=${{ inputs.cxx-compiler }}
+        -DCMAKE_CXX_COMPILER=${{ inputs.cxx-compiler }} \
+        -DCMAKE_POLICY_VERSION_MINIMUM=3.5
         make -j
       shell: bash
