@@ -86,6 +86,8 @@ IF (TNTCXX_BUILD_TESTING)
     # Retrieve the source directory to later get the header path.
     FETCHCONTENT_GETPROPERTIES(msgpuck)
     FETCHCONTENT_MAKEAVAILABLE(msgpuck)
+
+    find_package(Threads REQUIRED)
 ENDIF()
 
 OPTION(TNTCXX_ENABLE_SANITIZERS
@@ -207,6 +209,11 @@ TNTCXX_TEST(NAME EncDecUnit.test TYPE ctest
 TNTCXX_TEST(NAME Client.test TYPE ctest
             SOURCES src/Client/Connector.hpp test/ClientTest.cpp
             LIBRARIES ${COMMON_LIB}
+)
+
+TNTCXX_TEST(NAME ClientMultithread.test TYPE ctest
+            SOURCES src/Client/Connector.hpp test/ClientMultithreadTest.cpp
+            LIBRARIES ${COMMON_LIB} Threads::Threads
 )
 
 IF (TNTCXX_ENABLE_SSL)
