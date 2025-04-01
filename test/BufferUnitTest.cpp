@@ -71,7 +71,7 @@ template<size_t N>
 static void
 eraseBuffer(tnt::Buffer<N> &buffer)
 {
-	int IOVEC_MAX = 1024;
+	constexpr int IOVEC_MAX = 1024;
 	struct iovec vec[IOVEC_MAX];
 	do {
 		size_t vec_size = buffer.getIOV(buffer.begin(), vec, IOVEC_MAX);
@@ -89,7 +89,7 @@ static void
 dumpBuffer(tnt::Buffer<N> &buffer, std::string &output)
 {
 	size_t vec_len = 0;
-	int IOVEC_MAX = 1024;
+	constexpr int IOVEC_MAX = 1024;
 	size_t block_cnt = 0;
 	struct iovec vec[IOVEC_MAX];
 	for (auto itr = buffer.begin(); itr != buffer.end(); itr += vec_len) {
@@ -575,7 +575,7 @@ buffer_out()
 	fail_if(buf.debugSelfCheck());
 	save.unlink();
 	do {
-		int IOVEC_MAX = 1024;
+		constexpr int IOVEC_MAX = 1024;
 		struct iovec vec[IOVEC_MAX];
 		size_t vec_size = buf.getIOV(buf.begin(), vec, IOVEC_MAX);
 		buf.dropFront(vec_size);
@@ -592,7 +592,7 @@ buffer_iterator_get()
 {
 	TEST_INIT(1, N);
 	tnt::Buffer<N> buf;
-	size_t DATA_SIZE = SAMPLES_CNT * 10;
+	constexpr size_t DATA_SIZE = SAMPLES_CNT * 10;
 	fillBuffer(buf, DATA_SIZE);
 	buf.write(end_marker);
 	fail_if(buf.debugSelfCheck());
