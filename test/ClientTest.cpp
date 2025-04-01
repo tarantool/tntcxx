@@ -1125,6 +1125,17 @@ response_decoding(Connector<BUFFER, NetProvider> &client)
 	fail_if(response->body.data->decode(arr_of_str));
 	/* We should successfully decode data after all. */
 	fail_unless(response->body.data->decode(arr_of_num));
+	fail_unless(std::get<0>(arr_of_num) == 666);
+
+	TEST_CASE("decode data to rvalue object");
+	num = 0;
+	fail_unless(response->body.data->decode(std::forward_as_tuple(num)));
+	fail_unless(num == 666);
+
+	TEST_CASE("decode data to object with an mpp tag");
+	std::get<0>(arr_of_num) = 0;
+	fail_unless(response->body.data->decode(mpp::as_arr(arr_of_num)));
+	fail_unless(std::get<0>(arr_of_num) == 666);
 
 	client.close(conn);
 }
