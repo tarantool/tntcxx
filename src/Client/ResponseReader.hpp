@@ -102,10 +102,10 @@ struct Data {
 
 	/** Unpacks tuples to passed container. */
 	template<class T>
-	bool decode(T& tuples)
+	bool decode(T&& tuples)
 	{
 		it_t itr = iters.first;
-		bool ok = mpp::decode(itr, tuples);
+		bool ok = mpp::decode(itr, std::forward<T>(tuples));
 		assert(!ok || itr == iters.second);
 		return ok;
 	}
