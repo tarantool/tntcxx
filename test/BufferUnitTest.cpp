@@ -613,6 +613,24 @@ auto itr_at(BUF &buf, size_t pos)
 	return itr;
 }
 
+/** A helper to move buffer to itself - disables warning on GCC compiler. */
+template <class BUF>
+static inline void
+buffer_move_to_self(BUF &buf)
+{
+/* Self-move warning was introduced in GCC 13. */
+#if __GNUC__ >= 13
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wself-move"
+#endif
+
+	buf = std::move(buf);
+
+#if __GNUC__ >= 13
+#pragma GCC diagnostic pop
+#endif
+}
+
 /**
  * Test move constructor and assignment.
  */
@@ -626,7 +644,7 @@ buffer_move()
 		tnt::Buffer<N> buf1;
 		fillBuffer(buf1, S);
 		/* It is ok to move to itself. */
-		buf1 = std::move(buf1);
+		buffer_move_to_self(buf1);
 
 		/* Create three iterators pointing to different parts. */
 		auto itr0 = buf1.begin();
@@ -655,7 +673,7 @@ buffer_move()
 		fail_unless(!buf1.has(buf1.begin(), S + ins_cnt + 1));
 
 		/* It is ok to move to itself. */
-		buf1 = std::move(buf1);
+		buffer_move_to_self(buf1);
 		fail_unless(itr0 == buf1.begin());
 		fail_unless(itr1 == itr_at(buf1, 1 + ins_cnt));
 		fail_unless(itr2 == itr_at(buf1, S / 2 + ins_cnt));
