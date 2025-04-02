@@ -1362,7 +1362,7 @@ std::string
 dump(Buffer<N, allocator> &buffer)
 {
 	size_t vec_len = 0;
-	size_t IOVEC_MAX = 1024;
+	constexpr size_t IOVEC_MAX = 1024;
 	size_t block_cnt = 0;
 	struct iovec vec[IOVEC_MAX];
 	std::string output;

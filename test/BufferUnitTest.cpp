@@ -71,7 +71,7 @@ template<size_t N>
 static void
 eraseBuffer(tnt::Buffer<N> &buffer)
 {
-	int IOVEC_MAX = 1024;
+	constexpr int IOVEC_MAX = 1024;
 	struct iovec vec[IOVEC_MAX];
 	do {
 		size_t vec_size = buffer.getIOV(buffer.begin(), vec, IOVEC_MAX);
@@ -89,7 +89,7 @@ static void
 dumpBuffer(tnt::Buffer<N> &buffer, std::string &output)
 {
 	size_t vec_len = 0;
-	int IOVEC_MAX = 1024;
+	constexpr int IOVEC_MAX = 1024;
 	size_t block_cnt = 0;
 	struct iovec vec[IOVEC_MAX];
 	for (auto itr = buffer.begin(); itr != buffer.end(); itr += vec_len) {
@@ -575,7 +575,7 @@ buffer_out()
 	fail_if(buf.debugSelfCheck());
 	save.unlink();
 	do {
-		int IOVEC_MAX = 1024;
+		constexpr int IOVEC_MAX = 1024;
 		struct iovec vec[IOVEC_MAX];
 		size_t vec_size = buf.getIOV(buf.begin(), vec, IOVEC_MAX);
 		buf.dropFront(vec_size);
@@ -592,7 +592,7 @@ buffer_iterator_get()
 {
 	TEST_INIT(1, N);
 	tnt::Buffer<N> buf;
-	size_t DATA_SIZE = SAMPLES_CNT * 10;
+	constexpr size_t DATA_SIZE = SAMPLES_CNT * 10;
 	fillBuffer(buf, DATA_SIZE);
 	buf.write(end_marker);
 	fail_if(buf.debugSelfCheck());
@@ -613,6 +613,24 @@ auto itr_at(BUF &buf, size_t pos)
 	return itr;
 }
 
+/** A helper to move buffer to itself - disables warning on GCC compiler. */
+template <class BUF>
+static inline void
+buffer_move_to_self(BUF &buf)
+{
+/* Self-move warning was introduced in GCC 13. */
+#if __GNUC__ >= 13
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wself-move"
+#endif
+
+	buf = std::move(buf);
+
+#if __GNUC__ >= 13
+#pragma GCC diagnostic pop
+#endif
+}
+
 /**
  * Test move constructor and assignment.
  */
@@ -626,7 +644,7 @@ buffer_move()
 		tnt::Buffer<N> buf1;
 		fillBuffer(buf1, S);
 		/* It is ok to move to itself. */
-		buf1 = std::move(buf1);
+		buffer_move_to_self(buf1);
 
 		/* Create three iterators pointing to different parts. */
 		auto itr0 = buf1.begin();
@@ -655,7 +673,7 @@ buffer_move()
 		fail_unless(!buf1.has(buf1.begin(), S + ins_cnt + 1));
 
 		/* It is ok to move to itself. */
-		buf1 = std::move(buf1);
+		buffer_move_to_self(buf1);
 		fail_unless(itr0 == buf1.begin());
 		fail_unless(itr1 == itr_at(buf1, 1 + ins_cnt));
 		fail_unless(itr2 == itr_at(buf1, S / 2 + ins_cnt));
