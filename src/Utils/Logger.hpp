@@ -31,8 +31,9 @@
  */
 
 #include <time.h>
+#include <unistd.h>
 
-#include <iostream>
+#include <sstream>
 #include <string_view>
 
 enum LogLevel {
@@ -66,23 +67,32 @@ public:
 	Logger(LogLevel lvl) : m_LogLvl(lvl) {};
 
 	template <class... ARGS>
-	void log(std::ostream& strm, LogLevel log_lvl,
-		 const char *file, int line, ARGS&& ...args)
+	void log(int fd, LogLevel log_lvl, const char *file, int line, ARGS &&...args)
 	{
 		if (!isLogPossible(log_lvl))
 			return;
-		time_t rawTime;
-		time(&rawTime);
-		struct tm *timeInfo = localtime(&rawTime);
-		char timeString[10];
-		strftime(timeString, sizeof(timeString), "%H:%M:%S", timeInfo);
-		// The line below is commented for compatibility with previous
-		// version. I'm not sure it was bug or feature, but the time,
-		// filename and line was not printed.
+		/* File and line were never printed (by mistake, I guess). */
 		(void)file; (void)line;
-		//strm << timeString << " " << file << ':' << line << ' ';
+		/*
+		 * Standard streams (`cout` and `cerr`) are thread-safe
+		 * according to C++11 or more modern standards, but it turns
+		 * out that some compilers do not stick to this contract.
+		 *
+		 * Let's use `stringstream` to build a string and then write
+		 * it manually with `write` since it is guaranteed to be
+		 * thread-safe. Yes, that's slower because of unnnecessary
+		 * allocations and copies, but the log is used generally for
+		 * debug or logging exceptional cases (errors) anyway, so
+		 * that's not a big deal.
+		 *
+		 * Related: https://github.com/llvm/llvm-project/issues/51851
+		 */
+		std::stringstream strm;
 		strm << log_lvl << ": ";
 		(strm << ... << std::forward<ARGS>(args)) << '\n';
+		std::string str = strm.str();
+		ssize_t rc = write(fd, std::data(str), std::size(str));
+		(void)rc;
 	}
 	void setLogLevel(LogLevel lvl)
 	{
@@ -106,8 +116,8 @@ template <class... ARGS>
 void
 log(LogLevel level, const char *file, int line, ARGS&& ...args)
 {
-	gLogger.log(level == ERROR ? std::cerr : std::cout,
-		    level, file, line, std::forward<ARGS>(args)...);
+	int fd = level == ERROR ? STDERR_FILENO : STDOUT_FILENO;
+	gLogger.log(fd, level, file, line, std::forward<ARGS>(args)...);
 }
 
 #define LOG_DEBUG(...) log(DEBUG, __FILE__, __LINE__,  __VA_ARGS__)
