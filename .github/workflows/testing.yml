@@ -100,10 +100,13 @@ jobs:
         exclude:
           - runs-on: macos-14
             compiler: {c: gcc, cxx: g++}
-    name: sanitizers (${{ matrix.runs-on }}, ${{ matrix.build-type }}, ${{ matrix.compiler.c }})
+        sanitizer:
+          - thread
+          - address
+    name: sanitizers (${{ matrix.sanitizer }}, ${{ matrix.runs-on }}, ${{ matrix.build-type }}, ${{ matrix.compiler.c }})
     with:
       runs-on: ${{ matrix.runs-on }}
       build-type: ${{ matrix.build-type }}
       c-compiler: ${{ matrix.compiler.c }}
       cxx-compiler: ${{ matrix.compiler.cxx }}
-      enable-sanitizers: true
+      enable-sanitizers: ${{ matrix.sanitizer }}
