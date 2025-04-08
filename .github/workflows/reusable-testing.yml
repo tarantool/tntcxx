@@ -22,8 +22,8 @@ on:
         default: false
         type: boolean
       enable-sanitizers:
-        default: false
-        type: boolean
+        default: ''
+        type: string
       build-only:
         default: false
         type: boolean

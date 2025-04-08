@@ -91,10 +91,12 @@ IF (TNTCXX_BUILD_TESTING)
 ENDIF()
 
 OPTION(TNTCXX_ENABLE_SANITIZERS
-    "If ON, tntcxx will be instrumented with sanitizers."
+    "If passed, tntcxx will be instrumented with sanitizers. Possible values: \"address\", \"thread\""
     OFF)
 
-IF (TNTCXX_ENABLE_SANITIZERS)
+IF (NOT TNTCXX_ENABLE_SANITIZERS)
+    # Sanitizers are disabled - do nothing.
+ELSEIF (TNTCXX_ENABLE_SANITIZERS STREQUAL "address")
     SET(SANITIZER_FLAGS "-fsanitize=address")
     # FIXME(gh-62)
     IF (NOT CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
@@ -114,6 +116,12 @@ IF (TNTCXX_ENABLE_SANITIZERS)
     # for details).
     ADD_COMPILE_OPTIONS(${SANITIZER_FLAGS})
     ADD_LINK_OPTIONS(${SANITIZER_FLAGS})
+ELSEIF (TNTCXX_ENABLE_SANITIZERS STREQUAL "thread")
+    SET(SANITIZER_FLAGS "-fsanitize=thread")
+    ADD_COMPILE_OPTIONS(${SANITIZER_FLAGS})
+    ADD_LINK_OPTIONS(${SANITIZER_FLAGS})
+ELSE ()
+    MESSAGE(FATAL_ERROR "Unknown TNTCXX_ENABLE_SANITIZERS value")
 ENDIF()
 
 # Common function for building tests.
