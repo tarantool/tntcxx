@@ -59,9 +59,8 @@ namespace tnt {
  * REAL_SIZE - constant determines real size of allocated chunk (excluding
  * overhead taken by allocator).
  */
-template <size_t N = 16 * 1024, class allocator = MempoolHolder<N>>
-class Buffer
-{
+template <size_t N = 16 * 1024, class allocator = MempoolInstance<N, 16>>
+class Buffer {
 private:
 	/** =============== Block definition =============== */
 	/** Blocks are organized into linked list. */
