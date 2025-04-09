@@ -250,6 +250,7 @@ public:
 private:
 	ConnectionImpl<BUFFER, NetProvider> *impl;
 	static constexpr size_t GC_STEP_CNT = 100;
+	size_t gc_step = 0;
 
 	template <class T>
 	rid_t insert(const T &tuple, uint32_t space_id);
@@ -521,8 +522,7 @@ template<class BUFFER, class NetProvider>
 static void
 inputBufGC(Connection<BUFFER, NetProvider> &conn)
 {
-	static int gc_step = 0;
-	if ((gc_step++ % Connection<BUFFER, NetProvider>::GC_STEP_CNT) == 0) {
+	if ((conn.gc_step++ % Connection<BUFFER, NetProvider>::GC_STEP_CNT) == 0) {
 		LOG_DEBUG("Flushed input buffer of the connection %p", &conn);
 		conn.impl->inBuf.flush();
 	}
