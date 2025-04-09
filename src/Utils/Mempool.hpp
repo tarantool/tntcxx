@@ -34,6 +34,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <utility>
 
 namespace tnt {
 
@@ -44,6 +45,18 @@ protected:
 	void statAddBlock() { ++m_BlockCount; }
 	void statDelBlock() { --m_BlockCount; }
 public:
+	MempoolStats() = default;
+	MempoolStats(MempoolStats &&other) noexcept
+	{
+		/* Call move assignment operator. */
+		*this = std::forward<MempoolStats>(other);
+	}
+	MempoolStats &operator=(MempoolStats &&other) noexcept
+	{
+		std::swap(m_SlabCount, other.m_SlabCount);
+		std::swap(m_BlockCount, other.m_BlockCount);
+	}
+
 	/** Count of allocated (used) blocks. */
 	size_t statBlockCount() const { return m_BlockCount; }
 	/** Count of allocated (total) slabs. */
@@ -60,6 +73,10 @@ protected:
 	void statAddBlock() { }
 	void statDelBlock() { }
 public:
+	MempoolStats() = default;
+	MempoolStats(MempoolStats &&other) noexcept = default;
+	MempoolStats &operator=(MempoolStats &&other) noexcept = default;
+
 	/** Disabled. return SIZE_MAX. */
 	size_t statBlockCount() const { return SIZE_MAX; }
 	/** Disabled. return SIZE_MAX. */
@@ -115,6 +132,25 @@ public:
 	static constexpr size_t SLAB_ALIGN = SA;
 
 	MempoolInstance() = default;
+	MempoolInstance(const MempoolInstance &other) = delete;
+	MempoolInstance &operator=(const MempoolInstance &other) = delete;
+	MempoolInstance(MempoolInstance &&other) noexcept
+	{
+		/* Call move assignment operator. */
+		*this = std::forward<MempoolInstance>(other);
+	}
+	MempoolInstance &operator=(MempoolInstance &&other) noexcept
+	{
+		if (this == &other)
+			return *this;
+		/* Move base class. */
+		MempoolStats<ENABLE_STATS>::operator=(std::forward<MempoolInstance>(other));
+		std::swap(m_SlabList, other.m_SlabList);
+		std::swap(m_FreeList, other.m_FreeList);
+		std::swap(m_SlabDataBeg, other.m_SlabDataBeg);
+		std::swap(m_SlabDataEnd, other.m_SlabDataEnd);
+		return *this;
+	}
 	~MempoolInstance() noexcept
 	{
 		while (m_SlabList != nullptr) {
