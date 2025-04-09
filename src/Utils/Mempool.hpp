@@ -34,6 +34,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <utility>
 
 namespace tnt {
 
@@ -44,6 +45,20 @@ protected:
 	void statAddBlock() { ++m_BlockCount; }
 	void statDelBlock() { --m_BlockCount; }
 public:
+	MempoolStats() = default;
+	MempoolStats(MempoolStats &&other) noexcept
+	{
+		/* Call move assignment operator. */
+		*this = std::forward<MempoolStats>(other);
+	}
+	MempoolStats &operator=(MempoolStats &&other) noexcept
+	{
+		m_SlabCount = other.m_SlabCount;
+		m_BlockCount = other.m_BlockCount;
+		other.m_SlabCount = 0;
+		other.m_BlockCount = 0;
+	}
+
 	/** Count of allocated (used) blocks. */
 	size_t statBlockCount() const { return m_BlockCount; }
 	/** Count of allocated (total) slabs. */
@@ -60,6 +75,10 @@ protected:
 	void statAddBlock() { }
 	void statDelBlock() { }
 public:
+	MempoolStats() = default;
+	MempoolStats(MempoolStats &&other) noexcept = default;
+	MempoolStats &operator=(MempoolStats &&other) noexcept = default;
+
 	/** Disabled. return SIZE_MAX. */
 	size_t statBlockCount() const { return SIZE_MAX; }
 	/** Disabled. return SIZE_MAX. */
@@ -106,6 +125,15 @@ private:
 
 	using Stats_t = MempoolStats<ENABLE_STATS>;
 
+	void ReleaseSlabList(void) noexcept
+	{
+		while (m_SlabList != nullptr) {
+			Slab *tmp = m_SlabList;
+			m_SlabList = m_SlabList->next;
+			delete tmp;
+		}
+	}
+
 public:
 	// Constants for stat.
 	static constexpr size_t REAL_SIZE = B;
@@ -114,15 +142,32 @@ public:
 	static constexpr size_t BLOCK_ALIGN = BA;
 	static constexpr size_t SLAB_ALIGN = SA;
 
-	MempoolInstance() = default;
-	~MempoolInstance() noexcept
+	MempoolInstance() noexcept = default;
+	MempoolInstance(const MempoolInstance &other) = delete;
+	MempoolInstance &operator=(const MempoolInstance &other) = delete;
+	MempoolInstance(MempoolInstance &&other) noexcept
 	{
-		while (m_SlabList != nullptr) {
-			Slab *tmp = m_SlabList;
-			m_SlabList = m_SlabList->next;
-			delete tmp;
-		}
+		/* Call move assignment operator. */
+		*this = std::forward<MempoolInstance>(other);
 	}
+	MempoolInstance &operator=(MempoolInstance &&other) noexcept
+	{
+		if (this == &other)
+			return *this;
+		/* Move base class. */
+		MempoolStats<ENABLE_STATS>::operator=(std::forward<MempoolInstance>(other));
+		ReleaseSlabList();
+		m_SlabList = other.m_SlabList;
+		m_FreeList = other.m_FreeList;
+		m_SlabDataBeg = other.m_SlabDataBeg;
+		m_SlabDataEnd = other.m_SlabDataEnd;
+		other.m_SlabList = nullptr;
+		other.m_FreeList = nullptr;
+		other.m_SlabDataBeg = nullptr;
+		other.m_SlabDataEnd = nullptr;
+		return *this;
+	}
+	~MempoolInstance() noexcept { ReleaseSlabList(); }
 	static MempoolInstance& defaultInstance()
 	{
 		static MempoolInstance instance;

@@ -32,6 +32,7 @@
 #include "../src/Utils/Mempool.hpp"
 #include "Utils/Helpers.hpp"
 #include <iostream>
+#include <utility>
 
 template <size_t S>
 struct Allocation {
@@ -247,6 +248,40 @@ test_alignment()
 	}
 }
 
+template <size_t S>
+void
+test_move()
+{
+	TEST_INIT(2, S, 0);
+	constexpr size_t N = 1024;
+	tnt::MempoolInstance<S> mp;
+
+	Allocations<S, N * 6> all;
+	for (size_t i = 0; i < N; i++)
+		all.add(mp.allocate());
+	fail_unless(all.are_valid());
+
+	tnt::MempoolInstance<S> mp_move_constructed(std::move(mp));
+	for (size_t i = 0; i < N; i++) {
+		all.add(mp_move_constructed.allocate());
+		all.add(mp.allocate());
+	}
+	fail_unless(all.are_valid());
+
+	tnt::MempoolInstance<S> mp_move_copied;
+	/* Allocate some memory and let ASAN check if it won't be leaked. */
+	for (size_t i = 0; i < N; i++) {
+		char *ptr = mp_move_copied.allocate();
+		(void)ptr;
+	}
+	mp_move_copied = std::move(mp);
+	for (size_t i = 0; i < N; i++) {
+		all.add(mp_move_copied.allocate());
+		all.add(mp.allocate());
+	}
+	fail_unless(all.are_valid());
+}
+
 int main()
 {
 	test_default<8>();
@@ -275,4 +310,10 @@ int main()
 	test_alignment<120, 2>();
 	test_alignment<120, 13>();
 	test_alignment<120, 64>();
+
+	test_move<8>();
+	test_move<64>();
+	test_move<14>();
+	test_move<72>();
+	test_move<80>();
 }
