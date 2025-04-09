@@ -107,7 +107,7 @@ as template parameter of buffer.
 Connector can be embedded in any C++ application with including main header:
 `#include "<path-to-cloned-repo>/src/Client/Connector.hpp"`
 
-### Objects instantiation
+### Objects Instantiation
 
 To create client one should specify buffer's and network provider's implementations
 as template parameters. Connector's main class has the following signature:
@@ -144,7 +144,7 @@ pass three arguments: connection instance, address and port.
 int rc = client.connect(conn, address, port);
 ```
 
-### Error handling
+### Error Handling
 
 Implementation of connector is exception
 free, so we rely on return codes: in case of fail, `connect()` will return `rc < 0`.
@@ -159,7 +159,7 @@ if (rc != 0) {
 To reset connection after errors (clean up error message and connection status),
 one can use `Connection::reset()`.
 
-### Preparing requests
+### Preparing Requests
 
 To execute simplest request (i.e. ping), one can invoke corresponding method of
 connection object:
@@ -170,7 +170,7 @@ Each request method returns request id, which is sort of future. It can be used
 to get the result of request execution once it is ready (i.e. response). Requests
 are queued in the input buffer of connection until `Connector::wait()` is called.
 
-### Sending requests
+### Sending Requests
 
 That said, to send requests to the server side, we should invoke `client.wait()`:
 ```c++
@@ -182,7 +182,7 @@ request is ready, `wait()` terminates. It also provides negative return code in
 case of system related fails (e.g. broken or time outed connection). If `wait()`
 returns 0, then response is received and expected to be parsed.
 
-### Receiving responses
+### Receiving Responses
 
 To get the response when it is ready, we can use `Connection::getResponse()`.
 It takes request id and returns optional object containing response (`nullptr`
@@ -200,7 +200,7 @@ either runtime error(s) (accessible by `response.body.error_stack`) or data
 tuples are not decoded and come in form of pointers to the start and end of
 msgpacks. See section below to understand how to decode tuples.
 
-### Data manipulation
+### Data Manipulation
 
 Now let's consider a bit more sophisticated requests.
 Assume we have space with `id = 512` and following format on the server:
@@ -218,7 +218,7 @@ auto i = conn.space[512].index[1];
 rid_t select = i.select(std::make_tuple(1), 1, 0 /*offset*/, IteratorType::EQ);
 ```
 
-### Data readers
+### Data Readers
 
 Responses from server contain raw data (i.e. encoded into MsgPack tuples).
 Let's define structure describing data stored in space `t`:
