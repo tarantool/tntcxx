@@ -263,3 +263,9 @@ an array of tuples as value in response to `select`. So, in order to
 successfully decode them, we should pass an array of tuples to decoder - that's
 why `std::vector<UserTuple>` is needed. If decoding was successful, `results`
 will contain all decoded `UserTuples`.
+
+## Multi-Threading Model
+
+A `Connector` object and all its instances of `Connection` must be used in a single thread. For multi-threaded usage, one can create one or several `Connector` instances for each thread. Let me remind you that each `Connection` must be used only with `Connector` that has created it.
+
+If one uses his own `Buffer` or `NetProvider` implementations in scenario with multi-threaded `Connector`, the must not share any state (must not have `static` fields, for example).
