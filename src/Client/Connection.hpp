@@ -612,7 +612,7 @@ Connection<BUFFER, NetProvider>::execute(const std::string& statement, const T& 
 {
     impl->enc.encodeExecute(statement, parameters);
     impl->connector.readyToSend(*this);
-    return RequestEncoder<BUFFER>::getSync();
+    return impl->enc.getSync();
 }
 
 template<class BUFFER, class NetProvider>
@@ -622,7 +622,7 @@ Connection<BUFFER, NetProvider>::execute(unsigned int stmt_id, const T& paramete
 {
     impl->enc.encodeExecute(stmt_id, parameters);
     impl->connector.readyToSend(*this);
-    return RequestEncoder<BUFFER>::getSync();
+    return impl->enc.getSync();
 }
 
 template<class BUFFER, class NetProvider>
@@ -631,7 +631,7 @@ Connection<BUFFER, NetProvider>::prepare(const std::string& statement)
 {
     impl->enc.encodePrepare(statement);
     impl->connector.readyToSend(*this);
-    return RequestEncoder<BUFFER>::getSync();
+    return impl->enc.getSync();
 }
 
 template<class BUFFER, class NetProvider>
@@ -641,7 +641,7 @@ Connection<BUFFER, NetProvider>::call(const std::string &func, const T &args)
 {
 	impl->enc.encodeCall(func, args);
 	impl->connector.readyToSend(*this);
-	return RequestEncoder<BUFFER>::getSync();
+	return impl->enc.getSync();
 }
 
 template<class BUFFER, class NetProvider>
@@ -650,7 +650,7 @@ Connection<BUFFER, NetProvider>::ping()
 {
 	impl->enc.encodePing();
 	impl->connector.readyToSend(*this);
-	return RequestEncoder<BUFFER>::getSync();
+	return impl->enc.getSync();
 }
 
 template<class BUFFER, class NetProvider>
@@ -660,7 +660,7 @@ Connection<BUFFER, NetProvider>::insert(const T &tuple, uint32_t space_id)
 {
 	impl->enc.encodeInsert(tuple, space_id);
 	impl->connector.readyToSend(*this);
-	return RequestEncoder<BUFFER>::getSync();
+	return impl->enc.getSync();
 }
 
 template<class BUFFER, class NetProvider>
@@ -670,7 +670,7 @@ Connection<BUFFER, NetProvider>::replace(const T &tuple, uint32_t space_id)
 {
 	impl->enc.encodeReplace(tuple, space_id);
 	impl->connector.readyToSend(*this);
-	return RequestEncoder<BUFFER>::getSync();
+	return impl->enc.getSync();
 }
 
 template<class BUFFER, class NetProvider>
@@ -681,7 +681,7 @@ Connection<BUFFER, NetProvider>::delete_(const T &key, uint32_t space_id,
 {
 	impl->enc.encodeDelete(key, space_id, index_id);
 	impl->connector.readyToSend(*this);
-	return RequestEncoder<BUFFER>::getSync();
+	return impl->enc.getSync();
 }
 
 template<class BUFFER, class NetProvider>
@@ -692,7 +692,7 @@ Connection<BUFFER, NetProvider>::update(const K &key, const T &tuple,
 {
 	impl->enc.encodeUpdate(key, tuple, space_id, index_id);
 	impl->connector.readyToSend(*this);
-	return RequestEncoder<BUFFER>::getSync();
+	return impl->enc.getSync();
 }
 
 template<class BUFFER, class NetProvider>
@@ -703,7 +703,7 @@ Connection<BUFFER, NetProvider>::upsert(const T &tuple, const O &ops,
 {
 	impl->enc.encodeUpsert(tuple, ops, space_id, index_base);
 	impl->connector.readyToSend(*this);
-	return RequestEncoder<BUFFER>::getSync();
+	return impl->enc.getSync();
 }
 
 template<class BUFFER, class NetProvider>
@@ -716,7 +716,7 @@ Connection<BUFFER, NetProvider>::select(const T &key, uint32_t space_id,
 	impl->enc.encodeSelect(key, space_id, index_id, limit,
 					       offset, iterator);
 	impl->connector.readyToSend(*this);
-	return RequestEncoder<BUFFER>::getSync();
+	return impl->enc.getSync();
 }
 
 template<class BUFFER, class NetProvider>
