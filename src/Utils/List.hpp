@@ -473,6 +473,8 @@ template <class Elem, class Tag>
 inline List<Elem, Tag>& List<Elem, Tag>::operator=(List&& list) noexcept
 {
 	m_Ring.rgSwap(&list.m_Ring);
+	list.m_Ring.rgRemove();
+	list.m_Ring.rgInit();
 	return *this;
 }
 

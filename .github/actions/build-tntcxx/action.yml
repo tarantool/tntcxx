@@ -6,7 +6,7 @@ inputs:
     required: true
   enable-sanitizers:
     description: 'Corresponds to TNTCXX_ENABLE_SANITIZERS option of CMake'
-    default: 'false'
+    default: ''
   cxx-standard:
     description: 'Corresponds to CMAKE_CXX_STANDARD option of CMake'
   cxx-compiler:

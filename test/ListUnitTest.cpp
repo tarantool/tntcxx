@@ -881,11 +881,11 @@ void test_ctors()
 		Object a(1, tmp_list);
 		Object b(2, tmp_list, true);
 		tmp_list = std::move(list);
-		CHECK(list, { 1, 2 } );
+		CHECK(list, {});
 		CHECK(tmp_list, { } );
 		Object e(5, list, true);
 		Object f(6, tmp_list, true);
-		CHECK(list, { 1, 2, 5 } );
+		CHECK(list, {5});
 		CHECK(tmp_list, { 6 } );
 	}
 
@@ -896,11 +896,11 @@ void test_ctors()
 		Object c(3, tmp_list);
 		Object d(4, tmp_list, true);
 		tmp_list = std::move(list);
-		CHECK(list, { 3, 4 } );
+		CHECK(list, {});
 		CHECK(tmp_list, { 1, 2 } );
 		Object e(5, list, true);
 		Object f(6, tmp_list, true);
-		CHECK(list, { 3, 4, 5 } );
+		CHECK(list, {5});
 		CHECK(tmp_list, { 1, 2, 6 } );
 	}
 

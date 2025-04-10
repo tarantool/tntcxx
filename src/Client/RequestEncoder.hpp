@@ -97,12 +97,12 @@ public:
 			  const Greeting &greet);
 
 	/** Sync value is used as request id. */
-	static size_t getSync() { return sync; }
+	size_t getSync() { return sync; }
 	static constexpr size_t PREHEADER_SIZE = 5;
 private:
 	void encodeHeader(int request);
 	BUFFER &m_Buf;
-	inline static ssize_t sync = 0;
+	ssize_t sync = 0;
 };
 
 template<class BUFFER>

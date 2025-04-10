@@ -1,7 +1,7 @@
 # tntcxx — Tarantool C++ Connector
 
-This repository contains the tntcxx Tarantool C++ connector code. tntcxx is an 
-open-source Tarantool C++ connector (compliant to C++17) designed with high 
+This repository contains the tntcxx Tarantool C++ connector code. tntcxx is an
+open-source Tarantool C++ connector (compliant to C++17) designed with high
 efficiency in mind.
 
 ## Building tntcxx
@@ -25,21 +25,21 @@ subdirectory of your project or as an embedded dependency.
 
 1. Make tntcxx's source code available to the main build. This can be done a few
 different ways:
-    * Download the tntcxx source code manually and place it at a known location. 
+    * Download the tntcxx source code manually and place it at a known location.
     This is the least flexible approach and can make it more difficult to use
     with continuous integration systems, etc.
     * Embed the tntcxx source code as a direct copy in the main project's source
-    tree. This is often the simplest approach, but is also the hardest to keep 
+    tree. This is often the simplest approach, but is also the hardest to keep
     up to date. Some organizations may not permit this method.
     * Add tntcxx as a [git submodule](https://git-scm.com/docs/git-submodule) or
     equivalent. This may not always be possible or appropriate. Git submodules,
     for example, have their own set of advantages and drawbacks.
     * Use the CMake [`FetchContent`](https://cmake.org/cmake/help/latest/module/FetchContent.html)
-    commands to download tntcxx as part of the build's configure step. This 
+    commands to download tntcxx as part of the build's configure step. This
     approach doesn't have the limitations of the other methods.
 
-The last of the above methods is implemented with a small piece of CMake code 
-that downloads and pulls the tntcxx code into the main build. Just add the 
+The last of the above methods is implemented with a small piece of CMake code
+that downloads and pulls the tntcxx code into the main build. Just add the
 following snippet to your CMakeLists.txt:
 ```cmake
 include(FetchContent)
@@ -50,7 +50,7 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(tntcxx)
 ```
 
-After obtaining tntcxx sources using the rest of the methods, you can use the 
+After obtaining tntcxx sources using the rest of the methods, you can use the
 following CMake command to incorporate tntcxx into your CMake project:
 ```cmake
 add_subdirectory(${TNTCXX_SOURCE_DIR})
@@ -64,8 +64,8 @@ target_link_libraries(example tntcxx::tntcxx)
 
 ##### Running tntcxx Tests with CMake
 
-Use the `-DTNTCXX_BUILD_TESTING=ON` option to run the tntcxx tests. This option 
-is enabled by default if the tntcxx project is determined to be the top level 
+Use the `-DTNTCXX_BUILD_TESTING=ON` option to run the tntcxx tests. This option
+is enabled by default if the tntcxx project is determined to be the top level
 project. Note that `BUILD_TESTING` must also be on (the default).
 
 For example, to run the tntcxx tests, you could use this script:
@@ -80,8 +80,8 @@ ctest
 
 ### CMake Option Synopsis
 
-- `-DTNTCXX_BUILD_TESTING=ON` must be set to enable testing. This option is 
-enabled by default if the tntcxx project is determined to be the top level 
+- `-DTNTCXX_BUILD_TESTING=ON` must be set to enable testing. This option is
+enabled by default if the tntcxx project is determined to be the top level
 project.
 
 ## Internals
@@ -107,7 +107,7 @@ as template parameter of buffer.
 Connector can be embedded in any C++ application with including main header:
 `#include "<path-to-cloned-repo>/src/Client/Connector.hpp"`
 
-### Objects instantiation
+### Objects Instantiation
 
 To create client one should specify buffer's and network provider's implementations
 as template parameters. Connector's main class has the following signature:
@@ -139,12 +139,12 @@ Connection<Buf_t, Net_t> conn(client);
 
 Now assume Tarantool instance is listening `3301` port on localhost. To connect
 to the server we should invoke `Connector::connect()` method of client object and
-pass three arguments: connection instance, address and port.  
+pass three arguments: connection instance, address and port.
 ```c++
 int rc = client.connect(conn, address, port);
 ```
 
-### Error handling
+### Error Handling
 
 Implementation of connector is exception
 free, so we rely on return codes: in case of fail, `connect()` will return `rc < 0`.
@@ -159,18 +159,18 @@ if (rc != 0) {
 To reset connection after errors (clean up error message and connection status),
 one can use `Connection::reset()`.
 
-### Preparing requests
+### Preparing Requests
 
 To execute simplest request (i.e. ping), one can invoke corresponding method of
 connection object:
 ```c++
 rid_t ping = conn.ping();
-```  
+```
 Each request method returns request id, which is sort of future. It can be used
 to get the result of request execution once it is ready (i.e. response). Requests
 are queued in the input buffer of connection until `Connector::wait()` is called.
 
-### Sending requests
+### Sending Requests
 
 That said, to send requests to the server side, we should invoke `client.wait()`:
 ```c++
@@ -182,7 +182,7 @@ request is ready, `wait()` terminates. It also provides negative return code in
 case of system related fails (e.g. broken or time outed connection). If `wait()`
 returns 0, then response is received and expected to be parsed.
 
-### Receiving responses
+### Receiving Responses
 
 To get the response when it is ready, we can use `Connection::getResponse()`.
 It takes request id and returns optional object containing response (`nullptr`
@@ -200,11 +200,11 @@ either runtime error(s) (accessible by `response.body.error_stack`) or data
 tuples are not decoded and come in form of pointers to the start and end of
 msgpacks. See section below to understand how to decode tuples.
 
-### Data manipulation
+### Data Manipulation
 
 Now let's consider a bit more sophisticated requests.
 Assume we have space with `id = 512` and following format on the server:
-`CREATE TABLE t(id INT PRIMARY KEY, a TEXT, b DOUBLE);`  
+`CREATE TABLE t(id INT PRIMARY KEY, a TEXT, b DOUBLE);`
 Preparing analogue of `t:replace(1, "111", 1.01);` request can be done this way:
 
 ```c++
@@ -218,7 +218,7 @@ auto i = conn.space[512].index[1];
 rid_t select = i.select(std::make_tuple(1), 1, 0 /*offset*/, IteratorType::EQ);
 ```
 
-### Data readers
+### Data Readers
 
 Responses from server contain raw data (i.e. encoded into MsgPack tuples).
 Let's define structure describing data stored in space `t`:
@@ -263,3 +263,9 @@ an array of tuples as value in response to `select`. So, in order to
 successfully decode them, we should pass an array of tuples to decoder - that's
 why `std::vector<UserTuple>` is needed. If decoding was successful, `results`
 will contain all decoded `UserTuples`.
+
+## Multi-Threading Model
+
+A `Connector` object and all its instances of `Connection` must be used in a single thread. For multi-threaded usage, one can create one or several `Connector` instances for each thread. Let me remind you that each `Connection` must be used only with `Connector` that has created it.
+
+If one uses his own `Buffer` or `NetProvider` implementations in scenario with multi-threaded `Connector`, the must not share any state (must not have `static` fields, for example).

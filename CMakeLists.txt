@@ -86,13 +86,17 @@ IF (TNTCXX_BUILD_TESTING)
     # Retrieve the source directory to later get the header path.
     FETCHCONTENT_GETPROPERTIES(msgpuck)
     FETCHCONTENT_MAKEAVAILABLE(msgpuck)
+
+    find_package(Threads REQUIRED)
 ENDIF()
 
 OPTION(TNTCXX_ENABLE_SANITIZERS
-    "If ON, tntcxx will be instrumented with sanitizers."
+    "If passed, tntcxx will be instrumented with sanitizers. Possible values: \"address\", \"thread\""
     OFF)
 
-IF (TNTCXX_ENABLE_SANITIZERS)
+IF (NOT TNTCXX_ENABLE_SANITIZERS)
+    # Sanitizers are disabled - do nothing.
+ELSEIF (TNTCXX_ENABLE_SANITIZERS STREQUAL "address")
     SET(SANITIZER_FLAGS "-fsanitize=address")
     # FIXME(gh-62)
     IF (NOT CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
@@ -112,6 +116,12 @@ IF (TNTCXX_ENABLE_SANITIZERS)
     # for details).
     ADD_COMPILE_OPTIONS(${SANITIZER_FLAGS})
     ADD_LINK_OPTIONS(${SANITIZER_FLAGS})
+ELSEIF (TNTCXX_ENABLE_SANITIZERS STREQUAL "thread")
+    SET(SANITIZER_FLAGS "-fsanitize=thread")
+    ADD_COMPILE_OPTIONS(${SANITIZER_FLAGS})
+    ADD_LINK_OPTIONS(${SANITIZER_FLAGS})
+ELSE ()
+    MESSAGE(FATAL_ERROR "Unknown TNTCXX_ENABLE_SANITIZERS value")
 ENDIF()
 
 # Common function for building tests.
@@ -207,6 +217,11 @@ TNTCXX_TEST(NAME EncDecUnit.test TYPE ctest
 TNTCXX_TEST(NAME Client.test TYPE ctest
             SOURCES src/Client/Connector.hpp test/ClientTest.cpp
             LIBRARIES ${COMMON_LIB}
+)
+
+TNTCXX_TEST(NAME ClientMultithread.test TYPE ctest
+            SOURCES src/Client/Connector.hpp test/ClientMultithreadTest.cpp
+            LIBRARIES ${COMMON_LIB} Threads::Threads
 )
 
 IF (TNTCXX_ENABLE_SSL)
