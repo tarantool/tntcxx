@@ -116,6 +116,12 @@ private:
 	 * to the next byte after the last valid byte in block.
 	 * */
 	bool isEndOfBlock(const char *ptr);
+	/** Delete blocks and release occupied memory. */
+	void releaseBlocks(void)
+	{
+		while (!m_blocks.isEmpty())
+			delBlock(&m_blocks.first());
+	}
 
 public:
 	/** =============== Convenient wrappers =============== */
@@ -269,8 +275,32 @@ public:
 	Buffer(allocator &&all = allocator());
 	Buffer(const Buffer& buf) = delete;
 	Buffer& operator = (const Buffer& buf) = delete;
-	Buffer(Buffer &&buf) noexcept = default;
-	Buffer &operator=(Buffer &&buf) noexcept = default;
+	Buffer(Buffer &&other) noexcept
+	{
+		/* Call move assignment operator. */
+		*this = std::forward<Buffer>(other);
+	}
+	Buffer &operator=(Buffer &&other) noexcept
+	{
+		if (this == &other)
+			return *this;
+
+		m_blocks = std::move(other.m_blocks);
+		/*
+		 * Release blocks of `other` right on the move because
+		 * we are going to move its allocator as well and we
+		 * must not use it after it is moved.
+		 */
+		other.releaseBlocks();
+		m_all = std::move(other.m_all);
+
+		m_iterators = std::move(other.m_iterators);
+		m_begin = other.m_begin;
+		other.m_begin = nullptr;
+		m_end = other.m_end;
+		other.m_end = nullptr;
+		return *this;
+	}
 	~Buffer() noexcept;
 
 	/**
@@ -667,9 +697,7 @@ Buffer<N, allocator>::Buffer(allocator &&all) : m_all(std::forward<allocator>(al
 template <size_t N, class allocator>
 Buffer<N, allocator>::~Buffer() noexcept
 {
-	/* Delete blocks and release occupied memory. */
-	while (!m_blocks.isEmpty())
-		delBlock(&m_blocks.first());
+	releaseBlocks();
 }
 
 template <size_t N, class allocator>
