@@ -265,11 +265,28 @@ public:
 
 	/** =============== Buffer definition =============== */
 	/** Copy of any kind is disabled. Move is allowed. */
-	Buffer(const allocator& all = allocator());
+	Buffer(allocator &&all = allocator());
 	Buffer(const Buffer& buf) = delete;
 	Buffer& operator = (const Buffer& buf) = delete;
-	Buffer(Buffer &&buf) noexcept = default;
-	Buffer &operator=(Buffer &&buf) noexcept = default;
+	Buffer(Buffer &&other) noexcept
+	{
+		/* Call move assignment operator. */
+		*this = std::forward<Buffer>(other);
+	}
+	Buffer &operator=(Buffer &&other)
+	{
+		if (this == &other)
+			return *this;
+		m_blocks = std::move(other.m_blocks);
+		assert(other.m_blocks.isEmpty());
+		m_iterators = std::move(other.m_iterators);
+		m_begin = other.m_begin;
+		other.m_begin = nullptr;
+		m_end = other.m_end;
+		other.m_end = nullptr;
+		m_all = std::move(other.m_all);
+		return *this;
+	}
 	~Buffer() noexcept;
 
 	/**
@@ -648,7 +665,7 @@ Buffer<N, allocator>::iterator_common<LIGHT>::moveBackward(size_t step)
 }
 
 template <size_t N, class allocator>
-Buffer<N, allocator>::Buffer(const allocator &all) : m_all(all)
+Buffer<N, allocator>::Buffer(allocator &&all) : m_all(std::forward<allocator>(all))
 {
 	static_assert((N & (N - 1)) == 0, "N must be power of 2");
 	static_assert(allocator::REAL_SIZE % alignof(Block) == 0,
