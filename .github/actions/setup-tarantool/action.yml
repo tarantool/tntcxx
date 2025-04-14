@@ -14,6 +14,12 @@ runs:
       with:
         tarantool-version: '2.11'
 
+    - name: Setup Tarantool 3.2
+      if: startsWith(inputs.runs-on, 'ubuntu')
+      uses: tarantool/setup-tarantool@v3
+      with:
+        tarantool-version: '3.2'
+
     - name: Setup stable Tarantool version from brew
       if: startsWith(inputs.runs-on, 'macos')
       run: brew install tarantool
