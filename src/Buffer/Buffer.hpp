@@ -37,6 +37,7 @@
 #include <cstring>
 #include <string>
 #include <type_traits>
+#include <utility>
 
 #include "../Utils/Mempool.hpp"
 #include "../Utils/List.hpp"
@@ -265,7 +266,7 @@ public:
 
 	/** =============== Buffer definition =============== */
 	/** Copy of any kind is disabled. Move is allowed. */
-	Buffer(const allocator& all = allocator());
+	Buffer(allocator &&all = allocator());
 	Buffer(const Buffer& buf) = delete;
 	Buffer& operator = (const Buffer& buf) = delete;
 	Buffer(Buffer &&buf) noexcept = default;
@@ -648,7 +649,7 @@ Buffer<N, allocator>::iterator_common<LIGHT>::moveBackward(size_t step)
 }
 
 template <size_t N, class allocator>
-Buffer<N, allocator>::Buffer(const allocator &all) : m_all(all)
+Buffer<N, allocator>::Buffer(allocator &&all) : m_all(std::forward<allocator>(all))
 {
 	static_assert((N & (N - 1)) == 0, "N must be power of 2");
 	static_assert(allocator::REAL_SIZE % alignof(Block) == 0,
