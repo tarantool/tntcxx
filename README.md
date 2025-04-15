@@ -1,7 +1,7 @@
 # tntcxx — Tarantool C++ Connector
 
-This repository contains the tntcxx Tarantool C++ connector code. tntcxx is an 
-open-source Tarantool C++ connector (compliant to C++17) designed with high 
+This repository contains the tntcxx Tarantool C++ connector code. tntcxx is an
+open-source Tarantool C++ connector (compliant to C++17) designed with high
 efficiency in mind.
 
 ## Building tntcxx
@@ -25,21 +25,21 @@ subdirectory of your project or as an embedded dependency.
 
 1. Make tntcxx's source code available to the main build. This can be done a few
 different ways:
-    * Download the tntcxx source code manually and place it at a known location. 
+    * Download the tntcxx source code manually and place it at a known location.
     This is the least flexible approach and can make it more difficult to use
     with continuous integration systems, etc.
     * Embed the tntcxx source code as a direct copy in the main project's source
-    tree. This is often the simplest approach, but is also the hardest to keep 
+    tree. This is often the simplest approach, but is also the hardest to keep
     up to date. Some organizations may not permit this method.
     * Add tntcxx as a [git submodule](https://git-scm.com/docs/git-submodule) or
     equivalent. This may not always be possible or appropriate. Git submodules,
     for example, have their own set of advantages and drawbacks.
     * Use the CMake [`FetchContent`](https://cmake.org/cmake/help/latest/module/FetchContent.html)
-    commands to download tntcxx as part of the build's configure step. This 
+    commands to download tntcxx as part of the build's configure step. This
     approach doesn't have the limitations of the other methods.
 
-The last of the above methods is implemented with a small piece of CMake code 
-that downloads and pulls the tntcxx code into the main build. Just add the 
+The last of the above methods is implemented with a small piece of CMake code
+that downloads and pulls the tntcxx code into the main build. Just add the
 following snippet to your CMakeLists.txt:
 ```cmake
 include(FetchContent)
@@ -50,7 +50,7 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(tntcxx)
 ```
 
-After obtaining tntcxx sources using the rest of the methods, you can use the 
+After obtaining tntcxx sources using the rest of the methods, you can use the
 following CMake command to incorporate tntcxx into your CMake project:
 ```cmake
 add_subdirectory(${TNTCXX_SOURCE_DIR})
@@ -64,8 +64,8 @@ target_link_libraries(example tntcxx::tntcxx)
 
 ##### Running tntcxx Tests with CMake
 
-Use the `-DTNTCXX_BUILD_TESTING=ON` option to run the tntcxx tests. This option 
-is enabled by default if the tntcxx project is determined to be the top level 
+Use the `-DTNTCXX_BUILD_TESTING=ON` option to run the tntcxx tests. This option
+is enabled by default if the tntcxx project is determined to be the top level
 project. Note that `BUILD_TESTING` must also be on (the default).
 
 For example, to run the tntcxx tests, you could use this script:
@@ -80,8 +80,8 @@ ctest
 
 ### CMake Option Synopsis
 
-- `-DTNTCXX_BUILD_TESTING=ON` must be set to enable testing. This option is 
-enabled by default if the tntcxx project is determined to be the top level 
+- `-DTNTCXX_BUILD_TESTING=ON` must be set to enable testing. This option is
+enabled by default if the tntcxx project is determined to be the top level
 project.
 
 ## Internals
@@ -139,7 +139,7 @@ Connection<Buf_t, Net_t> conn(client);
 
 Now assume Tarantool instance is listening `3301` port on localhost. To connect
 to the server we should invoke `Connector::connect()` method of client object and
-pass three arguments: connection instance, address and port.  
+pass three arguments: connection instance, address and port.
 ```c++
 int rc = client.connect(conn, address, port);
 ```
@@ -165,7 +165,7 @@ To execute simplest request (i.e. ping), one can invoke corresponding method of
 connection object:
 ```c++
 rid_t ping = conn.ping();
-```  
+```
 Each request method returns request id, which is sort of future. It can be used
 to get the result of request execution once it is ready (i.e. response). Requests
 are queued in the input buffer of connection until `Connector::wait()` is called.
@@ -204,7 +204,7 @@ msgpacks. See section below to understand how to decode tuples.
 
 Now let's consider a bit more sophisticated requests.
 Assume we have space with `id = 512` and following format on the server:
-`CREATE TABLE t(id INT PRIMARY KEY, a TEXT, b DOUBLE);`  
+`CREATE TABLE t(id INT PRIMARY KEY, a TEXT, b DOUBLE);`
 Preparing analogue of `t:replace(1, "111", 1.01);` request can be done this way:
 
 ```c++
