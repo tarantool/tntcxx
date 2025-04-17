@@ -40,7 +40,7 @@ public:
 	}
 	bool isExpired() const
 	{
-		if (m_Timeout == std::chrono::milliseconds{0})
+		if (m_Timeout == std::chrono::milliseconds{-1})
 			return false;
 		std::chrono::time_point<std::chrono::steady_clock> end =
 			std::chrono::steady_clock::now();
@@ -50,7 +50,7 @@ public:
 	}
 	int elapsed() const
 	{
-		if (m_Timeout == std::chrono::milliseconds{0})
+		if (m_Timeout == std::chrono::milliseconds{-1})
 			return 0;
 		std::chrono::time_point<std::chrono::steady_clock> end =
 			std::chrono::steady_clock::now();
