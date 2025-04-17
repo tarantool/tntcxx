@@ -80,8 +80,8 @@ public:
 		    const std::vector<rid_t > &futures, int timeout = 0);
 	int waitCount(Connection<BUFFER, NetProvider> &conn,
 		      size_t feature_count, int timeout = 0);
-	////////////////////////////Service interfaces//////////////////////////
 	std::optional<Connection<BUFFER, NetProvider>> waitAny(int timeout = 0);
+	////////////////////////////Service interfaces//////////////////////////
 	void readyToDecode(const Connection<BUFFER, NetProvider> &conn);
 	void readyToSend(const Connection<BUFFER, NetProvider> &conn);
 	void finishSend(const Connection<BUFFER, NetProvider> &conn);
