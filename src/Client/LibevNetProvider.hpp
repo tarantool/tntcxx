@@ -354,7 +354,7 @@ void
 LibevNetProvider<BUFFER, Stream>::timeout_cb(EV_P_ ev_timer *w, int /* revents */)
 {
 	(void) w;
-	LOG_ERROR("Libev timed out!");
+	LOG_DEBUG("Libev timed out!");
 	/* Stop external loop */
 	ev_break(EV_A_ EVBREAK_ONE);
 }

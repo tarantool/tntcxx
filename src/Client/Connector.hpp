@@ -210,7 +210,7 @@ Connector<BUFFER, NetProvider>::wait(Connection<BUFFER, NetProvider> &conn,
 		return -1;
 	}
 	if (! conn.futureIsReady(future)) {
-		LOG_ERROR("Connection has been timed out: future ", future,
+		LOG_DEBUG("Connection has been timed out: future ", future,
 			  " is not ready");
 		return -1;
 	}
@@ -257,7 +257,7 @@ Connector<BUFFER, NetProvider>::waitAll(Connection<BUFFER, NetProvider> &conn,
 		LOG_ERROR("Connection got an error: ", conn.getError().msg);
 		return -1;
 	}
-	LOG_ERROR("Connection has been timed out: not all futures are ready");
+	LOG_DEBUG("Connection has been timed out: not all futures are ready");
 	return -1;
 }
 
@@ -273,7 +273,7 @@ Connector<BUFFER, NetProvider>::waitAny(int timeout)
 			break;
 	}
 	if (m_ReadyToDecode.empty()) {
-		LOG_ERROR("wait() has been timed out! No responses are received");
+		LOG_DEBUG("wait() has been timed out! No responses are received");
 		return std::nullopt;
 	}
 	Connection<BUFFER, NetProvider> conn = *m_ReadyToDecode.begin();
@@ -315,8 +315,8 @@ Connector<BUFFER, NetProvider>::waitCount(Connection<BUFFER, NetProvider> &conn,
 		LOG_ERROR("Connection got an error: ", conn.getError().msg);
 		return -1;
 	}
-	LOG_ERROR("Connection has been timed out: only ",
-		   conn.getFutureCount() - ready_futures, " are ready");
+	LOG_DEBUG("Connection has been timed out: only ",
+		  conn.getFutureCount() - ready_futures, " are ready");
 	return -1;
 }
 
