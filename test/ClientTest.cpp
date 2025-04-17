@@ -1144,6 +1144,60 @@ response_decoding(Connector<BUFFER, NetProvider> &client)
 	client.close(conn);
 }
 
+/** Checks all available `wait` methods of connector. */
+template <class BUFFER, class NetProvider>
+void
+test_wait(Connector<BUFFER, NetProvider> &client)
+{
+	TEST_INIT(0);
+	static constexpr double SLEEP_TIME = 0.1;
+
+	Connection<Buf_t, NetProvider> conn(client);
+	int rc = test_connect(client, conn, localhost, port);
+	fail_unless(rc == 0);
+
+	TEST_CASE("wait(0) and wait(-1)");
+	rid_t f = conn.call("remote_sleep", std::forward_as_tuple(SLEEP_TIME));
+	fail_unless(!conn.futureIsReady(f));
+	client.wait(conn, f, 0);
+	fail_unless(!conn.futureIsReady(f));
+	client.wait(conn, f, -1);
+	fail_unless(conn.futureIsReady(f));
+	std::optional<Response<Buf_t>> response = conn.getResponse(f);
+	fail_unless(response.has_value());
+
+	TEST_CASE("waitAny(0) and waitAny(-1)");
+	f = conn.call("remote_sleep", std::forward_as_tuple(SLEEP_TIME));
+	fail_unless(!client.waitAny(0).has_value());
+	fail_unless(client.waitAny(-1).has_value());
+	response = conn.getResponse(f);
+	fail_unless(response.has_value());
+
+	TEST_CASE("waitAll(0) and waitAll(-1)");
+	std::vector<rid_t> fs;
+	fs.push_back(conn.call("remote_sleep", std::forward_as_tuple(SLEEP_TIME)));
+	fs.push_back(conn.call("remote_sleep", std::forward_as_tuple(SLEEP_TIME)));
+	fail_unless(client.waitAll(conn, fs, 0) == -1);
+	fail_unless(client.waitAll(conn, fs, -1) == 0);
+	response = conn.getResponse(fs[0]);
+	fail_unless(response.has_value());
+	response = conn.getResponse(fs[1]);
+	fail_unless(response.has_value());
+
+	TEST_CASE("waitCount(0) and waitCount(-1)");
+	fs.clear();
+	fs.push_back(conn.call("remote_sleep", std::forward_as_tuple(SLEEP_TIME)));
+	fs.push_back(conn.call("remote_sleep", std::forward_as_tuple(SLEEP_TIME)));
+	fail_unless(client.waitCount(conn, 2, 0) == -1);
+	fail_unless(client.waitCount(conn, 2, -1) == 0);
+	response = conn.getResponse(fs[0]);
+	fail_unless(response.has_value());
+	response = conn.getResponse(fs[1]);
+	fail_unless(response.has_value());
+
+	client.close(conn);
+}
+
 int main()
 {
 #ifdef TNTCXX_ENABLE_SSL
@@ -1193,5 +1247,6 @@ int main()
 #endif
 	::test_dead_connection_wait();
 	response_decoding(client);
+	test_wait(client);
 	return 0;
 }

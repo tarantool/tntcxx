@@ -32,6 +32,12 @@ function remote_echo(...)
     return {...}
 end
 
+function remote_sleep(timeout)
+    local fiber = require('fiber')
+    fiber.sleep(timeout)
+    return nil
+end
+
 function get_rps()
     return box.stat.net().REQUESTS.rps
 end
