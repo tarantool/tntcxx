@@ -1166,10 +1166,32 @@ test_wait(Connector<BUFFER, NetProvider> &client)
 	std::optional<Response<Buf_t>> response = conn.getResponse(f);
 	fail_unless(response.has_value());
 
+	TEST_CASE("wait(0) polls connections");
+	f = conn.call("remote_sleep", std::forward_as_tuple(SLEEP_TIME));
+	fail_unless(!conn.futureIsReady(f));
+	while (!conn.futureIsReady(f)) {
+		client.wait(conn, f, 0);
+		usleep(10 * 1000); /* 10ms */
+	}
+	fail_unless(conn.futureIsReady(f));
+	response = conn.getResponse(f);
+	fail_unless(response.has_value());
+
 	TEST_CASE("waitAny(0) and waitAny(-1)");
 	f = conn.call("remote_sleep", std::forward_as_tuple(SLEEP_TIME));
 	fail_unless(!client.waitAny(0).has_value());
 	fail_unless(client.waitAny(-1).has_value());
+	response = conn.getResponse(f);
+	fail_unless(response.has_value());
+
+	TEST_CASE("waitAny(0) polls connections");
+	f = conn.call("remote_sleep", std::forward_as_tuple(SLEEP_TIME));
+	fail_unless(!conn.futureIsReady(f));
+	while (!conn.futureIsReady(f)) {
+		client.waitAny(0);
+		usleep(10 * 1000); /* 10ms */
+	}
+	fail_unless(conn.futureIsReady(f));
 	response = conn.getResponse(f);
 	fail_unless(response.has_value());
 
@@ -1184,6 +1206,17 @@ test_wait(Connector<BUFFER, NetProvider> &client)
 	response = conn.getResponse(fs[1]);
 	fail_unless(response.has_value());
 
+	TEST_CASE("waitAll(0) polls connections");
+	f = conn.call("remote_sleep", std::forward_as_tuple(SLEEP_TIME));
+	fail_unless(!conn.futureIsReady(f));
+	while (!conn.futureIsReady(f)) {
+		client.waitAll(conn, std::vector<rid_t>{f}, 0);
+		usleep(10 * 1000); /* 10ms */
+	}
+	fail_unless(conn.futureIsReady(f));
+	response = conn.getResponse(f);
+	fail_unless(response.has_value());
+
 	TEST_CASE("waitCount(0) and waitCount(-1)");
 	fs.clear();
 	fs.push_back(conn.call("remote_sleep", std::forward_as_tuple(SLEEP_TIME)));
@@ -1193,6 +1226,17 @@ test_wait(Connector<BUFFER, NetProvider> &client)
 	response = conn.getResponse(fs[0]);
 	fail_unless(response.has_value());
 	response = conn.getResponse(fs[1]);
+	fail_unless(response.has_value());
+
+	TEST_CASE("waitCount(0) polls connections");
+	f = conn.call("remote_sleep", std::forward_as_tuple(SLEEP_TIME));
+	fail_unless(!conn.futureIsReady(f));
+	while (!conn.futureIsReady(f)) {
+		client.waitCount(conn, 1, 0);
+		usleep(10 * 1000); /* 10ms */
+	}
+	fail_unless(conn.futureIsReady(f));
+	response = conn.getResponse(f);
 	fail_unless(response.has_value());
 
 	client.close(conn);
