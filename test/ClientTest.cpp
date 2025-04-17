@@ -264,9 +264,11 @@ auto_close(Connector<BUFFER, NetProvider> &client)
 /** Several connection, separate/sequence pings, no errors */
 template <class BUFFER, class NetProvider>
 void
-many_conn_ping(Connector<BUFFER, NetProvider> &client)
+many_conn_ping(void)
 {
 	TEST_INIT(0);
+	/* FIXME(gh-123,gh-124): use own client not to leave hanging connection. */
+	Connector<Buf_t, NetProvider> client;
 	Connection<Buf_t, NetProvider> conn1(client);
 	Connection<Buf_t, NetProvider> conn2(client);
 	Connection<Buf_t, NetProvider> conn3(client);
@@ -1033,15 +1035,16 @@ test_auth(Connector<BUFFER, NetProvider> &client)
 }
 
 /** Single connection, write to closed connection. */
-template <class BUFFER, class NetProvider>
 void
-test_sigpipe(Connector<BUFFER, NetProvider> &client)
+test_sigpipe(void)
 {
 	TEST_INIT(0);
 
 	int rc = ::launchDummyServer(localhost, dummy_server_port);
 	fail_unless(rc == 0);
 
+	/* FIXME(gh-122): use own client not to leave hanging dead connection. */
+	Connector<Buf_t, NetProvider> client;
 	Connection<Buf_t, NetProvider> conn(client);
 	rc = ::test_connect(client, conn, localhost, dummy_server_port);
 	fail_unless(rc == 0);
@@ -1063,15 +1066,16 @@ test_sigpipe(Connector<BUFFER, NetProvider> &client)
 }
 
 /** Single connection, wait response from closed connection. */
-template <class BUFFER, class NetProvider>
 void
-test_dead_connection_wait(Connector<BUFFER, NetProvider> &client)
+test_dead_connection_wait(void)
 {
 	TEST_INIT(0);
 
 	int rc = ::launchDummyServer(localhost, dummy_server_port);
 	fail_unless(rc == 0);
 
+	/* FIXME(gh-122): use own client not to leave hanging dead connection. */
+	Connector<Buf_t, NetProvider> client;
 	Connection<Buf_t, NetProvider> conn(client);
 	rc = ::test_connect(client, conn, localhost, dummy_server_port);
 	fail_unless(rc == 0);
@@ -1167,7 +1171,7 @@ int main()
 	trivial<Buf_t, NetProvider>(client);
 	single_conn_ping<Buf_t, NetProvider>(client);
 	auto_close<Buf_t, NetProvider>(client);
-	many_conn_ping<Buf_t, NetProvider>(client);
+	many_conn_ping<Buf_t, NetProvider>();
 	single_conn_error<Buf_t, NetProvider>(client);
 	single_conn_replace<Buf_t, NetProvider>(client);
 	single_conn_insert<Buf_t, NetProvider>(client);
@@ -1185,9 +1189,9 @@ int main()
 	 * an a lot more complex state machine.
 	 */
 #ifndef TNTCXX_ENABLE_SSL
-	::test_sigpipe(client);
+	::test_sigpipe();
 #endif
-	::test_dead_connection_wait(client);
+	::test_dead_connection_wait();
 	response_decoding(client);
 	return 0;
 }
