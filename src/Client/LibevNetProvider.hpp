@@ -381,6 +381,8 @@ LibevNetProvider<BUFFER, Stream>::wait(int timeout)
 
 		}
 	}
-	ev_run(m_Loop, EVRUN_ONCE);
+	/* Work in non-blocking mode when the timeout is zero. */
+	int flags = timeout == 0 ? EVRUN_NOWAIT : EVRUN_ONCE;
+	ev_run(m_Loop, flags);
 	return 0;
 }
