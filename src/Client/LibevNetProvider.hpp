@@ -363,7 +363,7 @@ template<class BUFFER, class Stream>
 int
 LibevNetProvider<BUFFER, Stream>::wait(int timeout)
 {
-	assert(timeout >= 0);
+	assert(timeout >= -1);
 	if (timeout > 0) {
 		ev_timer_init(&m_TimeoutWatcher, &timeout_cb, timeout / MILLISECONDS, 0 /* repeat */);
 		ev_timer_start(m_Loop, &m_TimeoutWatcher);

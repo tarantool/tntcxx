@@ -75,12 +75,12 @@ public:
 		    const std::string& addr, unsigned port);
 
 	int wait(Connection<BUFFER, NetProvider> &conn, rid_t future,
-		 int timeout = 0, Response<BUFFER> *result = nullptr);
+		 int timeout = -1, Response<BUFFER> *result = nullptr);
 	int waitAll(Connection<BUFFER, NetProvider> &conn,
-		    const std::vector<rid_t > &futures, int timeout = 0);
+		    const std::vector<rid_t > &futures, int timeout = -1);
 	int waitCount(Connection<BUFFER, NetProvider> &conn,
-		      size_t feature_count, int timeout = 0);
-	std::optional<Connection<BUFFER, NetProvider>> waitAny(int timeout = 0);
+		      size_t feature_count, int timeout = -1);
+	std::optional<Connection<BUFFER, NetProvider>> waitAny(int timeout = -1);
 	////////////////////////////Service interfaces//////////////////////////
 	void readyToDecode(const Connection<BUFFER, NetProvider> &conn);
 	void readyToSend(const Connection<BUFFER, NetProvider> &conn);
