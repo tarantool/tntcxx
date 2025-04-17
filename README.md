@@ -186,6 +186,51 @@ request is ready, `wait()` terminates. It also provides negative return code in
 case of system related fails (e.g. broken or time outed connection). If `wait()`
 returns 0, then response is received and expected to be parsed.
 
+### Waiting for Responses
+
+The connector provides several wait methods. All methods accept an integer `timeout`
+argument with the following semantics:
+* If `timeout > 0`, the connector blocks for `timeout` **milliseconds** or until
+   all required responses are received. Time is measured against the monotonic clock.
+* If `timeout == 0`, the connector decodes all available responses and returns
+   immediately.
+* If `timeout == -1`, the connector blocks until required responses are received
+   (basically, no timeout).
+
+All the waiting functions (except for `waitAny`, its description will be later)
+return `0` on success and `-1` in the case of any internal error (for example,
+when the underlying connection is closed) or when timeout is exceeded.
+See [this section](#error-handling) for error handling details.
+
+Method `wait` waits for one request:
+```c++
+int rc = client.wait(conn, ping, WAIT_TIMEOUT);
+```
+An optional argument allows to obtain response right away in the case of success:
+```c++
+Response<Buf_t> response;
+int rc = client.wait(conn, ping, WAIT_TIMEOUT, &response);
+```
+
+Method `waitAll` waits for completion of all the given requests of a connection:
+```c++
+std::vector<rid_t> futures{ping1, ping2, call, replace};
+int rc = client.waitAll(conn, futures, WAIT_TIMEOUT);
+```
+
+Method `waitCount` waits until the given connection will complete any `future_count` requests:
+```c++
+int rc = client.waitCount(conn, future_count, WAIT_TIMEOUT);
+```
+
+Method `waitAny` is different - it allows to poll all the connections simultaneously.
+In the case of success, the function returns a connection that received a response.
+In the case of internal error or when timeout is exceeded, returns `std::nullopt`.
+See [this section](#error-handling) for error handling details.
+```c++
+std::optional<Connection<Buf, NetProvider>> conn_ready = client.waitAny(WAIT_TIMEOUT);
+```
+
 ### Receiving Responses
 
 To get the response when it is ready, we can use `Connection::getResponse()`.
