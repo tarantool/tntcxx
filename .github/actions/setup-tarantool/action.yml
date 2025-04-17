@@ -10,7 +10,7 @@ runs:
   steps:
     - name: Setup Tarantool 2.11
       if: startsWith(inputs.runs-on, 'ubuntu')
-      uses: tarantool/setup-tarantool@v1
+      uses: tarantool/setup-tarantool@v3
       with:
         tarantool-version: '2.11'
 
