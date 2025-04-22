@@ -97,7 +97,7 @@ private:
 	 * Returns -1 in the case of any error, 0 on success.
 	 */
 	int connectionDecodeResponses(Connection<BUFFER, NetProvider> &conn,
-				      Response<BUFFER> *result);
+				      Response<BUFFER> *result = nullptr);
 
 private:
 	NetProvider m_NetProvider;
@@ -266,7 +266,7 @@ Connector<BUFFER, NetProvider>::waitAll(Connection<BUFFER, NetProvider> &conn,
 				      strerror(errno), errno);
 			return -1;
 		}
-		if (connectionDecodeResponses(conn, static_cast<Response<BUFFER>*>(nullptr)) != 0)
+		if (connectionDecodeResponses(conn) != 0)
 			return -1;
 		bool finish = true;
 		for (size_t i = last_not_ready; i < futures.size(); ++i) {
@@ -306,7 +306,7 @@ Connector<BUFFER, NetProvider>::waitAny(int timeout)
 	}
 	Connection<BUFFER, NetProvider> conn = *m_ReadyToDecode.begin();
 	assert(hasDataToDecode(conn));
-	if (connectionDecodeResponses(conn, static_cast<Response<BUFFER>*>(nullptr)) != 0)
+	if (connectionDecodeResponses(conn) != 0)
 		return std::nullopt;
 	return conn;
 }
@@ -325,7 +325,7 @@ Connector<BUFFER, NetProvider>::waitCount(Connection<BUFFER, NetProvider> &conn,
 				      strerror(errno), errno);
 			return -1;
 		}
-		if (connectionDecodeResponses(conn, static_cast<Response<BUFFER>*>(nullptr)) != 0)
+		if (connectionDecodeResponses(conn) != 0)
 			return -1;
 		if ((conn.getFutureCount() - ready_futures) >= future_count)
 			return 0;
