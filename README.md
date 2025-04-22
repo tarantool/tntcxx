@@ -156,6 +156,10 @@ if (rc != 0) {
 }
 ```
 
+Note that some methods can return `rc < 0` without any error. For example, `wait`
+can return `-1` when timeout is exceeded. In order to differentiate between such
+situations, one can use method `Connection::hasError()`.
+
 To reset connection after errors (clean up error message and connection status),
 one can use `Connection::reset()`.
 
