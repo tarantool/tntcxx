@@ -89,8 +89,23 @@ public:
 	std::set<Connection<BUFFER, NetProvider>> m_ReadyToSend;
 	void close(Connection<BUFFER, NetProvider> &conn);
 	void close(ConnectionImpl<BUFFER, NetProvider> &conn);
+
+private:
+	/**
+	 * A helper to decode responses of a connection.
+	 * Can be called when the connection is not ready to decode - it's just no-op.
+	 * Returns -1 in the case of any error, 0 on success.
+	 */
+	int connectionDecodeResponses(Connection<BUFFER, NetProvider> &conn,
+				      Response<BUFFER> *result);
+
 private:
 	NetProvider m_NetProvider;
+	/**
+	 * Set of connections that are ready to decode.
+	 * Shouldn't be modified directly - is managed by methods `readyToDecode`
+	 * and `connectionDecodeResponses`.
+	 */
 	std::set<Connection<BUFFER, NetProvider>> m_ReadyToDecode;
 };
 
@@ -157,21 +172,35 @@ Connector<BUFFER, NetProvider>::close(ConnectionImpl<BUFFER, NetProvider> &conn)
 
 template<class BUFFER, class NetProvider>
 int
-connectionDecodeResponses(Connection<BUFFER, NetProvider> &conn,
-			  Response<BUFFER> *result)
+Connector<BUFFER, NetProvider>::connectionDecodeResponses(Connection<BUFFER, NetProvider> &conn,
+							  Response<BUFFER> *result)
 {
+	if (!hasDataToDecode(conn))
+		return 0;
+
+	/* Ready to decode connection must be in the corresponding set. */
+	assert(m_ReadyToDecode.find(conn) != m_ReadyToDecode.end());
+
+	int rc = 0;
 	while (hasDataToDecode(conn)) {
-		DecodeStatus rc = processResponse(conn,  result);
-		if (rc == DECODE_ERR)
-			return -1;
+		DecodeStatus status = processResponse(conn, result);
+		if (status == DECODE_ERR) {
+			rc = -1;
+			break;
+		}
 		//In case we've received only a part of response
 		//we should wait until the rest arrives - otherwise
 		//we can't properly decode response. */
-		if (rc == DECODE_NEEDMORE)
-			return 0;
-		assert(rc == DECODE_SUCC);
+		if (status == DECODE_NEEDMORE) {
+			rc = 0;
+			break;
+		}
+		assert(status == DECODE_SUCC);
 	}
-	return 0;
+	/* A connection that has no data to decode must not be left in the set. */
+	if (!hasDataToDecode(conn))
+		m_ReadyToDecode.erase(conn);
+	return rc;
 }
 
 template<class BUFFER, class NetProvider>
@@ -191,17 +220,8 @@ Connector<BUFFER, NetProvider>::wait(Connection<BUFFER, NetProvider> &conn,
 				      strerror(errno), errno);
 			return -1;
 		}
-		if (hasDataToDecode(conn)) {
-			assert(m_ReadyToDecode.find(conn) != m_ReadyToDecode.end());
-			if (connectionDecodeResponses(conn, result) != 0)
-				return -1;
-			/*
-			 * In case we've handled whole data in input buffer -
-			 * mark connection as completed.
-			 */
-			if (!hasDataToDecode(conn))
-				m_ReadyToDecode.erase(conn);
-		}
+		if (connectionDecodeResponses(conn, result) != 0)
+			return -1;
 		if (timer.isExpired())
 			break;
 	}
@@ -233,13 +253,8 @@ Connector<BUFFER, NetProvider>::waitAll(Connection<BUFFER, NetProvider> &conn,
 				      strerror(errno), errno);
 			return -1;
 		}
-		if (hasDataToDecode(conn)) {
-			assert(m_ReadyToDecode.find(conn) != m_ReadyToDecode.end());
-			if (connectionDecodeResponses(conn, static_cast<Response<BUFFER>*>(nullptr)) != 0)
-				return -1;
-			if (!hasDataToDecode(conn))
-				m_ReadyToDecode.erase(conn);
-		}
+		if (connectionDecodeResponses(conn, static_cast<Response<BUFFER>*>(nullptr)) != 0)
+			return -1;
 		bool finish = true;
 		for (size_t i = last_not_ready; i < futures.size(); ++i) {
 			if (!conn.futureIsReady(futures[i])) {
@@ -280,8 +295,6 @@ Connector<BUFFER, NetProvider>::waitAny(int timeout)
 	assert(hasDataToDecode(conn));
 	if (connectionDecodeResponses(conn, static_cast<Response<BUFFER>*>(nullptr)) != 0)
 		return std::nullopt;
-	if (!hasDataToDecode(conn))
-		m_ReadyToDecode.erase(conn);
 	return conn;
 }
 
@@ -299,13 +312,8 @@ Connector<BUFFER, NetProvider>::waitCount(Connection<BUFFER, NetProvider> &conn,
 				      strerror(errno), errno);
 			return -1;
 		}
-		if (hasDataToDecode(conn)) {
-			assert(m_ReadyToDecode.find(conn) != m_ReadyToDecode.end());
-			if (connectionDecodeResponses(conn, static_cast<Response<BUFFER>*>(nullptr)) != 0)
-				return -1;
-			if (!hasDataToDecode(conn))
-				m_ReadyToDecode.erase(conn);
-		}
+		if (connectionDecodeResponses(conn, static_cast<Response<BUFFER>*>(nullptr)) != 0)
+			return -1;
 		if ((conn.getFutureCount() - ready_futures) >= future_count)
 			return 0;
 		if (timer.isExpired())

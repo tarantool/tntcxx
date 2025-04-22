@@ -1239,6 +1239,47 @@ test_wait(Connector<BUFFER, NetProvider> &client)
 	response = conn.getResponse(f);
 	fail_unless(response.has_value());
 
+	TEST_CASE("waitAny after several waits (gh-124)");
+	Connection<Buf_t, NetProvider> conn1(client);
+	Connection<Buf_t, NetProvider> conn2(client);
+	Connection<Buf_t, NetProvider> conn3(client);
+	rc = test_connect(client, conn1, localhost, port);
+	fail_unless(rc == 0);
+	rc = test_connect(client, conn2, localhost, port);
+	fail_unless(rc == 0);
+	rc = test_connect(client, conn3, localhost, port);
+	fail_unless(rc == 0);
+	rid_t f1 = conn1.ping();
+	rid_t f2 = conn2.ping();
+	rid_t f3 = conn3.ping();
+
+	/* Wait for all connections. */
+	fail_unless(client.wait(conn1, f1, WAIT_TIMEOUT) == 0);
+	fail_unless(conn1.futureIsReady(f1));
+	fail_unless(conn1.getResponse(f1).header.code == 0);
+
+	fail_unless(client.wait(conn2, f2, WAIT_TIMEOUT) == 0);
+	fail_unless(conn2.futureIsReady(f2));
+	fail_unless(conn2.getResponse(f2).header.code == 0);
+
+	fail_unless(client.wait(conn3, f3, WAIT_TIMEOUT) == 0);
+	fail_unless(conn3.futureIsReady(f3));
+	fail_unless(conn3.getResponse(f3).header.code == 0);
+
+	/*
+	 * Wait any - we shouldn't get any of the connections here since we've
+	 * received all the responses.
+	 * Note that the connector used to crash here (gh-124) because some of the
+	 * connnections still could appear in `m_ReadyToDecode` set.
+	 */
+	std::optional<Connection<Buf_t, NetProvider>> conn_opt = client.waitAny(WAIT_TIMEOUT);
+	fail_if(conn_opt.has_value());
+
+	/* Close all connections used only by the case. */
+	client.close(conn1);
+	client.close(conn2);
+	client.close(conn3);
+
 	client.close(conn);
 }
 
