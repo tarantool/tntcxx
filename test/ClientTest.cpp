@@ -1280,6 +1280,29 @@ test_wait(Connector<BUFFER, NetProvider> &client)
 	client.close(conn2);
 	client.close(conn3);
 
+	TEST_CASE("wait with argument result");
+	f = conn.ping();
+	fail_unless(!conn.futureIsReady(f));
+	Response<BUFFER> result;
+	fail_unless(client.wait(conn, f, WAIT_TIMEOUT, &result) == 0);
+	/* The result was consumed, so the future is not ready. */
+	fail_unless(!conn.futureIsReady(f));
+	/* The future is actually request sync - check if the result is valid. */
+	fail_unless(result.header.sync == static_cast<int>(f));
+	fail_unless(result.header.code == 0);
+
+	TEST_CASE("wait with argument result for decoded future");
+	f = conn.ping();
+	fail_unless(!conn.futureIsReady(f));
+	fail_unless(client.wait(conn, f, WAIT_TIMEOUT) == 0);
+	fail_unless(conn.futureIsReady(f));
+	fail_unless(client.wait(conn, f, WAIT_TIMEOUT, &result) == 0);
+	/* The result was consumed, so the future is not ready. */
+	fail_unless(!conn.futureIsReady(f));
+	/* The future is actually request sync - check if the result is valid. */
+	fail_unless(result.header.sync == static_cast<int>(f));
+	fail_unless(result.header.code == 0);
+
 	client.close(conn);
 }
 
