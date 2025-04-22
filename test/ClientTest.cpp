@@ -1303,6 +1303,27 @@ test_wait(Connector<BUFFER, NetProvider> &client)
 	fail_unless(result.header.sync == static_cast<int>(f));
 	fail_unless(result.header.code == 0);
 
+	TEST_CASE("wait with argument result - several requests");
+	/* Obtain in direct order. */
+	f1 = conn.ping();
+	f2 = conn.ping();
+	fail_unless(client.wait(conn, f1, WAIT_TIMEOUT, &result) == 0);
+	fail_unless(result.header.sync == static_cast<int>(f1));
+	fail_unless(result.header.code == 0);
+	fail_unless(client.wait(conn, f2, WAIT_TIMEOUT, &result) == 0);
+	fail_unless(result.header.sync == static_cast<int>(f2));
+	fail_unless(result.header.code == 0);
+
+	/* Obtain in reversed order. */
+	f1 = conn.ping();
+	f2 = conn.ping();
+	fail_unless(client.wait(conn, f2, WAIT_TIMEOUT, &result) == 0);
+	fail_unless(result.header.sync == static_cast<int>(f2));
+	fail_unless(result.header.code == 0);
+	fail_unless(client.wait(conn, f1, WAIT_TIMEOUT, &result) == 0);
+	fail_unless(result.header.sync == static_cast<int>(f1));
+	fail_unless(result.header.code == 0);
+
 	client.close(conn);
 }
 

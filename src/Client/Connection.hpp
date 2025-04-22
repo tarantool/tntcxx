@@ -230,8 +230,7 @@ public:
 
 	template<class B, class N>
 	friend
-	enum DecodeStatus processResponse(Connection<B, N> &conn,
-					  Response<B> *result);
+	enum DecodeStatus processResponse(Connection<B, N> &conn, int req_sync, Response<B> *result);
 
 	template<class B, class N>
 	friend
@@ -530,8 +529,7 @@ inputBufGC(Connection<BUFFER, NetProvider> &conn)
 
 template<class BUFFER, class NetProvider>
 DecodeStatus
-processResponse(Connection<BUFFER, NetProvider> &conn,
-		Response<BUFFER> *result)
+processResponse(Connection<BUFFER, NetProvider> &conn, int req_sync, Response<BUFFER> *result)
 {
 	//Decode response. In case of success - fill in feature map
 	//and adjust end-of-decoded data pointer. Call GC if needed.
@@ -563,7 +561,7 @@ processResponse(Connection<BUFFER, NetProvider> &conn,
 	}
 	LOG_DEBUG("Header: sync=", response.header.sync, ", code=",
 		  response.header.code, ", schema=", response.header.schema_id);
-	if (result != nullptr) {
+	if (result != nullptr && response.header.sync == req_sync) {
 		*result = std::move(response);
 	} else {
 		conn.impl->futures.insert({response.header.sync,
