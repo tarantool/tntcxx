@@ -212,8 +212,15 @@ Connector<BUFFER, NetProvider>::wait(Connection<BUFFER, NetProvider> &conn,
 	LOG_DEBUG("Waiting for the future ", future, " with timeout ", timeout);
 	Timer timer{timeout};
 	timer.start();
+	static constexpr int INVALID_SYNC = -1;
+	if (result != NULL)
+		result->header.sync = INVALID_SYNC;
 	if (connectionDecodeResponses(conn, result) != 0)
 		return -1;
+	if (result != NULL && result->header.sync != INVALID_SYNC) {
+		LOG_DEBUG("Future ", future, " is ready and decoded");
+		return 0;
+	}
 	while (!conn.hasError() && !conn.futureIsReady(future)) {
 		if (m_NetProvider.wait(timer.timeLeft()) != 0) {
 			conn.setError(std::string("Failed to poll: ") +
@@ -222,6 +229,10 @@ Connector<BUFFER, NetProvider>::wait(Connection<BUFFER, NetProvider> &conn,
 		}
 		if (connectionDecodeResponses(conn, result) != 0)
 			return -1;
+		if (result != NULL && result->header.sync != INVALID_SYNC) {
+			LOG_DEBUG("Future ", future, " is ready and decoded");
+			return 0;
+		}
 		if (timer.isExpired())
 			break;
 	}
@@ -233,6 +244,8 @@ Connector<BUFFER, NetProvider>::wait(Connection<BUFFER, NetProvider> &conn,
 		LOG_DEBUG("Connection has been timed out: future ", future,
 			  " is not ready");
 		return -1;
+	} else if (result != NULL) {
+		*result = std::move(conn.getResponse(future));
 	}
 	LOG_DEBUG("Feature ", future, " is ready and decoded");
 	return 0;
