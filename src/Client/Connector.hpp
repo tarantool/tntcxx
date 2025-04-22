@@ -94,9 +94,11 @@ private:
 	/**
 	 * A helper to decode responses of a connection.
 	 * Can be called when the connection is not ready to decode - it's just no-op.
+	 * If `result` is not `nullptr`, it is used to return response for a request with
+	 * `req_sync` sync. If `result` is `nullptr` - `req_sync` is ignored.
 	 * Returns -1 in the case of any error, 0 on success.
 	 */
-	int connectionDecodeResponses(Connection<BUFFER, NetProvider> &conn,
+	int connectionDecodeResponses(Connection<BUFFER, NetProvider> &conn, int req_sync = -1,
 				      Response<BUFFER> *result = nullptr);
 
 private:
@@ -172,7 +174,7 @@ Connector<BUFFER, NetProvider>::close(ConnectionImpl<BUFFER, NetProvider> &conn)
 
 template<class BUFFER, class NetProvider>
 int
-Connector<BUFFER, NetProvider>::connectionDecodeResponses(Connection<BUFFER, NetProvider> &conn,
+Connector<BUFFER, NetProvider>::connectionDecodeResponses(Connection<BUFFER, NetProvider> &conn, int req_sync,
 							  Response<BUFFER> *result)
 {
 	if (!hasDataToDecode(conn))
@@ -183,7 +185,7 @@ Connector<BUFFER, NetProvider>::connectionDecodeResponses(Connection<BUFFER, Net
 
 	int rc = 0;
 	while (hasDataToDecode(conn)) {
-		DecodeStatus status = processResponse(conn, result);
+		DecodeStatus status = processResponse(conn, req_sync, result);
 		if (status == DECODE_ERR) {
 			rc = -1;
 			break;
@@ -213,11 +215,13 @@ Connector<BUFFER, NetProvider>::wait(Connection<BUFFER, NetProvider> &conn,
 	Timer timer{timeout};
 	timer.start();
 	static constexpr int INVALID_SYNC = -1;
+	int req_sync = static_cast<int>(future);
 	if (result != NULL)
 		result->header.sync = INVALID_SYNC;
-	if (connectionDecodeResponses(conn, result) != 0)
+	if (connectionDecodeResponses(conn, req_sync, result) != 0)
 		return -1;
 	if (result != NULL && result->header.sync != INVALID_SYNC) {
+		assert(result->header.sync == req_sync);
 		LOG_DEBUG("Future ", future, " is ready and decoded");
 		return 0;
 	}
@@ -227,9 +231,10 @@ Connector<BUFFER, NetProvider>::wait(Connection<BUFFER, NetProvider> &conn,
 				      strerror(errno), errno);
 			return -1;
 		}
-		if (connectionDecodeResponses(conn, result) != 0)
+		if (connectionDecodeResponses(conn, req_sync, result) != 0)
 			return -1;
 		if (result != NULL && result->header.sync != INVALID_SYNC) {
+			assert(result->header.sync == req_sync);
 			LOG_DEBUG("Future ", future, " is ready and decoded");
 			return 0;
 		}
