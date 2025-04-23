@@ -187,7 +187,7 @@ Connector<BUFFER, NetProvider>::wait(Connection<BUFFER, NetProvider> &conn,
 		return -1;
 	while (!conn.hasError() && !conn.futureIsReady(future) &&
 	       !timer.isExpired()) {
-		if (m_NetProvider.wait(timeout - timer.elapsed()) != 0) {
+		if (m_NetProvider.wait(timer.timeLeft()) != 0) {
 			conn.setError(std::string("Failed to poll: ") +
 				      strerror(errno), errno);
 			return -1;
@@ -227,7 +227,7 @@ Connector<BUFFER, NetProvider>::waitAll(Connection<BUFFER, NetProvider> &conn,
 	timer.start();
 	size_t last_not_ready = 0;
 	while (!conn.hasError() && !timer.isExpired()) {
-		if (m_NetProvider.wait(timeout - timer.elapsed()) != 0) {
+		if (m_NetProvider.wait(timer.timeLeft()) != 0) {
 			conn.setError(std::string("Failed to poll: ") +
 				      strerror(errno), errno);
 			return -1;
@@ -265,7 +265,7 @@ Connector<BUFFER, NetProvider>::waitAny(int timeout)
 	Timer timer{timeout};
 	timer.start();
 	while (m_ReadyToDecode.empty() && !timer.isExpired())
-		m_NetProvider.wait(timeout - timer.elapsed());
+		m_NetProvider.wait(timer.timeLeft());
 	if (m_ReadyToDecode.empty()) {
 		LOG_ERROR("wait() has been timed out! No responses are received");
 		return std::nullopt;
@@ -288,7 +288,7 @@ Connector<BUFFER, NetProvider>::waitCount(Connection<BUFFER, NetProvider> &conn,
 	timer.start();
 	size_t ready_futures = conn.getFutureCount();
 	while (!conn.hasError() && !timer.isExpired()) {
-		if (m_NetProvider.wait(timeout - timer.elapsed()) != 0) {
+		if (m_NetProvider.wait(timer.timeLeft()) != 0) {
 			conn.setError(std::string("Failed to poll: ") +
 				      strerror(errno), errno);
 			return -1;
