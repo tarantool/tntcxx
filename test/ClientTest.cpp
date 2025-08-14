@@ -35,6 +35,8 @@
 #include "../src/Client/LibevNetProvider.hpp"
 #include "../src/Client/Connector.hpp"
 
+#include <thread>
+
 const char *localhost = "127.0.0.1";
 int port = 3301;
 int dummy_server_port = 3302;
@@ -1144,6 +1146,47 @@ response_decoding(Connector<BUFFER, NetProvider> &client)
 	client.close(conn);
 }
 
+#ifdef __linux__
+/** Sleep time for internal wait failure test. */
+static constexpr double INTERNAL_WAIT_FAILURE_SLEEP_TIME = 1e5;
+
+/** No-op signal handler for internal wait failure test. */
+void
+sigusr_handler(int signo)
+{
+	fail_unless(signo != SIGINT);
+}
+
+/**
+ * Helper for setting up an internal wait failure test case. Creates a request and spawns a thread that will send
+ * a signal to the request processing thread to interrupt its wait method.
+ */
+void
+setup_internal_wait_failure_test_case(Connection<Buf_t, NetProvider> &conn, rid_t *f, std::thread *signal_thread)
+{
+	*f = conn.call("remote_sleep", std::forward_as_tuple(INTERNAL_WAIT_FAILURE_SLEEP_TIME / 1e6));
+	fail_unless(!conn.futureIsReady(*f));
+	pthread_t tid = pthread_self();
+	*signal_thread = std::thread([tid] {
+		usleep(INTERNAL_WAIT_FAILURE_SLEEP_TIME / 2);
+		pthread_kill(tid, SIGUSR1);
+	});
+}
+
+/**
+ * Helper for tearing down an internal wait failure test case. Gets the response for the future and joins the
+ * signalling thread.
+ */
+void
+teardown_internal_wait_failure_test_case(Connection<Buf_t, NetProvider> &conn, rid_t f, std::thread &signal_thread)
+{
+	fail_unless(conn.futureIsReady(f));
+	std::optional<Response<Buf_t>> response = conn.getResponse(f);
+	fail_unless(response.has_value());
+	signal_thread.join();
+}
+#endif /* __linux__ */
+
 /** Checks all available `wait` methods of connector. */
 template <class BUFFER, class NetProvider>
 void
@@ -1345,6 +1388,41 @@ test_wait(Connector<BUFFER, NetProvider> &client)
 	fail_unless(client.waitAny(conn).has_value());
 	conn.getResponse(f);
 #endif
+
+#ifdef __linux__
+	TEST_CASE("wait methods internal wait failure (gh-121)");
+	struct sigaction act;
+	act.sa_handler = sigusr_handler;
+	act.sa_flags = 0;
+	sigemptyset(&act.sa_mask);
+	sigaction(SIGUSR1, &act, nullptr);
+	std::thread signal_thread;
+
+	setup_internal_wait_failure_test_case(conn, &f, &signal_thread);
+	fail_unless(client.wait(conn, f) != 0);
+	conn.reset();
+	fail_unless(client.wait(conn, f) == 0);
+	teardown_internal_wait_failure_test_case(conn, f, signal_thread);
+
+	setup_internal_wait_failure_test_case(conn, &f, &signal_thread);
+	fail_unless(client.waitAll(conn, {f}) != 0);
+	conn.reset();
+	fail_unless(client.waitAll(conn, {f}) == 0);
+	teardown_internal_wait_failure_test_case(conn, f, signal_thread);
+
+	setup_internal_wait_failure_test_case(conn, &f, &signal_thread);
+	fail_unless(client.waitCount(conn, 1) != 0);
+	conn.reset();
+	fail_unless(client.waitCount(conn, 1) == 0);
+	teardown_internal_wait_failure_test_case(conn, f, signal_thread);
+
+	setup_internal_wait_failure_test_case(conn, &f, &signal_thread);
+	fail_unless(!client.waitAny().has_value());
+	fail_unless(client.waitAny().has_value());
+	teardown_internal_wait_failure_test_case(conn, f, signal_thread);
+
+	sigaction(SIGUSR1, nullptr, nullptr);
+#endif /* __linux__ */
 
 	client.close(conn);
 }

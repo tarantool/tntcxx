@@ -345,7 +345,10 @@ Connector<BUFFER, NetProvider>::waitAny(int timeout)
 	Timer timer{timeout};
 	timer.start();
 	while (m_ReadyToDecode.empty()) {
-		m_NetProvider.wait(timer.timeLeft());
+		if (m_NetProvider.wait(timer.timeLeft()) != 0) {
+			LOG_ERROR("Failed to poll connections: ", strerror(errno));
+			return std::nullopt;
+		}
 		if (timer.isExpired())
 			break;
 	}
