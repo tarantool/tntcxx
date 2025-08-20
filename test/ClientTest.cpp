@@ -35,6 +35,8 @@
 #include "../src/Client/LibevNetProvider.hpp"
 #include "../src/Client/Connector.hpp"
 
+#include <thread>
+
 const char *localhost = "127.0.0.1";
 int port = 3301;
 int dummy_server_port = 3302;
@@ -1144,6 +1146,12 @@ response_decoding(Connector<BUFFER, NetProvider> &client)
 	client.close(conn);
 }
 
+void
+sigusr_handler(int signo)
+{
+	fail_unless(signo != SIGINT);
+}
+
 /** Checks all available `wait` methods of connector. */
 template <class BUFFER, class NetProvider>
 void
@@ -1323,6 +1331,30 @@ test_wait(Connector<BUFFER, NetProvider> &client)
 	fail_unless(client.wait(conn, f1, WAIT_TIMEOUT, &result) == 0);
 	fail_unless(result.header.sync == static_cast<int>(f1));
 	fail_unless(result.header.code == 0);
+
+#ifdef __linux__
+	TEST_CASE("waitAny internal wait failure (gh-121)");
+	static constexpr double LONG_SLEEP_TIME = 2;
+	f = conn.call("remote_sleep", std::forward_as_tuple(LONG_SLEEP_TIME));
+	fail_unless(!conn.futureIsReady(f));
+	pthread_t tid = pthread_self();
+	struct sigaction act;
+	act.sa_handler = sigusr_handler;
+	act.sa_flags = 0;
+	sigemptyset(&act.sa_mask);
+	sigaction(SIGUSR1, &act, nullptr);
+	auto &&signal_thread = std::thread([tid] {
+		sleep(LONG_SLEEP_TIME / 2);
+		pthread_kill(tid, SIGUSR1);
+	});
+	fail_unless(!client.waitAny().has_value());
+	fail_unless(client.waitAny().has_value());
+	fail_unless(conn.futureIsReady(f));
+	response = conn.getResponse(f);
+	fail_unless(response.has_value());
+	signal_thread.join();
+	sigaction(SIGUSR1, nullptr, nullptr);
+#endif /* __linux__ */
 
 	client.close(conn);
 }

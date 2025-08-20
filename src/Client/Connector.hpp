@@ -266,11 +266,6 @@ Connector<BUFFER, NetProvider>::waitAll(Connection<BUFFER, NetProvider> &conn,
 	timer.start();
 	size_t last_not_ready = 0;
 	while (!conn.hasError()) {
-		if (m_NetProvider.wait(timer.timeLeft()) != 0) {
-			conn.setError(std::string("Failed to poll: ") +
-				      strerror(errno), errno);
-			return -1;
-		}
 		if (connectionDecodeResponses(conn) != 0)
 			return -1;
 		bool finish = true;
@@ -283,6 +278,10 @@ Connector<BUFFER, NetProvider>::waitAll(Connection<BUFFER, NetProvider> &conn,
 		}
 		if (finish)
 			return 0;
+		if (m_NetProvider.wait(timer.timeLeft()) != 0) {
+			conn.setError(std::string("Failed to poll: ") + strerror(errno), errno);
+			return -1;
+		}
 		if (timer.isExpired())
 			break;
 	}
@@ -301,7 +300,10 @@ Connector<BUFFER, NetProvider>::waitAny(int timeout)
 	Timer timer{timeout};
 	timer.start();
 	while (m_ReadyToDecode.empty()) {
-		m_NetProvider.wait(timer.timeLeft());
+		if (m_NetProvider.wait(timer.timeLeft()) != 0) {
+			LOG_ERROR("Failed to poll connections: ", strerror(errno));
+			return std::nullopt;
+		}
 		if (timer.isExpired())
 			break;
 	}
@@ -325,15 +327,15 @@ Connector<BUFFER, NetProvider>::waitCount(Connection<BUFFER, NetProvider> &conn,
 	timer.start();
 	size_t ready_futures = conn.getFutureCount();
 	while (!conn.hasError()) {
+		if (connectionDecodeResponses(conn) != 0)
+			return -1;
+		if ((conn.getFutureCount() - ready_futures) >= future_count)
+			return 0;
 		if (m_NetProvider.wait(timer.timeLeft()) != 0) {
 			conn.setError(std::string("Failed to poll: ") +
 				      strerror(errno), errno);
 			return -1;
 		}
-		if (connectionDecodeResponses(conn) != 0)
-			return -1;
-		if ((conn.getFutureCount() - ready_futures) >= future_count)
-			return 0;
 		if (timer.isExpired())
 			break;
 	}
