@@ -71,12 +71,12 @@ struct StaticBuffer {
 	template <class T>
 	void write(T&& t)
 	{
-		mempcpy(p, &t, sizeof(t));
+		memcpy(p, &t, sizeof(t));
 		p += sizeof(t);
 	}
 	void write(WData d)
 	{
-		mempcpy(p, d.data, d.size);
+		memcpy(p, d.data, d.size);
 		p += d.size;
 	}
 };
