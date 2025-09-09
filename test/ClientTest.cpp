@@ -1324,6 +1324,28 @@ test_wait(Connector<BUFFER, NetProvider> &client)
 	fail_unless(result.header.sync == static_cast<int>(f1));
 	fail_unless(result.header.code == 0);
 
+	TEST_CASE("wait method check future readiness before waiting (gh-133");
+	f = conn.ping();
+	fail_unless(client.wait(conn, f, WAIT_TIMEOUT) == 0);
+	fail_unless(client.wait(conn, f) == 0);
+	conn.getResponse(f);
+	f = conn.ping();
+	fail_unless(client.wait(conn, f, WAIT_TIMEOUT) == 0);
+	fail_unless(client.waitAll(conn, {f}) == 0);
+	conn.getResponse(f);
+	f = conn.ping();
+	fail_unless(client.wait(conn, f, WAIT_TIMEOUT) == 0);
+	/* FIXME(gh-143): test solely that we check future readiness before waiting. */
+	fail_unless(client.waitCount(conn, 0) == 0);
+	conn.getResponse(f);
+	/* FIXME(gh-132): waitAny does not check connections for ready futures. */
+#if 0
+	f = conn.ping();
+	fail_unless(client.wait(conn, f, WAIT_TIMEOUT) == 0);
+	fail_unless(client.waitAny(conn).has_value());
+	conn.getResponse(f);
+#endif
+
 	client.close(conn);
 }
 
