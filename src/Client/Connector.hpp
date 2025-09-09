@@ -309,16 +309,20 @@ Connector<BUFFER, NetProvider>::waitAll(Connection<BUFFER, NetProvider> &conn,
 					const std::vector<rid_t> &futures,
 					int timeout)
 {
+	size_t last_not_ready = 0;
+	bool finish = false;
+	if (connectionCheckResponsesReadiness(conn, futures, &last_not_ready, &finish) != 0)
+		return -1;
+	if (finish)
+		return 0;
 	Timer timer{timeout};
 	timer.start();
-	size_t last_not_ready = 0;
 	while (!conn.hasError()) {
 		if (m_NetProvider.wait(timer.timeLeft()) != 0) {
 			conn.setError(std::string("Failed to poll: ") +
 				      strerror(errno), errno);
 			return -1;
 		}
-		bool finish = false;
 		if (connectionCheckResponsesReadiness(conn, futures, &last_not_ready, &finish) != 0)
 			return -1;
 		if (finish)
@@ -361,17 +365,21 @@ int
 Connector<BUFFER, NetProvider>::waitCount(Connection<BUFFER, NetProvider> &conn,
 					  size_t future_count, int timeout)
 {
-	Timer timer{timeout};
-	timer.start();
 	size_t ready_futures = conn.getFutureCount();
 	size_t expected_future_count = ready_futures + future_count;
+	bool finish = false;
+	if (connectionCheckCountResponsesReadiness(conn, expected_future_count, &finish) != 0)
+		return -1;
+	if (finish)
+		return 0;
+	Timer timer{timeout};
+	timer.start();
 	while (!conn.hasError()) {
 		if (m_NetProvider.wait(timer.timeLeft()) != 0) {
 			conn.setError(std::string("Failed to poll: ") +
 				      strerror(errno), errno);
 			return -1;
 		}
-		bool finish = false;
 		if (connectionCheckCountResponsesReadiness(conn, expected_future_count, &finish) != 0)
 			return -1;
 		if (finish)
