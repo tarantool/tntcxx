@@ -100,6 +100,23 @@ private:
 	 */
 	int connectionDecodeResponses(Connection<BUFFER, NetProvider> &conn, int req_sync = -1,
 				      Response<BUFFER> *result = nullptr);
+	/**
+	 * A helper to check the readiness of requested responses.
+	 * Decodes new responses from the connection and checks the readiness of the requested responses. `finish`
+	 * indicates that all the requested responses are ready, and `last_not_ready` is reused between consecutive
+	 * calls to this function.
+	 * Returns -1 in case of any error, 0 on success.
+	 */
+	int connectionCheckResponsesReadiness(Connection<BUFFER, NetProvider> &conn, const std::vector<rid_t> &futures,
+					      size_t *last_not_ready, bool *finish);
+	/**
+	 * A helper to check the readiness of at least `future_count` responses. Decodes new responses from the
+	 * connection and checks that at least `future_count` responses are ready. `finish` indicates that at least
+	 * `future_count` responses are ready.
+	 * Returns -1 in case of any error, 0 on success.
+	 */
+	int connectionCheckCountResponsesReadiness(Connection<BUFFER, NetProvider> &conn, size_t future_count,
+						   bool *finish);
 
 private:
 	NetProvider m_NetProvider;
@@ -205,6 +222,36 @@ Connector<BUFFER, NetProvider>::connectionDecodeResponses(Connection<BUFFER, Net
 	return rc;
 }
 
+template <class BUFFER, class NetProvider>
+int
+Connector<BUFFER, NetProvider>::connectionCheckResponsesReadiness(Connection<BUFFER, NetProvider> &conn,
+								  const std::vector<rid_t> &futures,
+								  size_t *last_not_ready, bool *finish)
+{
+	if (conn.hasError() || connectionDecodeResponses(conn) != 0)
+		return -1;
+	*finish = true;
+	for (size_t i = *last_not_ready; i < futures.size(); ++i) {
+		if (!conn.futureIsReady(futures[i])) {
+			*finish = false;
+			*last_not_ready = i;
+			break;
+		}
+	}
+	return 0;
+}
+
+template <class BUFFER, class NetProvider>
+int
+Connector<BUFFER, NetProvider>::connectionCheckCountResponsesReadiness(Connection<BUFFER, NetProvider> &conn,
+								       size_t future_count, bool *finish)
+{
+	if (conn.hasError() || connectionDecodeResponses(conn) != 0)
+		return -1;
+	*finish = conn.getFutureCount() >= future_count;
+	return 0;
+}
+
 template<class BUFFER, class NetProvider>
 int
 Connector<BUFFER, NetProvider>::wait(Connection<BUFFER, NetProvider> &conn,
@@ -271,16 +318,9 @@ Connector<BUFFER, NetProvider>::waitAll(Connection<BUFFER, NetProvider> &conn,
 				      strerror(errno), errno);
 			return -1;
 		}
-		if (connectionDecodeResponses(conn) != 0)
+		bool finish = false;
+		if (connectionCheckResponsesReadiness(conn, futures, &last_not_ready, &finish) != 0)
 			return -1;
-		bool finish = true;
-		for (size_t i = last_not_ready; i < futures.size(); ++i) {
-			if (!conn.futureIsReady(futures[i])) {
-				finish = false;
-				last_not_ready = i;
-				break;
-			}
-		}
 		if (finish)
 			return 0;
 		if (timer.isExpired())
@@ -324,15 +364,17 @@ Connector<BUFFER, NetProvider>::waitCount(Connection<BUFFER, NetProvider> &conn,
 	Timer timer{timeout};
 	timer.start();
 	size_t ready_futures = conn.getFutureCount();
+	size_t expected_future_count = ready_futures + future_count;
 	while (!conn.hasError()) {
 		if (m_NetProvider.wait(timer.timeLeft()) != 0) {
 			conn.setError(std::string("Failed to poll: ") +
 				      strerror(errno), errno);
 			return -1;
 		}
-		if (connectionDecodeResponses(conn) != 0)
+		bool finish = false;
+		if (connectionCheckCountResponsesReadiness(conn, expected_future_count, &finish) != 0)
 			return -1;
-		if ((conn.getFutureCount() - ready_futures) >= future_count)
+		if (finish)
 			return 0;
 		if (timer.isExpired())
 			break;
