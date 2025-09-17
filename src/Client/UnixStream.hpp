@@ -68,9 +68,8 @@ public:
 
 protected:
 	/** Log helpers. */
-	template <class ...MSG>
-	void log_wise(LogLevel level, const char *file, int line,
-		      const char *msg, MSG &&...more);
+	template <class... MSG>
+	void log_wise(tnt::LogLevel level, const char *file, int line, const char *msg, MSG &&...more);
 	template <class ...MSG>
 	int die(const char *file, int line,
 		const char *msg, MSG &&...more);
@@ -109,8 +108,7 @@ private:
 
 template <class... MSG>
 void
-UnixStream::log_wise(LogLevel level, const char *file, int line,
-		     const char *msg, MSG&& ...more)
+UnixStream::log_wise(tnt::LogLevel level, const char *file, int line, const char *msg, MSG &&...more)
 {
 	if (sizeof...(MSG) == 0 && fd < 0)
 		log(level, file, line, msg);
@@ -127,7 +125,7 @@ template <class ...MSG>
 int
 UnixStream::die(const char *file, int line, const char *msg, MSG&& ...more)
 {
-	log_wise(ERROR, file, line, msg, std::forward<MSG>(more)...);
+	log_wise(tnt::ERROR, file, line, msg, std::forward<MSG>(more)...);
 	set_status(SS_DEAD);
 	return -1;
 }
@@ -137,7 +135,7 @@ int
 UnixStream::tell(StreamStatus st, const char *file, int line,
 		 const char *msg, MSG&& ...more)
 {
-	log_wise(INFO, file, line, msg, std::forward<MSG>(more)...);
+	log_wise(tnt::INFO, file, line, msg, std::forward<MSG>(more)...);
 	set_status(st);
 	return 0;
 }

@@ -86,7 +86,7 @@ EpollNetProvider<BUFFER, Stream>::EpollNetProvider(Connector_t &connector) :
 {
 	m_EpollFd = epoll_create1(EPOLL_CLOEXEC);
 	if (m_EpollFd == -1) {
-		LOG_ERROR("Failed to initialize epoll: ", strerror(errno));
+		TNT_LOG_ERROR("Failed to initialize epoll: ", strerror(errno));
 		abort();
 	}
 }
@@ -109,9 +109,7 @@ EpollNetProvider<BUFFER, Stream>::registerEpoll(Conn_t &conn)
 	event.data.ptr = conn.getImpl();
 	if (epoll_ctl(m_EpollFd, EPOLL_CTL_ADD, conn.get_strm().get_fd(),
 		      &event) != 0) {
-		LOG_ERROR("Failed to add socket to epoll: "
-			  "epoll_ctl() returned with errno: ",
-			  strerror(errno));
+		TNT_LOG_ERROR("Failed to add socket to epoll: epoll_ctl() returned with errno: ", strerror(errno));
 		abort();
 	}
 }
@@ -124,9 +122,7 @@ EpollNetProvider<BUFFER, Stream>::setPollSetting(Conn_t &conn, int setting) {
 	event.data.ptr = conn.getImpl();
 	if (epoll_ctl(m_EpollFd, EPOLL_CTL_MOD, conn.get_strm().get_fd(),
 		      &event) != 0) {
-		LOG_ERROR("Failed to change epoll mode: "
-			  "epoll_ctl() returned with errno: ",
-			  strerror(errno));
+		TNT_LOG_ERROR("Failed to change epoll mode: epoll_ctl() returned with errno: ", strerror(errno));
 		abort();
 	}
 }
@@ -142,7 +138,7 @@ EpollNetProvider<BUFFER, Stream>::connect(Conn_t &conn,
 			      opts.address);
 		return -1;
 	}
-	LOG_DEBUG("Connected to ", opts.address, ", socket is ", strm.get_fd());
+	TNT_LOG_DEBUG("Connected to ", opts.address, ", socket is ", strm.get_fd());
 
 	registerEpoll(conn);
 	return 0;
@@ -168,8 +164,7 @@ EpollNetProvider<BUFFER, Stream>::close(Stream_t& strm)
 			struct sockaddr_un *sa_un = (struct sockaddr_un *) &sa;
 			snprintf(addr, 120, "%s", sa_un->sun_path);
 		}
-		LOG_DEBUG("Closed connection to socket ", was_fd,
-			  " corresponding to address ", addr);
+		TNT_LOG_DEBUG("Closed connection to socket ", was_fd, " corresponding to address ", addr);
 	}
 #endif
 	/*
@@ -209,12 +204,12 @@ EpollNetProvider<BUFFER, Stream>::recv(Conn_t &conn)
 		if ((size_t) rcvd < Iproto::GREETING_SIZE)
 			return 0;
 		/* Receive and decode greetings. */
-		LOG_DEBUG("Greetings are received, read bytes ", rcvd);
+		TNT_LOG_DEBUG("Greetings are received, read bytes ", rcvd);
 		if (decodeGreeting(conn) != 0) {
 			conn.setError("Failed to decode greetings");
 			return -1;
 		}
-		LOG_DEBUG("Greetings are decoded");
+		TNT_LOG_DEBUG("Greetings are decoded");
 		rcvd -= Iproto::GREETING_SIZE;
 		if (conn.getImpl()->is_auth_required) {
 			// Finalize auth request in buffer.
@@ -261,7 +256,7 @@ EpollNetProvider<BUFFER, Stream>::wait(int timeout)
 	assert(timeout >= -1);
 	if (timeout == -1)
 		timeout = TIMEOUT_INFINITY;
-	LOG_DEBUG("Network engine wait for ", timeout, " milliseconds");
+	TNT_LOG_DEBUG("Network engine wait for ", timeout, " milliseconds");
 	/* Send pending requests. */
 	for (auto conn = m_Connector.m_ReadyToSend.begin();
 	     conn != m_Connector.m_ReadyToSend.end();) {
@@ -276,15 +271,14 @@ EpollNetProvider<BUFFER, Stream>::wait(int timeout)
 	if (event_cnt < 0) {
 		//Poll error doesn't belong to any connection so just global
 		//log it.
-		LOG_ERROR("Poll failed: ", strerror(errno));
+		TNT_LOG_ERROR("Poll failed: ", strerror(errno));
 		return -1;
 	}
 	for (int i = 0; i < event_cnt; ++i) {
 		Conn_t conn((typename Conn_t::Impl_t *)events[i].data.ptr);
 		if ((events[i].events & EPOLLIN) != 0) {
-			LOG_DEBUG("Registered poll event ", i, ": ",
-				  conn.get_strm().get_fd(),
-				  " socket is ready to read");
+			TNT_LOG_DEBUG("Registered poll event ", i, ": ", conn.get_strm().get_fd(),
+				      " socket is ready to read");
 			if (conn.get_strm().has_status(SS_NEED_READ_EVENT_FOR_WRITE)) {
 				int rc = send(conn);
 				if (rc < 0)
@@ -302,9 +296,8 @@ EpollNetProvider<BUFFER, Stream>::wait(int timeout)
 		}
 
 		if ((events[i].events & EPOLLOUT) != 0) {
-			LOG_DEBUG("Registered poll event ", i, ": ",
-				  conn.get_strm().get_fd(),
-				  " socket is ready to write");
+			TNT_LOG_DEBUG("Registered poll event ", i, ": ", conn.get_strm().get_fd(),
+				      " socket is ready to write");
 			if (conn.get_strm().has_status(SS_NEED_WRITE_EVENT_FOR_READ)) {
 				int rc = recv(conn);
 				if (rc < 0)
