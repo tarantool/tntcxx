@@ -36,6 +36,8 @@
 #include <sstream>
 #include <string_view>
 
+namespace tnt {
+
 enum LogLevel {
 	DEBUG = 0,
 	INFO = 1,
@@ -124,7 +126,9 @@ log(LogLevel level, const char *file, int line, ARGS&& ...args)
 	gLogger.log(fd, level, file, line, std::forward<ARGS>(args)...);
 }
 
-#define LOG_DEBUG(...) log(DEBUG, __FILE__, __LINE__,  __VA_ARGS__)
-#define LOG_INFO(...) log(INFO, __FILE__, __LINE__,  __VA_ARGS__)
-#define LOG_WARNING(...) log(WARNING, __FILE__, __LINE__, __VA_ARGS__)
-#define LOG_ERROR(...) log(ERROR, __FILE__, __LINE__, __VA_ARGS__)
+} /* namespace tnt */
+
+#define TNT_LOG_DEBUG(...) tnt::log(tnt::DEBUG, __FILE__, __LINE__, __VA_ARGS__)
+#define TNT_LOG_INFO(...) tnt::log(tnt::INFO, __FILE__, __LINE__, __VA_ARGS__)
+#define TNT_LOG_WARNING(...) tnt::log(tnt::WARNING, __FILE__, __LINE__, __VA_ARGS__)
+#define TNT_LOG_ERROR(...) tnt::log(tnt::ERROR, __FILE__, __LINE__, __VA_ARGS__)

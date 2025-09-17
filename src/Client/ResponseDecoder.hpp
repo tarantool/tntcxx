@@ -84,11 +84,11 @@ ResponseDecoder<BUFFER>::decodeResponse(Response<BUFFER> &response)
 {
 	/* Decode header and body separately to get more detailed error. */
 	if (!mpp::decode(it, response.header)) {
-		LOG_ERROR("Failed to decode header");
+		TNT_LOG_ERROR("Failed to decode header");
 		return -1;
 	}
 	if (!mpp::decode(it, response.body)) {
-		LOG_ERROR("Failed to decode body");
+		TNT_LOG_ERROR("Failed to decode body");
 		return -1;
 	}
 	return 0;

@@ -523,7 +523,7 @@ static void
 inputBufGC(Connection<BUFFER, NetProvider> &conn)
 {
 	if ((conn.gc_step++ % Connection<BUFFER, NetProvider>::GC_STEP_CNT) == 0) {
-		LOG_DEBUG("Flushed input buffer of the connection %p", &conn);
+		TNT_LOG_DEBUG("Flushed input buffer of the connection %p", &conn);
 		conn.impl->inBuf.flush();
 	}
 }
@@ -540,7 +540,7 @@ processResponse(Connection<BUFFER, NetProvider> &conn, int req_sync, Response<BU
 	Response<BUFFER> response;
 	response.size = conn.impl->dec.decodeResponseSize();
 	if (response.size < 0) {
-		LOG_ERROR("Failed to decode response size");
+		TNT_LOG_ERROR("Failed to decode response size");
 		//In case of corrupted response size all other data in the buffer
 		//is likely to be decoded in the wrong way (since we don't
 		// know how much bytes should be skipped). So let's simply
@@ -560,8 +560,8 @@ processResponse(Connection<BUFFER, NetProvider> &conn, int req_sync, Response<BU
 		conn.impl->endDecoded += response.size;
 		return DECODE_ERR;
 	}
-	LOG_DEBUG("Header: sync=", response.header.sync, ", code=",
-		  response.header.code, ", schema=", response.header.schema_id);
+	TNT_LOG_DEBUG("Header: sync=", response.header.sync, ", code=", response.header.code,
+		      ", schema=", response.header.schema_id);
 	if (result != nullptr && response.header.sync == req_sync) {
 		*result = std::move(response);
 	} else {
@@ -586,7 +586,7 @@ decodeGreeting(Connection<BUFFER, NetProvider> &conn)
 			  conn.impl->greeting) != 0)
 		return -1;
 	conn.impl->is_greeting_received = true;
-	LOG_DEBUG("Version: ", conn.impl->greeting.version_id);
+	TNT_LOG_DEBUG("Version: ", conn.impl->greeting.version_id);
 
 #ifndef NDEBUG
 	//print salt in hex format.
@@ -598,7 +598,7 @@ decodeGreeting(Connection<BUFFER, NetProvider> &conn)
 		hex_salt[i * 2 + 1] = hex[u % 16];
 	}
 	hex_salt[conn.impl->greeting.salt_size * 2] = 0;
-	LOG_DEBUG("Salt: ", hex_salt);
+	TNT_LOG_DEBUG("Salt: ", hex_salt);
 #endif
 	return 0;
 }

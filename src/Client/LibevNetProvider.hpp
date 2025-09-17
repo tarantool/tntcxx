@@ -142,12 +142,12 @@ connectionReceive(Connection<BUFFER,  LibevNetProvider<BUFFER, Stream>> &conn)
 		if ((size_t) rcvd < Iproto::GREETING_SIZE)
 			return 0;
 		/* Receive and decode greetings. */
-		LOG_DEBUG("Greetings are received, read bytes ", rcvd);
+		TNT_LOG_DEBUG("Greetings are received, read bytes ", rcvd);
 		if (decodeGreeting(conn) != 0) {
 			conn.setError("Failed to decode greetings");
 			return -1;
 		}
-		LOG_DEBUG("Greetings are decoded");
+		TNT_LOG_DEBUG("Greetings are decoded");
 		rcvd -= Iproto::GREETING_SIZE;
 		if (conn.getImpl()->is_auth_required) {
 			// Finalize auth request in buffer.
@@ -247,7 +247,7 @@ send_cb(struct ev_loop *loop, struct ev_io *watcher, int /* revents */)
 	}
 	if (rc > 0) {
 		/* Send is not complete, setting the write watcher. */
-		LOG_DEBUG("Send is not complete, setting the write watcher");
+		TNT_LOG_DEBUG("Send is not complete, setting the write watcher");
 		if (conn.get_strm().has_status(SS_NEED_WRITE_EVENT_FOR_WRITE))
 			if (!ev_is_active(&waitWatcher->out))
 				ev_io_start(loop, &waitWatcher->out);
@@ -302,7 +302,7 @@ LibevNetProvider<BUFFER, Stream>::registerWatchers(Conn_t &conn, int fd)
 		new (std::nothrow) WaitWatcher<BUFFER, Stream>(&m_Connector,
 								conn, &m_TimeoutWatcher);
 	if (watcher == nullptr) {
-		LOG_ERROR("Failed to allocate memory for WaitWatcher");
+		TNT_LOG_ERROR("Failed to allocate memory for WaitWatcher");
 		abort();
 	}
 
@@ -325,7 +325,7 @@ LibevNetProvider<BUFFER, Stream>::connect(Conn_t &conn,
 			      opts.address);
 		return -1;
 	}
-	LOG_DEBUG("Connected to ", opts.address, ", socket is ", strm.get_fd());
+	TNT_LOG_DEBUG("Connected to ", opts.address, ", socket is ", strm.get_fd());
 
 	registerWatchers(conn, strm.get_fd());
 	return 0;
@@ -354,7 +354,7 @@ void
 LibevNetProvider<BUFFER, Stream>::timeout_cb(EV_P_ ev_timer *w, int /* revents */)
 {
 	(void) w;
-	LOG_DEBUG("Libev timed out!");
+	TNT_LOG_DEBUG("Libev timed out!");
 	/* Stop external loop */
 	ev_break(EV_A_ EVBREAK_ONE);
 }
