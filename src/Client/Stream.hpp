@@ -121,7 +121,12 @@ struct ConnectOptions {
 class Stream {
 public:
 	/* Disabled copy, enabled move. */
-	Stream() noexcept = default;
+	/*
+	 * Sic: toolchain of RedHat 7 doesn't have `noexcept` qualifier for `std::string`
+	 * default constructor despite standard demands it. That's why `= default` syntax
+	 * wouldn't work there, so let's define default constructor explicitly.
+	 */
+	Stream() noexcept {}
 	~Stream() noexcept = default;
 	Stream(const Stream &) = delete;
 	Stream &operator=(const Stream &) = delete;
