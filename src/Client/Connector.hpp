@@ -146,8 +146,7 @@ Connector<BUFFER, NetProvider>::connect(Connection<BUFFER, NetProvider> &conn,
 	//Make sure that connection is not yet established.
 	assert(conn.get_strm().has_status(SS_DEAD));
 	if (m_NetProvider.connect(conn, opts) != 0) {
-		LOG_ERROR("Failed to connect to ",
-			  opts.address, ':', opts.service);
+		TNT_LOG_ERROR("Failed to connect to ", opts.address, ':', opts.service);
 		return -1;
 	}
 	conn.getImpl()->is_greeting_received = false;
@@ -156,8 +155,7 @@ Connector<BUFFER, NetProvider>::connect(Connection<BUFFER, NetProvider> &conn,
 		// Encode auth request to reserve space in buffer.
 		conn.prepare_auth(opts.user, opts.passwd);
 	}
-	LOG_DEBUG("Connection to ", opts.address, ':', opts.service,
-		  " has been established");
+	TNT_LOG_DEBUG("Connection to ", opts.address, ':', opts.service, " has been established");
 	return 0;
 }
 
@@ -258,7 +256,7 @@ Connector<BUFFER, NetProvider>::wait(Connection<BUFFER, NetProvider> &conn,
 				     rid_t future, int timeout,
 				     Response<BUFFER> *result)
 {
-	LOG_DEBUG("Waiting for the future ", future, " with timeout ", timeout);
+	TNT_LOG_DEBUG("Waiting for the future ", future, " with timeout ", timeout);
 	Timer timer{timeout};
 	timer.start();
 	static constexpr int INVALID_SYNC = -1;
@@ -269,7 +267,7 @@ Connector<BUFFER, NetProvider>::wait(Connection<BUFFER, NetProvider> &conn,
 		return -1;
 	if (result != NULL && result->header.sync != INVALID_SYNC) {
 		assert(result->header.sync == req_sync);
-		LOG_DEBUG("Future ", future, " is ready and decoded");
+		TNT_LOG_DEBUG("Future ", future, " is ready and decoded");
 		return 0;
 	}
 	while (!conn.hasError() && !conn.futureIsReady(future)) {
@@ -282,24 +280,23 @@ Connector<BUFFER, NetProvider>::wait(Connection<BUFFER, NetProvider> &conn,
 			return -1;
 		if (result != NULL && result->header.sync != INVALID_SYNC) {
 			assert(result->header.sync == req_sync);
-			LOG_DEBUG("Future ", future, " is ready and decoded");
+			TNT_LOG_DEBUG("Future ", future, " is ready and decoded");
 			return 0;
 		}
 		if (timer.isExpired())
 			break;
 	}
 	if (conn.hasError()) {
-		LOG_ERROR("Connection got an error: ", conn.getError().msg);
+		TNT_LOG_ERROR("Connection got an error: ", conn.getError().msg);
 		return -1;
 	}
 	if (! conn.futureIsReady(future)) {
-		LOG_DEBUG("Connection has been timed out: future ", future,
-			  " is not ready");
+		TNT_LOG_DEBUG("Connection has been timed out: future ", future, " is not ready");
 		return -1;
 	} else if (result != NULL) {
 		*result = std::move(conn.getResponse(future));
 	}
-	LOG_DEBUG("Feature ", future, " is ready and decoded");
+	TNT_LOG_DEBUG("Feature ", future, " is ready and decoded");
 	return 0;
 }
 
@@ -331,10 +328,10 @@ Connector<BUFFER, NetProvider>::waitAll(Connection<BUFFER, NetProvider> &conn,
 			break;
 	}
 	if (conn.hasError()) {
-		LOG_ERROR("Connection got an error: ", conn.getError().msg);
+		TNT_LOG_ERROR("Connection got an error: ", conn.getError().msg);
 		return -1;
 	}
-	LOG_DEBUG("Connection has been timed out: not all futures are ready");
+	TNT_LOG_DEBUG("Connection has been timed out: not all futures are ready");
 	return -1;
 }
 
@@ -346,14 +343,14 @@ Connector<BUFFER, NetProvider>::waitAny(int timeout)
 	timer.start();
 	while (m_ReadyToDecode.empty()) {
 		if (m_NetProvider.wait(timer.timeLeft()) != 0) {
-			LOG_ERROR("Failed to poll connections: ", strerror(errno));
+			TNT_LOG_ERROR("Failed to poll connections: ", strerror(errno));
 			return std::nullopt;
 		}
 		if (timer.isExpired())
 			break;
 	}
 	if (m_ReadyToDecode.empty()) {
-		LOG_DEBUG("wait() has been timed out! No responses are received");
+		TNT_LOG_DEBUG("wait() has been timed out! No responses are received");
 		return std::nullopt;
 	}
 	Connection<BUFFER, NetProvider> conn = *m_ReadyToDecode.begin();
@@ -391,11 +388,10 @@ Connector<BUFFER, NetProvider>::waitCount(Connection<BUFFER, NetProvider> &conn,
 			break;
 	}
 	if (conn.hasError()) {
-		LOG_ERROR("Connection got an error: ", conn.getError().msg);
+		TNT_LOG_ERROR("Connection got an error: ", conn.getError().msg);
 		return -1;
 	}
-	LOG_DEBUG("Connection has been timed out: only ",
-		  conn.getFutureCount() - ready_futures, " are ready");
+	TNT_LOG_DEBUG("Connection has been timed out: only ", conn.getFutureCount() - ready_futures, " are ready");
 	return -1;
 }
 
