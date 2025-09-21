@@ -182,6 +182,8 @@ trivial(Connector<BUFFER, NetProvider> &client)
 	TEST_CASE("Connect timeout");
 	rc = test_connect(client, conn, "8.8.8.8", port);
 	fail_unless(rc != 0);
+	TEST_CASE("Close of non-established connection (gh-142)");
+	client.close(conn);
 }
 
 /** Single connection, separate/sequence pings, no errors */
@@ -234,6 +236,9 @@ single_conn_ping(Connector<BUFFER, NetProvider> &client)
 		fail_unless(response->header.code == 0);
 		fail_unless(response->body.error_stack == std::nullopt);
 	}
+	client.close(conn);
+
+	TEST_CASE("Double close of connection (gh-142)");
 	client.close(conn);
 }
 
@@ -1082,6 +1087,10 @@ test_sigpipe(void)
 	fail_unless(saved_errno == EPIPE);
 #endif
 	fail_if(conn.futureIsReady(f));
+
+	TEST_CASE("Close of connection with error (gh-142)");
+	fail_unless(conn.hasError());
+	client.close(conn);
 }
 
 /** Single connection, wait response from closed connection. */
