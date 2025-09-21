@@ -53,21 +53,22 @@ class LibevNetProvider;
 template<class BUFFER, class Stream>
 struct WaitWatcher {
 	WaitWatcher(Connector<BUFFER, LibevNetProvider<BUFFER, Stream>> *client,
-		    Connection<BUFFER, LibevNetProvider<BUFFER, Stream>> conn,
-		    struct ev_timer *t);
+		    ConnectionImpl<BUFFER, LibevNetProvider<BUFFER, Stream>> *conn, struct ev_timer *t);
 
 	struct ev_io in;
 	struct ev_io out;
 	Connector<BUFFER, LibevNetProvider<BUFFER, Stream>> *connector;
-	Connection<BUFFER, LibevNetProvider<BUFFER, Stream>> connection;
+	ConnectionImpl<BUFFER, LibevNetProvider<BUFFER, Stream>> *connection;
 	struct ev_timer *timer;
 };
 
-template<class BUFFER, class Stream>
+template <class BUFFER, class Stream>
 WaitWatcher<BUFFER, Stream>::WaitWatcher(Connector<BUFFER, LibevNetProvider<BUFFER, Stream>> *client,
-					  Connection<BUFFER, LibevNetProvider<BUFFER, Stream>> conn,
-					  struct ev_timer *t) : connector(client), connection(conn),
-							        timer(t)
+					 ConnectionImpl<BUFFER, LibevNetProvider<BUFFER, Stream>> *conn,
+					 struct ev_timer *t)
+    : connector(client)
+    , connection(conn)
+    , timer(t)
 {
 	in.data = this;
 	out.data = this;
@@ -86,11 +87,11 @@ public:
 	using Buffer_t = BUFFER;
 	using Stream_t = Stream;
 	using NetProvider_t = LibevNetProvider<BUFFER, Stream>;
-	using Conn_t = Connection<BUFFER, NetProvider_t >;
+	using ConnImpl_t = ConnectionImpl<BUFFER, NetProvider_t>;
 	using Connector_t = Connector<BUFFER, NetProvider_t >;
 
 	LibevNetProvider(Connector_t &connector, struct ev_loop *loop = nullptr);
-	int connect(Conn_t &conn, const ConnectOptions &opts);
+	int connect(ConnImpl_t *conn, const ConnectOptions &opts);
 	void close(Stream_t &strm);
 	int wait(int timeout);
 
@@ -99,7 +100,7 @@ public:
 private:
 	static constexpr float MILLISECONDS = 1000.f;
 
-	void registerWatchers(Conn_t &conn, int fd);
+	void registerWatchers(ConnImpl_t *conn, int fd);
 	void stopWatchers(WaitWatcher<BUFFER, Stream> *watcher);
 	/** Callback for libev timeout. */
 	static void timeout_cb(EV_P_ ev_timer *w, int revents);
@@ -120,39 +121,37 @@ LibevNetProvider<BUFFER, Stream>::stopWatchers(struct WaitWatcher<BUFFER, Stream
 	ev_io_stop(m_Loop, &watcher->out);
 }
 
-template<class BUFFER, class Stream>
+template <class BUFFER, class Stream>
 static inline int
-connectionReceive(Connection<BUFFER,  LibevNetProvider<BUFFER, Stream>> &conn)
+connectionReceive(ConnectionImpl<BUFFER, LibevNetProvider<BUFFER, Stream>> *conn)
 {
-	auto &buf = conn.getInBuf();
+	auto &buf = conn->inBuf;
 	auto itr = buf.template end<true>();
 	buf.write({CONN_READAHEAD});
 	struct iovec iov[IOVEC_MAX_SIZE];
 	size_t iov_cnt = buf.getIOV(itr, iov, IOVEC_MAX_SIZE);
 
-	ssize_t rcvd = conn.get_strm().recv(iov, iov_cnt);
+	ssize_t rcvd = conn->get_strm().recv(iov, iov_cnt);
 	hasNotRecvBytes(conn, CONN_READAHEAD - (rcvd < 0 ? 0 : rcvd));
 	if (rcvd < 0) {
-		conn.setError(std::string("Failed to receive response: ") +
-			       strerror(errno), errno);
+		conn->setError(std::string("Failed to receive response: ") + strerror(errno), errno);
 		return -1;
 	}
 
-	if (!conn.getImpl()->is_greeting_received) {
+	if (!conn->is_greeting_received) {
 		if ((size_t) rcvd < Iproto::GREETING_SIZE)
 			return 0;
 		/* Receive and decode greetings. */
 		TNT_LOG_DEBUG("Greetings are received, read bytes ", rcvd);
 		if (decodeGreeting(conn) != 0) {
-			conn.setError("Failed to decode greetings");
+			conn->setError("Failed to decode greetings");
 			return -1;
 		}
 		TNT_LOG_DEBUG("Greetings are decoded");
 		rcvd -= Iproto::GREETING_SIZE;
-		if (conn.getImpl()->is_auth_required) {
+		if (conn->is_auth_required) {
 			// Finalize auth request in buffer.
-			conn.commit_auth(conn.get_strm().get_opts().user,
-					 conn.get_strm().get_opts().passwd);
+			conn->commit_auth(conn->get_strm().get_opts().user, conn->get_strm().get_opts().passwd);
 		}
 	}
 
@@ -163,17 +162,16 @@ template<class BUFFER, class Stream>
 static void
 recv_cb(struct ev_loop *loop, struct ev_io *watcher, int /* revents */)
 {
-	using NetProvider_t = LibevNetProvider<BUFFER, Stream>;
 	using Connector_t = Connector<BUFFER, LibevNetProvider<BUFFER, Stream>>;
 
 	struct WaitWatcher<BUFFER, Stream> *waitWatcher =
 		reinterpret_cast<WaitWatcher<BUFFER, Stream> *>(watcher->data);
 	assert(&waitWatcher->in == watcher);
-	Connection<BUFFER, NetProvider_t> conn = waitWatcher->connection;
-	assert(waitWatcher->in.fd == conn.get_strm().get_fd());
+	auto *conn = waitWatcher->connection;
+	assert(waitWatcher->in.fd == conn->get_strm().get_fd());
 
-	if (conn.get_strm().has_status(SS_NEED_READ_EVENT_FOR_WRITE))
-		ev_feed_fd_event(loop, conn.get_strm().get_fd(), EV_WRITE);
+	if (conn->get_strm().has_status(SS_NEED_READ_EVENT_FOR_WRITE))
+		ev_feed_fd_event(loop, conn->get_strm().get_fd(), EV_WRITE);
 
 	timerDisable(loop, waitWatcher->timer);
 	int rc = connectionReceive(conn);
@@ -182,7 +180,7 @@ recv_cb(struct ev_loop *loop, struct ev_io *watcher, int /* revents */)
 		return;
 	if (rc > 0) {
 		/* Recv is not complete, setting the write watcher if needed. */
-		if (conn.get_strm().has_status(SS_NEED_WRITE_EVENT_FOR_READ))
+		if (conn->get_strm().has_status(SS_NEED_WRITE_EVENT_FOR_READ))
 			if (!ev_is_active(&waitWatcher->out))
 				ev_io_start(loop, &waitWatcher->out);
 		return;
@@ -191,28 +189,26 @@ recv_cb(struct ev_loop *loop, struct ev_io *watcher, int /* revents */)
 		connector->readyToDecode(conn);
 }
 
-template<class BUFFER, class Stream>
+template <class BUFFER, class Stream>
 static inline int
-connectionSend(Connection<BUFFER,  LibevNetProvider<BUFFER, Stream>> &conn)
+connectionSend(ConnectionImpl<BUFFER, LibevNetProvider<BUFFER, Stream>> *conn)
 {
-	if (conn.getImpl()->is_auth_required &&
-	    !conn.getImpl()->is_greeting_received) {
+	if (conn->is_auth_required && !conn->is_greeting_received) {
 		// Need to receive greeting first.
 		return 0;
 	}
 	while (hasDataToSend(conn)) {
 		struct iovec iov[IOVEC_MAX_SIZE];
-		auto &buf = conn.getOutBuf();
+		auto &buf = conn->getOutBuf();
 		size_t iov_cnt = buf.getIOV(buf.template begin<true>(),
 					    iov, IOVEC_MAX_SIZE);
 
-		ssize_t sent = conn.get_strm().send(iov, iov_cnt);
+		ssize_t sent = conn->get_strm().send(iov, iov_cnt);
 		if (sent < 0) {
-			conn.setError(std::string("Failed to send request: ") +
-				      strerror(errno), errno);
+			conn->setError(std::string("Failed to send request: ") + strerror(errno), errno);
 			return -1;
 		} else if (sent == 0) {
-			assert(conn.get_strm().has_status(SS_NEED_EVENT_FOR_WRITE));
+			assert(conn->get_strm().has_status(SS_NEED_EVENT_FOR_WRITE));
 			return 1;
 		} else {
 			hasSentBytes(conn, sent);
@@ -226,18 +222,17 @@ template<class BUFFER, class Stream>
 static void
 send_cb(struct ev_loop *loop, struct ev_io *watcher, int /* revents */)
 {
-	using NetProvider_t = LibevNetProvider<BUFFER, Stream>;
 	using Connector_t = Connector<BUFFER, LibevNetProvider<BUFFER, Stream>>;
 
 	struct WaitWatcher<BUFFER, Stream> *waitWatcher =
 		reinterpret_cast<struct WaitWatcher<BUFFER, Stream> *>(watcher->data);
 	assert(&waitWatcher->out == watcher);
 	Connector_t *connector = waitWatcher->connector;
-	Connection<BUFFER, NetProvider_t> &conn = waitWatcher->connection;
-	assert(watcher->fd == conn.get_strm().get_fd());
+	auto *conn = waitWatcher->connection;
+	assert(watcher->fd == conn->get_strm().get_fd());
 
-	if (conn.get_strm().has_status(SS_NEED_WRITE_EVENT_FOR_READ))
-		ev_feed_fd_event(loop, conn.get_strm().get_fd(), EV_READ);
+	if (conn->get_strm().has_status(SS_NEED_WRITE_EVENT_FOR_READ))
+		ev_feed_fd_event(loop, conn->get_strm().get_fd(), EV_READ);
 
 	timerDisable(loop, waitWatcher->timer);
 	int rc = connectionSend(conn);
@@ -248,7 +243,7 @@ send_cb(struct ev_loop *loop, struct ev_io *watcher, int /* revents */)
 	if (rc > 0) {
 		/* Send is not complete, setting the write watcher. */
 		TNT_LOG_DEBUG("Send is not complete, setting the write watcher");
-		if (conn.get_strm().has_status(SS_NEED_WRITE_EVENT_FOR_WRITE))
+		if (conn->get_strm().has_status(SS_NEED_WRITE_EVENT_FOR_WRITE))
 			if (!ev_is_active(&waitWatcher->out))
 				ev_io_start(loop, &waitWatcher->out);
 		return;
@@ -283,7 +278,7 @@ LibevNetProvider<BUFFER, Stream>::~LibevNetProvider()
 	for (auto w = m_Watchers.begin(); w != m_Watchers.end();) {
 		WaitWatcher<BUFFER, Stream> *to_delete = w->second;
 		stopWatchers(to_delete);
-		assert(to_delete->connection.get_strm().get_fd() == w->first);
+		assert(to_delete->connection->get_strm().get_fd() == w->first);
 		w = m_Watchers.erase(w);
 		delete to_delete;
 	}
@@ -294,9 +289,9 @@ LibevNetProvider<BUFFER, Stream>::~LibevNetProvider()
 	m_Loop = nullptr;
 }
 
-template<class BUFFER, class Stream>
+template <class BUFFER, class Stream>
 void
-LibevNetProvider<BUFFER, Stream>::registerWatchers(Conn_t &conn, int fd)
+LibevNetProvider<BUFFER, Stream>::registerWatchers(ConnImpl_t *conn, int fd)
 {
 	WaitWatcher<BUFFER, Stream> *watcher =
 		new (std::nothrow) WaitWatcher<BUFFER, Stream>(&m_Connector,
@@ -314,15 +309,13 @@ LibevNetProvider<BUFFER, Stream>::registerWatchers(Conn_t &conn, int fd)
 	ev_io_start(m_Loop ,&watcher->out);
 }
 
-template<class BUFFER, class Stream>
+template <class BUFFER, class Stream>
 int
-LibevNetProvider<BUFFER, Stream>::connect(Conn_t &conn,
-					  const ConnectOptions &opts)
+LibevNetProvider<BUFFER, Stream>::connect(ConnImpl_t *conn, const ConnectOptions &opts)
 {
-	auto &strm = conn.get_strm();
+	auto &strm = conn->get_strm();
 	if (strm.connect(opts) < 0) {
-		conn.setError("Failed to establish connection to " +
-			      opts.address);
+		conn->setError("Failed to establish connection to " + opts.address);
 		return -1;
 	}
 	TNT_LOG_DEBUG("Connected to ", opts.address, ", socket is ", strm.get_fd());
@@ -371,7 +364,7 @@ LibevNetProvider<BUFFER, Stream>::wait(int timeout)
 	/* Queue pending connections to be send. */
 	for (auto conn = m_Connector.m_ReadyToSend.begin();
 	     conn != m_Connector.m_ReadyToSend.end();) {
-		auto w = m_Watchers.find(conn->get_strm().get_fd());
+		auto w = m_Watchers.find((*conn)->get_strm().get_fd());
 		if (w != m_Watchers.end()) {
 			if (!ev_is_active(&w->second->out))
 				ev_feed_event(m_Loop, &w->second->out, EV_WRITE);

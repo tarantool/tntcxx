@@ -261,6 +261,23 @@ auto_close(Connector<BUFFER, NetProvider> &client)
 		std::optional<Response<Buf_t>> response = conn.getResponse(f);
 		fail_unless(response != std::nullopt);
 	}
+
+	TEST_CASE("Waiting after connection is automatically closed (gh-140)");
+	{
+		Connection<Buf_t, NetProvider> conn(client);
+		fail_unless(test_connect(client, conn, localhost, port) == 0);
+		rid_t f = conn.ping();
+		fail_unless(!conn.futureIsReady(f));
+	}
+	fail_unless(client.waitAny() == std::nullopt);
+	{
+		Connection<Buf_t, NetProvider> conn(client);
+		fail_unless(test_connect(client, conn, localhost, port) == 0);
+		rid_t f = conn.ping();
+		fail_unless(!conn.futureIsReady(f));
+		client.wait(conn, f, 0);
+	}
+	fail_unless(client.waitAny() == std::nullopt);
 }
 
 /** Several connection, separate/sequence pings, no errors */
