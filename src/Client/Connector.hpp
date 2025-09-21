@@ -182,14 +182,15 @@ Connector<BUFFER, NetProvider>::close(Connection<BUFFER, NetProvider> &conn)
 	return close(conn.getImpl());
 }
 
-template<class BUFFER, class NetProvider>
+template <class BUFFER, class NetProvider>
 void
 Connector<BUFFER, NetProvider>::close(ConnectionImpl<BUFFER, NetProvider> *conn)
 {
-	assert(!conn->get_strm().has_status(SS_DEAD));
-	m_NetProvider.close(conn->get_strm());
-	m_ReadyToSend.erase(conn);
-	m_ReadyToDecode.erase(conn);
+	if (conn->get_strm().is_open()) {
+		m_NetProvider.close(conn->get_strm());
+		m_ReadyToSend.erase(conn);
+		m_ReadyToDecode.erase(conn);
+	}
 }
 
 template <class BUFFER, class NetProvider>

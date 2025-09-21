@@ -66,6 +66,9 @@ public:
 	/** Get internal file descriptor of the socket. */
 	int get_fd() const { return fd; }
 
+	/** Check whether the socket is open. */
+	bool is_open() const { return fd != -1; }
+
 protected:
 	/** Log helpers. */
 	template <class... MSG>
