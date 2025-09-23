@@ -129,6 +129,10 @@ private:
 	 * and `connectionDecodeResponses`.
 	 */
 	std::set<ConnectionImpl<BUFFER, NetProvider> *> m_ReadyToDecode;
+	/**
+	 * Set of active connections owned by connector.
+	 */
+	std::set<ConnectionImpl<BUFFER, NetProvider> *> m_Connections;
 };
 
 template<class BUFFER, class NetProvider>
@@ -159,6 +163,7 @@ Connector<BUFFER, NetProvider>::connect(Connection<BUFFER, NetProvider> &conn,
 		conn.getImpl()->prepare_auth(opts.user, opts.passwd);
 	}
 	TNT_LOG_DEBUG("Connection to ", opts.address, ':', opts.service, " has been established");
+	m_Connections.insert(conn.getImpl());
 	return 0;
 }
 
@@ -190,6 +195,7 @@ Connector<BUFFER, NetProvider>::close(ConnectionImpl<BUFFER, NetProvider> *conn)
 		m_NetProvider.close(conn->get_strm());
 		m_ReadyToSend.erase(conn);
 		m_ReadyToDecode.erase(conn);
+		m_Connections.erase(conn);
 	}
 }
 
@@ -353,9 +359,24 @@ template<class BUFFER, class NetProvider>
 std::optional<Connection<BUFFER, NetProvider>>
 Connector<BUFFER, NetProvider>::waitAny(int timeout)
 {
+	if (m_Connections.empty()) {
+		TNT_LOG_DEBUG("waitAny() called on connector without connections");
+		return std::nullopt;
+	}
 	Timer timer{timeout};
 	timer.start();
 	while (m_ReadyToDecode.empty()) {
+		bool has_alive_conn = false;
+		for (auto *conn : m_Connections) {
+			if (!conn->hasError()) {
+				has_alive_conn = true;
+				break;
+			}
+		}
+		if (!has_alive_conn) {
+			TNT_LOG_ERROR("All connections have an error");
+			return std::nullopt;
+		}
 		if (m_NetProvider.wait(timer.timeLeft()) != 0) {
 			TNT_LOG_ERROR("Failed to poll connections: ", strerror(errno));
 			return std::nullopt;
