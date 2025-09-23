@@ -363,6 +363,10 @@ Connector<BUFFER, NetProvider>::waitAny(int timeout)
 		TNT_LOG_DEBUG("waitAny() called on connector without connections");
 		return std::nullopt;
 	}
+	for (auto *conn : m_Connections) {
+		if (conn->getFutureCount() != 0)
+			return conn;
+	}
 	Timer timer{timeout};
 	timer.start();
 	while (m_ReadyToDecode.empty()) {
