@@ -1118,11 +1118,9 @@ test_dead_connection_wait(void)
 	fail_if(client.waitCount(conn, 1) == 0);
 	fail_if(conn.futureIsReady(f));
 
-	/* FIXME(gh-51) */
-#if 0
+	TEST_CASE("waitAny() correctly handles case when all connections have an error (gh-51");
 	fail_if(client.waitAny() != std::nullopt);
 	fail_if(conn.futureIsReady(f));
-#endif
 }
 
 /**
@@ -1451,6 +1449,9 @@ test_wait(Connector<BUFFER, NetProvider> &client)
 #endif /* __linux__ */
 
 	client.close(conn);
+
+	TEST_CASE("waitAny() correctly handles case when there are no connections (gh-51");
+	fail_if(client.waitAny() != std::nullopt);
 }
 
 int main()

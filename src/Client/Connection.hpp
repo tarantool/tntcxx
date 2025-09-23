@@ -83,6 +83,7 @@ public:
 	const typename NetProvider::Stream_t &get_strm() const { return strm; }
 
 	void setError(const std::string &msg, int errno_ = 0);
+	bool hasError() const;
 
 	BUFFER &getInBuf();
 	BUFFER &getOutBuf();
@@ -151,6 +152,13 @@ void
 ConnectionImpl<BUFFER, NetProvider>::setError(const std::string &msg, int errno_)
 {
 	error.emplace(msg, errno_);
+}
+
+template <class BUFFER, class NetProvider>
+bool
+ConnectionImpl<BUFFER, NetProvider>::hasError() const
+{
+	return error.has_value();
 }
 
 template <class BUFFER, class NetProvider>
@@ -465,7 +473,7 @@ template<class BUFFER, class NetProvider>
 bool
 Connection<BUFFER, NetProvider>::hasError() const
 {
-	return impl->error.has_value();
+	return impl->hasError();
 }
 
 template<class BUFFER, class NetProvider>
