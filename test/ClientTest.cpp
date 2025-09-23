@@ -1405,13 +1405,10 @@ test_wait(Connector<BUFFER, NetProvider> &client)
 	/* FIXME(gh-143): test solely that we check future readiness before waiting. */
 	fail_unless(client.waitCount(conn, 0) == 0);
 	conn.getResponse(f);
-	/* FIXME(gh-132): waitAny does not check connections for ready futures. */
-#if 0
 	f = conn.ping();
 	fail_unless(client.wait(conn, f, WAIT_TIMEOUT) == 0);
-	fail_unless(client.waitAny(conn).has_value());
+	fail_unless(client.waitAny().has_value());
 	conn.getResponse(f);
-#endif
 
 #ifdef __linux__
 	TEST_CASE("wait methods internal wait failure (gh-121)");
