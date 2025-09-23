@@ -85,6 +85,8 @@ public:
 	void setError(const std::string &msg, int errno_ = 0);
 	bool hasError() const;
 
+	size_t getFutureCount() const;
+
 	BUFFER &getInBuf();
 	BUFFER &getOutBuf();
 
@@ -159,6 +161,13 @@ bool
 ConnectionImpl<BUFFER, NetProvider>::hasError() const
 {
 	return error.has_value();
+}
+
+template <class BUFFER, class NetProvider>
+size_t
+ConnectionImpl<BUFFER, NetProvider>::getFutureCount() const
+{
+	return futures.size();
 }
 
 template <class BUFFER, class NetProvider>
@@ -459,7 +468,7 @@ template<class BUFFER, class NetProvider>
 size_t
 Connection<BUFFER, NetProvider>::getFutureCount() const
 {
-	return impl->futures.size();
+	return impl->getFutureCount();
 }
 
 template<class BUFFER, class NetProvider>
