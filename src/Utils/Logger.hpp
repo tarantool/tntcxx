@@ -90,7 +90,11 @@ public:
 		std::stringstream strm;
 		strm << log_lvl << ": ";
 		(strm << ... << std::forward<ARGS>(args)) << '\n';
-		std::string str = strm.str();
+		/*
+		 * std::move is required to eliminate copying from
+		 * std::stringstream if complied with C++20 or higher.
+		 */
+		std::string str = std::move(strm).str();
 		ssize_t rc = write(fd, std::data(str), std::size(str));
 		(void)rc;
 	}
