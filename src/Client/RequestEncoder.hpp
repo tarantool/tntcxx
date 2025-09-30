@@ -32,6 +32,7 @@
 #include <any>
 #include <cstdint>
 #include <map>
+#include <string_view>
 
 #include "IprotoConstants.hpp"
 #include "ResponseReader.hpp"
@@ -85,12 +86,12 @@ public:
 			    uint32_t limit = UINT32_MAX, uint32_t offset = 0,
 			    IteratorType iterator = EQ);
 	template <class T>
-	size_t encodeExecute(const std::string& statement, const T& parameters);
+	size_t encodeExecute(std::string_view statement, const T& parameters);
 	template <class T>
 	size_t encodeExecute(unsigned int stmt_id, const T& parameters);
-	size_t encodePrepare(const std::string& statement);
+	size_t encodePrepare(std::string_view statement);
 	template <class T>
-	size_t encodeCall(const std::string &func, const T &args);
+	size_t encodeCall(std::string_view func, const T &args);
 	size_t encodeAuth(std::string_view user, std::string_view passwd,
 			  const Greeting &greet);
 	void reencodeAuth(std::string_view user, std::string_view passwd,
@@ -256,7 +257,7 @@ RequestEncoder<BUFFER>::encodeSelect(const T &key,
 template<class BUFFER>
 template <class T>
 size_t
-RequestEncoder<BUFFER>::encodeExecute(const std::string& statement, const T& parameters)
+RequestEncoder<BUFFER>::encodeExecute(std::string_view statement, const T& parameters)
 {
 	iterator_t<BUFFER> request_start = m_Buf.end();
 	m_Buf.write('\xce');
@@ -293,7 +294,7 @@ RequestEncoder<BUFFER>::encodeExecute(unsigned int stmt_id, const T& parameters)
 
 template<class BUFFER>
 size_t
-RequestEncoder<BUFFER>::encodePrepare(const std::string& statement)
+RequestEncoder<BUFFER>::encodePrepare(std::string_view statement)
 {
 	iterator_t<BUFFER> request_start = m_Buf.end();
 	m_Buf.write('\xce');
@@ -310,7 +311,7 @@ RequestEncoder<BUFFER>::encodePrepare(const std::string& statement)
 template<class BUFFER>
 template <class T>
 size_t
-RequestEncoder<BUFFER>::encodeCall(const std::string &func, const T &args)
+RequestEncoder<BUFFER>::encodeCall(std::string_view func, const T &args)
 {
 	iterator_t<BUFFER> request_start = m_Buf.end();
 	m_Buf.write('\xce');
