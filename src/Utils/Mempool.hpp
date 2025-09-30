@@ -46,11 +46,7 @@ protected:
 	void statDelBlock() { --m_BlockCount; }
 public:
 	MempoolStats() = default;
-	MempoolStats(MempoolStats &&other) noexcept
-	{
-		/* Call move assignment operator. */
-		*this = std::forward<MempoolStats>(other);
-	}
+	MempoolStats(MempoolStats &&other) noexcept { *this = std::move<MempoolStats>(other); }
 	MempoolStats &operator=(MempoolStats &&other) noexcept
 	{
 		std::swap(m_SlabCount, other.m_SlabCount);
@@ -134,17 +130,13 @@ public:
 	MempoolInstance() = default;
 	MempoolInstance(const MempoolInstance &other) = delete;
 	MempoolInstance &operator=(const MempoolInstance &other) = delete;
-	MempoolInstance(MempoolInstance &&other) noexcept
-	{
-		/* Call move assignment operator. */
-		*this = std::forward<MempoolInstance>(other);
-	}
+	MempoolInstance(MempoolInstance &&other) noexcept { *this = std::move(other); }
 	MempoolInstance &operator=(MempoolInstance &&other) noexcept
 	{
 		if (this == &other)
 			return *this;
 		/* Move base class. */
-		MempoolStats<ENABLE_STATS>::operator=(std::forward<MempoolInstance>(other));
+		MempoolStats<ENABLE_STATS>::operator=(std::move(other));
 		std::swap(m_SlabList, other.m_SlabList);
 		std::swap(m_FreeList, other.m_FreeList);
 		std::swap(m_SlabDataBeg, other.m_SlabDataBeg);
