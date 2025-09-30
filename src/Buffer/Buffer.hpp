@@ -274,11 +274,7 @@ public:
 	Buffer(allocator &&all = allocator());
 	Buffer(const Buffer& buf) = delete;
 	Buffer& operator = (const Buffer& buf) = delete;
-	Buffer(Buffer &&other) noexcept
-	{
-		/* Call move assignment operator. */
-		*this = std::forward<Buffer>(other);
-	}
+	Buffer(Buffer &&other) noexcept { *this = std::move(other); }
 	Buffer &operator=(Buffer &&other) noexcept
 	{
 		if (this == &other)
