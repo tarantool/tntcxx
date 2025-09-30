@@ -37,6 +37,7 @@
 
 #include <sys/uio.h> //iovec
 #include <string>
+#include <string_view>
 #include <unordered_map> //futures
 
 /** rid == request id */
@@ -175,7 +176,7 @@ public:
 	size_t getFutureCount() const;
 
 	template <class T>
-	rid_t call(const std::string &func, const T &args);
+	rid_t call(std::string_view func, const T &args);
 	rid_t ping();
 
 	/**
@@ -185,7 +186,7 @@ public:
 	 * @retval request id
 	 */
 	template <class T>
-	rid_t execute(const std::string& statement, const T& parameters);
+	rid_t execute(std::string_view statement, const T& parameters);
 
 	/**
 	 * Execute the SQL statement contained in the 'statement' parameter.
@@ -203,7 +204,7 @@ public:
 	 * @param statement statement, which should conform to the rules for SQL grammar
 	 * @retval request id
 	 */
-	rid_t prepare(const std::string& statement);
+	rid_t prepare(std::string_view statement);
 
 	void setError(const std::string &msg, int errno_ = 0);
 	bool hasError() const;
@@ -606,7 +607,7 @@ decodeGreeting(Connection<BUFFER, NetProvider> &conn)
 template<class BUFFER, class NetProvider>
 template <class T>
 rid_t
-Connection<BUFFER, NetProvider>::execute(const std::string& statement, const T& parameters)
+Connection<BUFFER, NetProvider>::execute(std::string_view statement, const T& parameters)
 {
     impl->enc.encodeExecute(statement, parameters);
     impl->connector.readyToSend(*this);
@@ -625,7 +626,7 @@ Connection<BUFFER, NetProvider>::execute(unsigned int stmt_id, const T& paramete
 
 template<class BUFFER, class NetProvider>
 rid_t
-Connection<BUFFER, NetProvider>::prepare(const std::string& statement)
+Connection<BUFFER, NetProvider>::prepare(std::string_view statement)
 {
     impl->enc.encodePrepare(statement);
     impl->connector.readyToSend(*this);
@@ -635,7 +636,7 @@ Connection<BUFFER, NetProvider>::prepare(const std::string& statement)
 template<class BUFFER, class NetProvider>
 template <class T>
 rid_t
-Connection<BUFFER, NetProvider>::call(const std::string &func, const T &args)
+Connection<BUFFER, NetProvider>::call(std::string_view func, const T &args)
 {
 	impl->enc.encodeCall(func, args);
 	impl->connector.readyToSend(*this);
