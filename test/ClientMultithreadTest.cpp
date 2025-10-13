@@ -47,6 +47,7 @@ test_connect(Connector &client, Connection &conn, const std::string &addr, unsig
 				      .address = addr,
 				      .service = service,
 				      .transport = transport,
+				      .connect_timeout = 10,
 				      .user = user,
 				      .passwd = passwd,
 			      });
