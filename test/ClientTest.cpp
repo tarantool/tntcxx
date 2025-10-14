@@ -182,6 +182,8 @@ trivial(Connector<BUFFER, NetProvider> &client)
 	TEST_CASE("Connect timeout");
 	rc = test_connect(client, conn, "8.8.8.8", port);
 	fail_unless(rc != 0);
+	TEST_CASE("Close of non-established connection (gh-142)");
+	client.close(conn);
 }
 
 /** Single connection, separate/sequence pings, no errors */
@@ -235,6 +237,9 @@ single_conn_ping(Connector<BUFFER, NetProvider> &client)
 		fail_unless(response->body.error_stack == std::nullopt);
 	}
 	client.close(conn);
+
+	TEST_CASE("Double close of connection (gh-142)");
+	client.close(conn);
 }
 
 template <class BUFFER, class NetProvider>
@@ -261,6 +266,23 @@ auto_close(Connector<BUFFER, NetProvider> &client)
 		std::optional<Response<Buf_t>> response = conn.getResponse(f);
 		fail_unless(response != std::nullopt);
 	}
+
+	TEST_CASE("Waiting after connection is automatically closed (gh-140)");
+	{
+		Connection<Buf_t, NetProvider> conn(client);
+		fail_unless(test_connect(client, conn, localhost, port) == 0);
+		rid_t f = conn.ping();
+		fail_unless(!conn.futureIsReady(f));
+	}
+	fail_unless(client.waitAny() == std::nullopt);
+	{
+		Connection<Buf_t, NetProvider> conn(client);
+		fail_unless(test_connect(client, conn, localhost, port) == 0);
+		rid_t f = conn.ping();
+		fail_unless(!conn.futureIsReady(f));
+		client.wait(conn, f, 0);
+	}
+	fail_unless(client.waitAny() == std::nullopt);
 }
 
 /** Several connection, separate/sequence pings, no errors */
@@ -1065,6 +1087,10 @@ test_sigpipe(void)
 	fail_unless(saved_errno == EPIPE);
 #endif
 	fail_if(conn.futureIsReady(f));
+
+	TEST_CASE("Close of connection with error (gh-142)");
+	fail_unless(conn.hasError());
+	client.close(conn);
 }
 
 /** Single connection, wait response from closed connection. */
@@ -1092,11 +1118,9 @@ test_dead_connection_wait(void)
 	fail_if(client.waitCount(conn, 1) == 0);
 	fail_if(conn.futureIsReady(f));
 
-	/* FIXME(gh-51) */
-#if 0
+	TEST_CASE("waitAny() correctly handles case when all connections have an error (gh-51");
 	fail_if(client.waitAny() != std::nullopt);
 	fail_if(conn.futureIsReady(f));
-#endif
 }
 
 /**
@@ -1381,13 +1405,10 @@ test_wait(Connector<BUFFER, NetProvider> &client)
 	/* FIXME(gh-143): test solely that we check future readiness before waiting. */
 	fail_unless(client.waitCount(conn, 0) == 0);
 	conn.getResponse(f);
-	/* FIXME(gh-132): waitAny does not check connections for ready futures. */
-#if 0
 	f = conn.ping();
 	fail_unless(client.wait(conn, f, WAIT_TIMEOUT) == 0);
-	fail_unless(client.waitAny(conn).has_value());
+	fail_unless(client.waitAny().has_value());
 	conn.getResponse(f);
-#endif
 
 #ifdef __linux__
 	TEST_CASE("wait methods internal wait failure (gh-121)");
@@ -1425,6 +1446,9 @@ test_wait(Connector<BUFFER, NetProvider> &client)
 #endif /* __linux__ */
 
 	client.close(conn);
+
+	TEST_CASE("waitAny() correctly handles case when there are no connections (gh-51");
+	fail_if(client.waitAny() != std::nullopt);
 }
 
 int main()

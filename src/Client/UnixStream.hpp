@@ -66,6 +66,9 @@ public:
 	/** Get internal file descriptor of the socket. */
 	int get_fd() const { return fd; }
 
+	/** Check whether the socket is open. */
+	bool is_open() const { return fd != -1; }
+
 protected:
 	/** Log helpers. */
 	template <class ...MSG>
@@ -168,6 +171,7 @@ UnixStream::connect(const ConnectOptions &opts_arg)
 			      addr_info.last_error());
 	int socket_errno = 0, connect_errno = 0;
 	for (auto &inf: addr_info) {
+		socket_errno = connect_errno = 0;
 		fd = ::socket(inf.ai_family, inf.ai_socktype, inf.ai_protocol);
 		if (fd < 0) {
 			socket_errno = errno;
@@ -189,10 +193,7 @@ UnixStream::connect(const ConnectOptions &opts_arg)
 				return US_TELL(SS_ESTABLISHED,
 					       "Connected", opts);
 			} else if (errno == EINPROGRESS || errno == EAGAIN) {
-				// TODO remove timeout and #include <poll.h>
-				//return US_TELL(SS_CONNECT_PENDING,
-				//	       "Connect pending", opts);
-
+				errno = 0;
 				set_status(SS_CONNECT_PENDING);
 				struct pollfd fds;
 				fds.fd = fd;
@@ -206,7 +207,10 @@ UnixStream::connect(const ConnectOptions &opts_arg)
 			}
 		} while (errno == EINTR);
 		close();
-		connect_errno = errno;
+		if (connect_errno == 0)
+			connect_errno = errno;
+		else
+			assert(connect_errno == ETIMEDOUT && errno == 0);
 	}
 	if (connect_errno != 0)
 		return US_DIE("Failed to connect", strerror(connect_errno));

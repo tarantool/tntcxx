@@ -82,13 +82,14 @@ public:
 		      size_t feature_count, int timeout = -1);
 	std::optional<Connection<BUFFER, NetProvider>> waitAny(int timeout = -1);
 	////////////////////////////Service interfaces//////////////////////////
-	void readyToDecode(const Connection<BUFFER, NetProvider> &conn);
-	void readyToSend(const Connection<BUFFER, NetProvider> &conn);
-	void finishSend(const Connection<BUFFER, NetProvider> &conn);
+	void readyToDecode(ConnectionImpl<BUFFER, NetProvider> *conn);
+	void readyToSend(ConnectionImpl<BUFFER, NetProvider> *conn);
+	void readyToSend(Connection<BUFFER, NetProvider> &conn);
+	void finishSend(ConnectionImpl<BUFFER, NetProvider> *conn);
 
-	std::set<Connection<BUFFER, NetProvider>> m_ReadyToSend;
+	std::set<ConnectionImpl<BUFFER, NetProvider> *> m_ReadyToSend;
 	void close(Connection<BUFFER, NetProvider> &conn);
-	void close(ConnectionImpl<BUFFER, NetProvider> &conn);
+	void close(ConnectionImpl<BUFFER, NetProvider> *conn);
 
 private:
 	/**
@@ -98,6 +99,8 @@ private:
 	 * `req_sync` sync. If `result` is `nullptr` - `req_sync` is ignored.
 	 * Returns -1 in the case of any error, 0 on success.
 	 */
+	int connectionDecodeResponses(ConnectionImpl<BUFFER, NetProvider> *conn, int req_sync = -1,
+				      Response<BUFFER> *result = nullptr);
 	int connectionDecodeResponses(Connection<BUFFER, NetProvider> &conn, int req_sync = -1,
 				      Response<BUFFER> *result = nullptr);
 	/**
@@ -125,7 +128,11 @@ private:
 	 * Shouldn't be modified directly - is managed by methods `readyToDecode`
 	 * and `connectionDecodeResponses`.
 	 */
-	std::set<Connection<BUFFER, NetProvider>> m_ReadyToDecode;
+	std::set<ConnectionImpl<BUFFER, NetProvider> *> m_ReadyToDecode;
+	/**
+	 * Set of active connections owned by connector.
+	 */
+	std::set<ConnectionImpl<BUFFER, NetProvider> *> m_Connections;
 };
 
 template<class BUFFER, class NetProvider>
@@ -145,7 +152,7 @@ Connector<BUFFER, NetProvider>::connect(Connection<BUFFER, NetProvider> &conn,
 {
 	//Make sure that connection is not yet established.
 	assert(conn.get_strm().has_status(SS_DEAD));
-	if (m_NetProvider.connect(conn, opts) != 0) {
+	if (m_NetProvider.connect(conn.getImpl(), opts) != 0) {
 		LOG_ERROR("Failed to connect to ",
 			  opts.address, ':', opts.service);
 		return -1;
@@ -154,10 +161,11 @@ Connector<BUFFER, NetProvider>::connect(Connection<BUFFER, NetProvider> &conn,
 	conn.getImpl()->is_auth_required = !opts.user.empty();
 	if (conn.getImpl()->is_auth_required) {
 		// Encode auth request to reserve space in buffer.
-		conn.prepare_auth(opts.user, opts.passwd);
+		conn.getImpl()->prepare_auth(opts.user, opts.passwd);
 	}
 	LOG_DEBUG("Connection to ", opts.address, ':', opts.service,
 		  " has been established");
+	m_Connections.insert(conn.getImpl());
 	return 0;
 }
 
@@ -178,20 +186,24 @@ template<class BUFFER, class NetProvider>
 void
 Connector<BUFFER, NetProvider>::close(Connection<BUFFER, NetProvider> &conn)
 {
-	return close(*conn.getImpl());
+	return close(conn.getImpl());
 }
 
-template<class BUFFER, class NetProvider>
+template <class BUFFER, class NetProvider>
 void
-Connector<BUFFER, NetProvider>::close(ConnectionImpl<BUFFER, NetProvider> &conn)
+Connector<BUFFER, NetProvider>::close(ConnectionImpl<BUFFER, NetProvider> *conn)
 {
-	assert(!conn.strm.has_status(SS_DEAD));
-	m_NetProvider.close(conn.strm);
+	if (conn->get_strm().is_open()) {
+		m_NetProvider.close(conn->get_strm());
+		m_ReadyToSend.erase(conn);
+		m_ReadyToDecode.erase(conn);
+		m_Connections.erase(conn);
+	}
 }
 
-template<class BUFFER, class NetProvider>
+template <class BUFFER, class NetProvider>
 int
-Connector<BUFFER, NetProvider>::connectionDecodeResponses(Connection<BUFFER, NetProvider> &conn, int req_sync,
+Connector<BUFFER, NetProvider>::connectionDecodeResponses(ConnectionImpl<BUFFER, NetProvider> *conn, int req_sync,
 							  Response<BUFFER> *result)
 {
 	if (!hasDataToDecode(conn))
@@ -220,6 +232,14 @@ Connector<BUFFER, NetProvider>::connectionDecodeResponses(Connection<BUFFER, Net
 	if (!hasDataToDecode(conn))
 		m_ReadyToDecode.erase(conn);
 	return rc;
+}
+
+template <class BUFFER, class NetProvider>
+int
+Connector<BUFFER, NetProvider>::connectionDecodeResponses(Connection<BUFFER, NetProvider> &conn, int req_sync,
+							  Response<BUFFER> *result)
+{
+	return connectionDecodeResponses(conn.getImpl(), req_sync, result);
 }
 
 template <class BUFFER, class NetProvider>
@@ -342,9 +362,28 @@ template<class BUFFER, class NetProvider>
 std::optional<Connection<BUFFER, NetProvider>>
 Connector<BUFFER, NetProvider>::waitAny(int timeout)
 {
+	if (m_Connections.empty()) {
+		LOG_DEBUG("waitAny() called on connector without connections");
+		return std::nullopt;
+	}
+	for (auto *conn : m_Connections) {
+		if (conn->getFutureCount() != 0)
+			return conn;
+	}
 	Timer timer{timeout};
 	timer.start();
 	while (m_ReadyToDecode.empty()) {
+		bool has_alive_conn = false;
+		for (auto *conn : m_Connections) {
+			if (!conn->hasError()) {
+				has_alive_conn = true;
+				break;
+			}
+		}
+		if (!has_alive_conn) {
+			LOG_ERROR("All connections have an error");
+			return std::nullopt;
+		}
 		if (m_NetProvider.wait(timer.timeLeft()) != 0) {
 			LOG_ERROR("Failed to poll connections: ", strerror(errno));
 			return std::nullopt;
@@ -356,7 +395,7 @@ Connector<BUFFER, NetProvider>::waitAny(int timeout)
 		LOG_DEBUG("wait() has been timed out! No responses are received");
 		return std::nullopt;
 	}
-	Connection<BUFFER, NetProvider> conn = *m_ReadyToDecode.begin();
+	auto *conn = *m_ReadyToDecode.begin();
 	assert(hasDataToDecode(conn));
 	if (connectionDecodeResponses(conn) != 0)
 		return std::nullopt;
@@ -399,28 +438,34 @@ Connector<BUFFER, NetProvider>::waitCount(Connection<BUFFER, NetProvider> &conn,
 	return -1;
 }
 
-template<class BUFFER, class NetProvider>
+template <class BUFFER, class NetProvider>
 void
-Connector<BUFFER, NetProvider>::readyToSend(const Connection<BUFFER, NetProvider> &conn)
+Connector<BUFFER, NetProvider>::readyToSend(ConnectionImpl<BUFFER, NetProvider> *conn)
 {
-	if (conn.getImpl()->is_auth_required &&
-	    !conn.getImpl()->is_greeting_received) {
+	if (conn->is_auth_required && !conn->is_greeting_received) {
 		// Need to receive greeting first.
 		return;
 	}
 	m_ReadyToSend.insert(conn);
 }
 
-template<class BUFFER, class NetProvider>
+template <class BUFFER, class NetProvider>
 void
-Connector<BUFFER, NetProvider>::readyToDecode(const Connection<BUFFER, NetProvider> &conn)
+Connector<BUFFER, NetProvider>::readyToSend(Connection<BUFFER, NetProvider> &conn)
+{
+	readyToSend(conn.getImpl());
+}
+
+template <class BUFFER, class NetProvider>
+void
+Connector<BUFFER, NetProvider>::readyToDecode(ConnectionImpl<BUFFER, NetProvider> *conn)
 {
 	m_ReadyToDecode.insert(conn);
 }
 
-template<class BUFFER, class NetProvider>
+template <class BUFFER, class NetProvider>
 void
-Connector<BUFFER, NetProvider>::finishSend(const Connection<BUFFER, NetProvider> &conn)
+Connector<BUFFER, NetProvider>::finishSend(ConnectionImpl<BUFFER, NetProvider> *conn)
 {
 	m_ReadyToSend.erase(conn);
 }
