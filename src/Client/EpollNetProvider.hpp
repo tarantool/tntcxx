@@ -184,7 +184,7 @@ EpollNetProvider<BUFFER, Stream>::recv(ConnImpl_t *conn)
 	size_t iov_cnt = buf.getIOV(itr, iov, IOVEC_MAX_SIZE);
 
 	ssize_t rcvd = conn->get_strm().recv(iov, iov_cnt);
-	hasNotRecvBytes(conn, CONN_READAHEAD - (rcvd < 0 ? 0 : rcvd));
+	conn->hasNotRecvBytes(CONN_READAHEAD - (rcvd < 0 ? 0 : rcvd));
 	if (rcvd < 0) {
 		conn->setError(std::string("Failed to receive response: ") + strerror(errno), errno);
 		return -1;
@@ -201,7 +201,7 @@ EpollNetProvider<BUFFER, Stream>::recv(ConnImpl_t *conn)
 			return 0;
 		/* Receive and decode greetings. */
 		TNT_LOG_DEBUG("Greetings are received, read bytes ", rcvd);
-		if (decodeGreeting(conn) != 0) {
+		if (conn->decodeGreeting() != 0) {
 			conn->setError("Failed to decode greetings");
 			return -1;
 		}
@@ -220,7 +220,7 @@ template <class BUFFER, class Stream>
 int
 EpollNetProvider<BUFFER, Stream>::send(ConnImpl_t *conn)
 {
-	while (hasDataToSend(conn)) {
+	while (conn->hasDataToSend()) {
 		struct iovec iov[IOVEC_MAX_SIZE];
 		auto &buf = conn->getOutBuf();
 		size_t iov_cnt = buf.getIOV(buf.template begin<true>(),
@@ -236,7 +236,7 @@ EpollNetProvider<BUFFER, Stream>::send(ConnImpl_t *conn)
 				setPollSetting(conn, EPOLLIN | EPOLLOUT);
 			return 1;
 		} else {
-			hasSentBytes(conn, sent);
+			conn->hasSentBytes(sent);
 		}
 	}
 	/* All data from connection has been successfully written. */
@@ -284,7 +284,7 @@ EpollNetProvider<BUFFER, Stream>::wait(int timeout)
 			int rc = recv(conn);
 			if (rc < 0)
 				return -1;
-			if (hasDataToDecode(conn))
+			if (conn->hasDataToDecode())
 				m_Connector.readyToDecode(conn);
 		}
 
