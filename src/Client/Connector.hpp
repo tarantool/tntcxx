@@ -204,15 +204,15 @@ int
 Connector<BUFFER, NetProvider>::connectionDecodeResponses(ConnectionImpl<BUFFER, NetProvider> *conn, int req_sync,
 							  Response<BUFFER> *result)
 {
-	if (!hasDataToDecode(conn))
+	if (!conn->hasDataToDecode())
 		return 0;
 
 	/* Ready to decode connection must be in the corresponding set. */
 	assert(m_ReadyToDecode.find(conn) != m_ReadyToDecode.end());
 
 	int rc = 0;
-	while (hasDataToDecode(conn)) {
-		DecodeStatus status = processResponse(conn, req_sync, result);
+	while (conn->hasDataToDecode()) {
+		DecodeStatus status = conn->processResponse(req_sync, result);
 		if (status == DECODE_ERR) {
 			rc = -1;
 			break;
@@ -227,7 +227,7 @@ Connector<BUFFER, NetProvider>::connectionDecodeResponses(ConnectionImpl<BUFFER,
 		assert(status == DECODE_SUCC);
 	}
 	/* A connection that has no data to decode must not be left in the set. */
-	if (!hasDataToDecode(conn))
+	if (!conn->hasDataToDecode())
 		m_ReadyToDecode.erase(conn);
 	return rc;
 }
@@ -393,7 +393,7 @@ Connector<BUFFER, NetProvider>::waitAny(int timeout)
 		return std::nullopt;
 	}
 	auto *conn = *m_ReadyToDecode.begin();
-	assert(hasDataToDecode(conn));
+	assert(conn->hasDataToDecode());
 	if (connectionDecodeResponses(conn) != 0)
 		return std::nullopt;
 	return conn;
