@@ -132,7 +132,7 @@ connectionReceive(ConnectionImpl<BUFFER, LibevNetProvider<BUFFER, Stream>> *conn
 	size_t iov_cnt = buf.getIOV(itr, iov, IOVEC_MAX_SIZE);
 
 	ssize_t rcvd = conn->get_strm().recv(iov, iov_cnt);
-	hasNotRecvBytes(conn, CONN_READAHEAD - (rcvd < 0 ? 0 : rcvd));
+	conn->hasNotRecvBytes(CONN_READAHEAD - (rcvd < 0 ? 0 : rcvd));
 	if (rcvd < 0) {
 		conn->setError(std::string("Failed to receive response: ") + strerror(errno), errno);
 		return -1;
@@ -143,7 +143,7 @@ connectionReceive(ConnectionImpl<BUFFER, LibevNetProvider<BUFFER, Stream>> *conn
 			return 0;
 		/* Receive and decode greetings. */
 		TNT_LOG_DEBUG("Greetings are received, read bytes ", rcvd);
-		if (decodeGreeting(conn) != 0) {
+		if (conn->decodeGreeting() != 0) {
 			conn->setError("Failed to decode greetings");
 			return -1;
 		}
@@ -185,7 +185,7 @@ recv_cb(struct ev_loop *loop, struct ev_io *watcher, int /* revents */)
 				ev_io_start(loop, &waitWatcher->out);
 		return;
 	}
-	if (hasDataToDecode(conn))
+	if (conn->hasDataToDecode())
 		connector->readyToDecode(conn);
 }
 
@@ -197,7 +197,7 @@ connectionSend(ConnectionImpl<BUFFER, LibevNetProvider<BUFFER, Stream>> *conn)
 		// Need to receive greeting first.
 		return 0;
 	}
-	while (hasDataToSend(conn)) {
+	while (conn->hasDataToSend()) {
 		struct iovec iov[IOVEC_MAX_SIZE];
 		auto &buf = conn->getOutBuf();
 		size_t iov_cnt = buf.getIOV(buf.template begin<true>(),
@@ -211,7 +211,7 @@ connectionSend(ConnectionImpl<BUFFER, LibevNetProvider<BUFFER, Stream>> *conn)
 			assert(conn->get_strm().has_status(SS_NEED_EVENT_FOR_WRITE));
 			return 1;
 		} else {
-			hasSentBytes(conn, sent);
+			conn->hasSentBytes(sent);
 		}
 	}
 	/* All data from connection has been successfully written. */

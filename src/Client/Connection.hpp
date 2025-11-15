@@ -94,6 +94,16 @@ public:
 	void prepare_auth(std::string_view user, std::string_view passwd);
 	void commit_auth(std::string_view user, std::string_view passwd);
 
+	void hasSentBytes(size_t bytes);
+	void hasNotRecvBytes(size_t bytes);
+	bool hasDataToSend();
+	bool hasDataToDecode();
+
+	DecodeStatus processResponse(int req_sync, Response<BUFFER> *result);
+	int decodeGreeting();
+
+	void inputBufGC();
+
 	Connector<BUFFER, NetProvider> &connector;
 	BUFFER inBuf;
 	static constexpr size_t GC_STEP_CNT = 100;
@@ -200,6 +210,123 @@ ConnectionImpl<BUFFER, NetProvider>::commit_auth(std::string_view user, std::str
 	connector.readyToSend(this);
 }
 
+template <class BUFFER, class NetProvider>
+void
+ConnectionImpl<BUFFER, NetProvider>::hasSentBytes(size_t bytes)
+{
+	// dropBack()/dropFront() interfaces require number of bytes be greater
+	// than zero so let's check it first.
+	if (bytes > 0)
+		getOutBuf().dropFront(bytes);
+}
+
+template <class BUFFER, class NetProvider>
+void
+ConnectionImpl<BUFFER, NetProvider>::hasNotRecvBytes(size_t bytes)
+{
+	if (bytes > 0)
+		getInBuf().dropBack(bytes);
+}
+
+template <class BUFFER, class NetProvider>
+bool
+ConnectionImpl<BUFFER, NetProvider>::hasDataToSend()
+{
+	// We drop content of input buffer once it has been sent. So to detect
+	// if there's any data to send it's enough to check buffer's emptiness.
+	return !getOutBuf().empty();
+}
+
+template <class BUFFER, class NetProvider>
+bool
+ConnectionImpl<BUFFER, NetProvider>::hasDataToDecode()
+{
+	assert(endDecoded < getInBuf().end() || endDecoded == getInBuf().end());
+	return endDecoded != getInBuf().end();
+}
+
+template <class BUFFER, class NetProvider>
+void
+ConnectionImpl<BUFFER, NetProvider>::inputBufGC()
+{
+	if (gc_step++ % ConnectionImpl<BUFFER, NetProvider>::GC_STEP_CNT == 0) {
+		TNT_LOG_DEBUG("Flushed input buffer of the connection %p", this);
+		getInBuf().flush();
+	}
+}
+
+template <class BUFFER, class NetProvider>
+DecodeStatus
+ConnectionImpl<BUFFER, NetProvider>::processResponse(int req_sync, Response<BUFFER> *result)
+{
+	// Decode response. In case of success - fill in feature map
+	// and adjust end-of-decoded data pointer. Call GC if needed.
+	if (!getInBuf().has(endDecoded, MP_RESPONSE_SIZE))
+		return DECODE_NEEDMORE;
+
+	Response<BUFFER> response;
+	response.size = dec.decodeResponseSize();
+	if (response.size < 0) {
+		TNT_LOG_ERROR("Failed to decode response size");
+		// In case of corrupted response size all other data in the buffer
+		// is likely to be decoded in the wrong way (since we don't
+		//  know how much bytes should be skipped). So let's simply
+		// terminate here.
+		std::abort();
+	}
+	response.size += MP_RESPONSE_SIZE;
+	if (!getInBuf().has(endDecoded, response.size)) {
+		// Response was received only partially. Reset decoder position
+		// to the start of response to make this function re-entered.
+		dec.reset(endDecoded);
+		return DECODE_NEEDMORE;
+	}
+	if (dec.decodeResponse(response) != 0) {
+		setError("Failed to decode response, skipping bytes..");
+		endDecoded += response.size;
+		return DECODE_ERR;
+	}
+	TNT_LOG_DEBUG("Header: sync=", response.header.sync, ", code=", response.header.code,
+		      ", schema=", response.header.schema_id);
+	if (result != nullptr && response.header.sync == req_sync) {
+		*result = std::move(response);
+	} else {
+		futures.insert({response.header.sync, std::move(response)});
+	}
+	endDecoded += response.size;
+	inputBufGC();
+	return DECODE_SUCC;
+}
+
+template <class BUFFER, class NetProvider>
+int
+ConnectionImpl<BUFFER, NetProvider>::decodeGreeting()
+{
+	// TODO: that's not zero-copy, should be rewritten in that pattern.
+	assert(getInBuf().has(endDecoded, Iproto::GREETING_SIZE));
+	char greeting_buf[Iproto::GREETING_SIZE];
+	endDecoded.read({greeting_buf, sizeof(greeting_buf)});
+	dec.reset(endDecoded);
+	if (parseGreeting(std::string_view {greeting_buf, Iproto::GREETING_SIZE}, greeting) != 0)
+		return -1;
+	is_greeting_received = true;
+	TNT_LOG_DEBUG("Version: ", greeting.version_id);
+
+#ifndef NDEBUG
+	// print salt in hex format.
+	char hex_salt[Iproto::MAX_SALT_SIZE * 2 + 1];
+	const char *hex = "0123456789abcdef";
+	for (size_t i = 0; i < greeting.salt_size; i++) {
+		uint8_t u = greeting.salt[i];
+		hex_salt[i * 2] = hex[u / 16];
+		hex_salt[i * 2 + 1] = hex[u % 16];
+	}
+	hex_salt[greeting.salt_size * 2] = 0;
+	TNT_LOG_DEBUG("Salt: ", hex_salt);
+#endif
+	return 0;
+}
+
 /** Each connection is supposed to be bound to a single socket. */
 template<class BUFFER, class NetProvider>
 class Connection
@@ -240,6 +367,8 @@ public:
 	bool futureIsReady(rid_t future);
 	void flush();
 	size_t getFutureCount() const;
+
+	bool hasDataToDecode();
 
 	template <class T>
 	rid_t call(std::string_view func, const T &args);
@@ -516,128 +645,10 @@ Connection<BUFFER, NetProvider>::getOutBuf()
 }
 
 template <class BUFFER, class NetProvider>
-void
-hasSentBytes(ConnectionImpl<BUFFER, NetProvider> *conn, size_t bytes)
-{
-	//dropBack()/dropFront() interfaces require number of bytes be greater
-	//than zero so let's check it first.
-	if (bytes > 0)
-		conn->getOutBuf().dropFront(bytes);
-}
-
-template <class BUFFER, class NetProvider>
-void
-hasNotRecvBytes(ConnectionImpl<BUFFER, NetProvider> *conn, size_t bytes)
-{
-	if (bytes > 0)
-		conn->getInBuf().dropBack(bytes);
-}
-
-template <class BUFFER, class NetProvider>
 bool
-hasDataToSend(ConnectionImpl<BUFFER, NetProvider> *conn)
+Connection<BUFFER, NetProvider>::hasDataToDecode()
 {
-	//We drop content of input buffer once it has been sent. So to detect
-	//if there's any data to send it's enough to check buffer's emptiness.
-	return !conn->getOutBuf().empty();
-}
-
-template <class BUFFER, class NetProvider>
-bool
-hasDataToDecode(Connection<BUFFER, NetProvider> &conn)
-{
-	return hasDataToDecode(conn.getImpl());
-}
-
-template <class BUFFER, class NetProvider>
-bool
-hasDataToDecode(ConnectionImpl<BUFFER, NetProvider> *conn)
-{
-	assert(conn->endDecoded < conn->getInBuf().end() || conn->endDecoded == conn->getInBuf().end());
-	return conn->endDecoded != conn->getInBuf().end();
-}
-
-template <class BUFFER, class NetProvider>
-static void
-inputBufGC(ConnectionImpl<BUFFER, NetProvider> *conn)
-{
-	if (conn->gc_step++ % ConnectionImpl<BUFFER, NetProvider>::GC_STEP_CNT == 0) {
-		TNT_LOG_DEBUG("Flushed input buffer of the connection %p", conn);
-		conn->getInBuf().flush();
-	}
-}
-
-template <class BUFFER, class NetProvider>
-DecodeStatus
-processResponse(ConnectionImpl<BUFFER, NetProvider> *conn, int req_sync, Response<BUFFER> *result)
-{
-	//Decode response. In case of success - fill in feature map
-	//and adjust end-of-decoded data pointer. Call GC if needed.
-	if (!conn->getInBuf().has(conn->endDecoded, MP_RESPONSE_SIZE))
-		return DECODE_NEEDMORE;
-
-	Response<BUFFER> response;
-	response.size = conn->dec.decodeResponseSize();
-	if (response.size < 0) {
-		TNT_LOG_ERROR("Failed to decode response size");
-		//In case of corrupted response size all other data in the buffer
-		//is likely to be decoded in the wrong way (since we don't
-		// know how much bytes should be skipped). So let's simply
-		//terminate here.
-		std::abort();
-
-	}
-	response.size += MP_RESPONSE_SIZE;
-	if (!conn->getInBuf().has(conn->endDecoded, response.size)) {
-		//Response was received only partially. Reset decoder position
-		//to the start of response to make this function re-entered.
-		conn->dec.reset(conn->endDecoded);
-		return DECODE_NEEDMORE;
-	}
-	if (conn->dec.decodeResponse(response) != 0) {
-		conn->setError("Failed to decode response, skipping bytes..");
-		conn->endDecoded += response.size;
-		return DECODE_ERR;
-	}
-	TNT_LOG_DEBUG("Header: sync=", response.header.sync, ", code=", response.header.code,
-		      ", schema=", response.header.schema_id);
-	if (result != nullptr && response.header.sync == req_sync) {
-		*result = std::move(response);
-	} else {
-		conn->futures.insert({response.header.sync, std::move(response)});
-	}
-	conn->endDecoded += response.size;
-	inputBufGC(conn);
-	return DECODE_SUCC;
-}
-
-template <class BUFFER, class NetProvider>
-int
-decodeGreeting(ConnectionImpl<BUFFER, NetProvider> *conn)
-{
-	//TODO: that's not zero-copy, should be rewritten in that pattern.
-	assert(conn->getInBuf().has(conn->endDecoded, Iproto::GREETING_SIZE));
-	char greeting_buf[Iproto::GREETING_SIZE];
-	conn->endDecoded.read({greeting_buf, sizeof(greeting_buf)});
-	conn->dec.reset(conn->endDecoded);
-	if (parseGreeting(std::string_view {greeting_buf, Iproto::GREETING_SIZE}, conn->greeting) != 0)
-		return -1;
-	conn->is_greeting_received = true;
-	TNT_LOG_DEBUG("Version: ", conn->greeting.version_id);
-
-#ifndef NDEBUG
-	//print salt in hex format.
-	char hex_salt[Iproto::MAX_SALT_SIZE * 2 + 1];
-	const char *hex = "0123456789abcdef";
-	for (size_t i = 0; i < conn->greeting.salt_size; i++) {
-		uint8_t u = conn->greeting.salt[i];
-		hex_salt[i * 2] = hex[u / 16];
-		hex_salt[i * 2 + 1] = hex[u % 16];
-	}
-	hex_salt[conn->greeting.salt_size * 2] = 0;
-	TNT_LOG_DEBUG("Salt: ", hex_salt);
-#endif
-	return 0;
+	return hasDataToDecode(getImpl());
 }
 
 ////////////////////////////BOX-like interface functions////////////////////////
